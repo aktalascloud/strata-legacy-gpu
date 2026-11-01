@@ -1,12 +1,8 @@
-# Current build
+# Package revision r2
 
-Official source `c62d5e3a15b40ea51c96aae9e8d36928965f53ab`.
+- Documentation/results package revision r2; same native0.1.55 and exact runtime/helper bytes as r1.
+- Source-pinned short Russian and cached4K/code medians; +15.2705% equal-workload harmonic gain versus pooled no-MTP baseline.
+- Short-workload decode only; no filled262K, quality or universal speed claim. Background traffic and unchanged sampling acknowledged.
+- Allowlisted docs and structured results contain no private config, sampler values, host identifiers, raw payloads or logs.
 
-- Merge official native0.1.55; retain the reviewed Ivy/Pascal/no-pin/FP/owner patches.
-- Q2 activation-scale hoist preserves quantization and reduction order; operator-only results are separate from model throughput.
-- Bounded MMQ ID reads and explicit unsigned IQ register-byte extraction in the pinned build copy.
-- API tool-result ID mapping, declared-tool authority, forced tool choice and correctly framed errors.
-- One model-neutral strata.json, explicit UTF8 readers, metadata-driven model paths and public presets.
-- Exact native reuse for serving-only changes; no relabelled GPU results, weights or private state.
-
-Measured performance is independently source-pinned in BENCHMARKS.md.
+Native source `c62d5e3a15b40ea51c96aae9e8d36928965f53ab`; engine SHA-256 `3B0486521742B5B2A40C5DD8B13014B63FA3090EAF4EF28BD4D305562A342BD7`. Original numerical/install receipts are reused by exact bytes, not relabelled as new runs.

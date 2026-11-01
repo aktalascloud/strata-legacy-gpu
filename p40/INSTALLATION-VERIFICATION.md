@@ -7,3 +7,5 @@ The native profile has source-pinned CPU/ISA/owner checks and applicable GPU num
 The package checks changed installer/control helpers, imports/versions, PowerShell/CMD, source/native fingerprints, licenses, privacy and ZIP contents. These are distinct from trained-model quality, full-context performance and validation on untested hardware.
 
 Use INSTALL.cmd, CHECK.cmd, START.cmd and STOP.cmd. Keep one owner per port and drain accepted requests; do not force-kill a server or overwrite its loaded files.
+
+Revision r2 changes only docs/results/package metadata. Native/runtime/helper bytes match r1; no new GPU/build/installer/model checks are claimed.

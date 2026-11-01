@@ -14,6 +14,6 @@ API: `/v1/models`, `/v1/chat/completions`, `/v1/responses`, `/v1/messages`. Ад
 
 Сборка из исходников: VS2022 x64 Developer PowerShell, Clang23.1.4, CUDA12.9, CMake/Ninja/Git; команда `powershell -File p40/build.ps1 -Jobs 12`. Это сборка, не доказательство квалификации новых байтов.
 
-[Последние замеры и их ограничения](p40/BENCHMARKS.md). Новый полный замер модели этой версии не выполнялся.
+[Замеры и ограничения](p40/BENCHMARKS.md): +15.2705% по гармоническому среднему двух коротких нагрузок; native-байты версии r1 сохранены. Это не скорость заполненного262K контекста.
 
 [Изменения](p40/CHANGES.md) · [Рецепт](p40/build-profile.json) · [Проверки](p40/INSTALLATION-VERIFICATION.md) · [Лицензии](THIRD_PARTY_NOTICES.md) · [Оригинальный проект](https://github.com/Niko1221/Strata)

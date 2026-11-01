@@ -1,12 +1,14 @@
-# Latest source-bound measurements
+# Source-bound short-workload measurements
 
-| Workload | Native tok/s | Whole API tok/s |
-|---|---|---|
-| short | 34.56 | 31.11 |
-| cached38K | 33.51 | 27.22 |
+| Workload | No MTP, native tok/s | Q2 MTP + suffix3, native tok/s | Gain |
+|---|---|---|---|
+| short-ru | 30.8342 | 37.9704 | +23.14% |
+| code-4k | 34.1319 | 36.7436 | +7.65% |
 
-Measured 2026-10-30: Swift1.5 IQ3_S, engine 0.1.54, source `870aedd9e1eb`. YaRN4, KVq4 host/32768, MTPQ2/spec3,14workers; xhigh/T0/seed12345,128output,1warm+2measured per workload. Tested38,912tokens, not a filled1M window. Short measurement noisy. Different from the current0.1.55 profile; no new whole-model speed claim. The recent CPU optimization is operator-only; percentages are not additive.
+Measured 2026-11-01: `swift-1.5-iq3-s`, engine 0.1.55, source `c62d5e3a15b4`, native SHA-256 `3B0486521742B5B2A40C5DD8B13014B63FA3090EAF4EF28BD4D305562A342BD7`. Same native bytes as r1. Equal-workload harmonic gain: **15.2705%**. Three selected repeats and four pooled baseline repeats per workload; warmups excluded.
 
-Hardware: Ivy Bridge AVX1, 256 GiB RAM, Tesla P40 24 GiB, Windows; worker counts are recorded per measurement. Rate = 1000 * predicted_n / predicted_ms. Thinking tokens count. No frontend benchmark.
+Context capacity262144; KVq4_0, host resident20480. Inputs133 and4128 tokens; output256. Sampling unchanged, seed requested. Other PC/client traffic permitted; native SSE decode timing excludes queue latency. This is short Russian and cached4K/code throughput, not a filled262K benchmark or quality evaluation. Background traffic and short runs limit precision; tuning was not exhaustive. CPU operator improvements are separate and percentages are not additive.
 
-[Structured evidence](results/benchmarks.json). No private payloads, responses, host identifiers or raw logs.
+Hardware: Windows; Ivy Bridge AVX1; 256 GiB RAM; Tesla P40 24 GiB. Native rate = 1000 * predicted_n / predicted_ms; thinking tokens count. No frontend benchmark.
+
+[Structured results](results/benchmarks.json). No private configuration, sampler values, payloads, responses or raw logs.

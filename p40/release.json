@@ -1,14 +1,14 @@
 {
-  "tag": "v0.1.55-legacy-gpu-c62d5e3-3b048652-r1",
+  "tag": "v0.1.55-legacy-gpu-c62d5e3-3b048652-r2",
   "source_sha": "c62d5e3a15b40ea51c96aae9e8d36928965f53ab",
   "engine_sha256": "3B0486521742B5B2A40C5DD8B13014B63FA3090EAF4EF28BD4D305562A342BD7",
-  "zip_name": "Strata-Legacy-GPU-v0.1.55-legacy-gpu-c62d5e3-3b048652-r1-win-x64.zip",
-  "zip_bytes": 710076014,
-  "zip_sha256": "50c165bc138ef46809d47ae90aff78561a1f3a1dc1503091cefec39251dda735",
-  "download_url": "https://github.com/aktalascloud/strata-legacy-gpu/releases/download/v0.1.55-legacy-gpu-c62d5e3-3b048652-r1/Strata-Legacy-GPU-v0.1.55-legacy-gpu-c62d5e3-3b048652-r1-win-x64.zip",
+  "zip_name": "Strata-Legacy-GPU-v0.1.55-legacy-gpu-c62d5e3-3b048652-r2-win-x64.zip",
+  "zip_bytes": 710079894,
+  "zip_sha256": "e8ca26b0647869f07e5e3d68ea13c9cce9f4cd49459d4dbdc1daad593312ef5c",
+  "download_url": "https://github.com/aktalascloud/strata-legacy-gpu/releases/download/v0.1.55-legacy-gpu-c62d5e3-3b048652-r2/Strata-Legacy-GPU-v0.1.55-legacy-gpu-c62d5e3-3b048652-r2-win-x64.zip",
   "weights_included": false,
   "logs_included": false,
   "caches_included": false,
   "credentials_included": false,
-  "qualification": "Exact native/vision/CUDA bytes passed CPU/ISA/private-DLL checks and 27 numerical/graph GPU runs, including the full 5,201-case DenseF32 sweep, BF16 bit parity, checkpoint/MMQ and GDN checks. Offline installer/task/import/package checks passed. Portable launchers passed fresh offline and fake-HTTP bootstrap/identity/nonce/hash/graceful-drain checks. No fresh Windows installation, S4U task registration or OS reboot is claimed; private-host startup/drain evidence is separate. Throughput remains tied to the separately identified measured source; this build is not a fresh throughput measurement."
+  "qualification": "Documentation/results package revision; native, vision, helpers and runtime payloads are unchanged from r1. Original native numerical and offline helper qualifications are reused by exact SHA-256; no new GPU tests, model requests, build, restart, Windows installation or S4U task registration occurred during publication. New source-pinned short-workload decode results were measured separately before packaging; see BENCHMARKS.md."
 }

@@ -14,6 +14,6 @@ APIs: `/v1/models`, `/v1/chat/completions`, `/v1/responses`, `/v1/messages`. Con
 
 Source build: VS2022 x64 Developer PowerShell, Clang23.1.4, CUDA12.9, CMake/Ninja/Git; run `powershell -File p40/build.ps1 -Jobs 12`. Compiling new bytes does not qualify them.
 
-[Latest measurements and scope](p40/BENCHMARKS.md). This build has no new whole-model benchmark.
+[Measurements and scope](p40/BENCHMARKS.md): +15.2705% equal-workload harmonic gain on two short workloads; r1 native bytes unchanged. This is not filled262K throughput.
 
 [Changes](p40/CHANGES.md) · [Recipe](p40/build-profile.json) · [Validation](p40/INSTALLATION-VERIFICATION.md) · [Licenses](THIRD_PARTY_NOTICES.md) · [Upstream](https://github.com/Niko1221/Strata)

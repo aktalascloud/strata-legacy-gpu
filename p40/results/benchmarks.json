@@ -2,101 +2,44 @@
   "schema": 3,
   "active_source_sha": "c62d5e3a15b40ea51c96aae9e8d36928965f53ab",
   "active_engine_sha256": "3B0486521742B5B2A40C5DD8B13014B63FA3090EAF4EF28BD4D305562A342BD7",
-  "active_full_model_benchmark": null,
   "latest_controlled_model": {
-    "date": "2026-10-30",
-    "source_sha": "870aedd9e1ebe1c91f94da93b59af17729f6c5c0",
-    "engine_version": "0.1.54",
-    "model": "Swift1.5 IQ3_S",
-    "context_capacity": 1048576,
-    "filled_context_tested": 38912,
-    "rope": "YaRN4",
-    "kv": "q4_0;host streaming32768resident",
-    "MTP": "Q2/spec3",
-    "workers": 14,
-    "reasoning": "xhigh",
-    "temperature": 0,
-    "seed": 12345,
-    "completion_tokens": 128,
-    "measured_each": 2,
-    "warmup_each": 1,
+    "date": "2026-11-01",
+    "source_sha": "c62d5e3a15b40ea51c96aae9e8d36928965f53ab",
+    "engine_sha256": "3B0486521742B5B2A40C5DD8B13014B63FA3090EAF4EF28BD4D305562A342BD7",
+    "engine_version": "0.1.55",
+    "model": "swift-1.5-iq3-s",
+    "hardware": "Windows; Ivy Bridge AVX1; 256 GiB RAM; Tesla P40 24 GiB",
+    "context_capacity": 262144,
+    "kv": "q4_0;host streaming20480resident",
+    "input_tokens": {
+      "short-ru": 133,
+      "code-4k": 4128
+    },
+    "completion_tokens": 256,
+    "benchmark_mode": "Q2 MTP with suffix3; compare pooled no-MTP baseline",
+    "sampling": "unchanged; seed requested",
+    "background_traffic": "Other PC/client traffic permitted; native SSE timings ranked, not queue latency",
+    "warmups_included": false,
     "results": {
-      "short": {
-        "native_tok_s": 34.555901816020025,
-        "whole_API_tok_s": 31.110342403200928,
-        "TTFT_s": 0.44643595002708025,
-        "cache_n": [
-          103,
-          103
-        ],
-        "spread_percent": 5.812791472351764
+      "short-ru": {
+        "native_tok_s": 37.97036531644443,
+        "baseline_native_tok_s": 30.834216687127835,
+        "gain_percent": 23.143602776507954,
+        "measured_samples": 3,
+        "baseline_samples": 4
       },
-      "cached38K": {
-        "native_tok_s": 33.511672123340574,
-        "whole_API_tok_s": 27.21956932179973,
-        "TTFT_s": 0.919748249987606,
-        "cache_n": [
-          38907,
-          38907
-        ],
-        "spread_percent": 0.9496001683501509
+      "code-4k": {
+        "native_tok_s": 36.743598576185555,
+        "baseline_native_tok_s": 34.13189886853071,
+        "gain_percent": 7.651785556129154,
+        "measured_samples": 3,
+        "baseline_samples": 4
       }
     },
-    "scope": "Native/API rates distinct. Shortbaseline noisy. Different from active user262144/MTPoff profile; not a0.55/fullcontext speed claim.",
-    "engine_sha256": "3BCFB617FC077CF9C6AEDE3822AD2E2328861CA6935D3A26CA602ED4E93BF283"
+    "harmonic_native_tok_s": 37.346910491418235,
+    "baseline_harmonic_native_tok_s": 32.39936254935109,
+    "harmonic_gain_percent": 15.270510135904637,
+    "scope": "Short Russian and cached4K/code decode only; not a filled262K benchmark, quality evaluation or exhaustive tuning."
   },
-  "latest_operator": {
-    "date": "2026-11-01",
-    "kind": "Q2_0 CPU down-scale hoist",
-    "source_sha": "c62d5e3a15b40ea51c96aae9e8d36928965f53ab",
-    "cpu_seconds": 0.65625,
-    "wall_seconds": 0.660096,
-    "groups": [
-      {
-        "nt": 1,
-        "samples_per_arm": {
-          "baseline": 10,
-          "candidate": 10
-        },
-        "median_ns_per_row": {
-          "baseline": 126.93950000000001,
-          "candidate": 115.03649999999999
-        },
-        "observed_operator_gain_percent": 10.347150686955908,
-        "range_ns_per_row": {
-          "baseline": [
-            121.119,
-            127.904
-          ],
-          "candidate": [
-            110.479,
-            119.672
-          ]
-        }
-      },
-      {
-        "nt": 3,
-        "samples_per_arm": {
-          "baseline": 10,
-          "candidate": 10
-        },
-        "median_ns_per_row": {
-          "baseline": 334.5565,
-          "candidate": 219.514
-        },
-        "observed_operator_gain_percent": 52.40781909126526,
-        "range_ns_per_row": {
-          "baseline": [
-            331.078,
-            338.348
-          ],
-          "candidate": [
-            217.41,
-            223.547
-          ]
-        }
-      }
-    ],
-    "scope": "Synthetic hot640->2560 CPUoperator only, not full-model speed; 0.66sCPU, backgrounduserwork/build possible."
-  }
+  "private_config_or_sampler_included": false
 }
