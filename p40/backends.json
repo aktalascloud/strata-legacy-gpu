@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "native_source_sha": "870aedd9e1ebe1c91f94da93b59af17729f6c5c0",
+  "native_source_sha": "c62d5e3a15b40ea51c96aae9e8d36928965f53ab",
   "engines": {
     "cpu": {
       "path": "runtime/backends/cpu/strata-ggml.exe",
@@ -10,7 +10,7 @@
       "trained_model_qualified": false,
       "rx580_hardware_qualified": false,
       "component_build_source_sha": "41cf05a06a25dd29103b7b27a2279a3f60c21876",
-      "reused_exact_checked_bytes": false
+      "reused_exact_checked_bytes": true
     },
     "cuda": {
       "path": "runtime/backends/cuda/strata-ggml.exe",
@@ -20,7 +20,7 @@
       "trained_model_qualified": false,
       "rx580_hardware_qualified": false,
       "component_build_source_sha": "41cf05a06a25dd29103b7b27a2279a3f60c21876",
-      "reused_exact_checked_bytes": false
+      "reused_exact_checked_bytes": true
     },
     "vulkan": {
       "path": "runtime/backends/vulkan/strata-ggml.exe",
@@ -30,7 +30,7 @@
       "trained_model_qualified": false,
       "rx580_hardware_qualified": false,
       "component_build_source_sha": "41cf05a06a25dd29103b7b27a2279a3f60c21876",
-      "reused_exact_checked_bytes": false
+      "reused_exact_checked_bytes": true
     },
     "poly": {
       "path": "runtime/backends/poly/strata-poly.exe",
@@ -40,7 +40,7 @@
       "trained_model_qualified": false,
       "rx580_hardware_qualified": false,
       "component_build_source_sha": "41cf05a06a25dd29103b7b27a2279a3f60c21876",
-      "reused_exact_checked_bytes": false
+      "reused_exact_checked_bytes": true
     }
   }
 }

@@ -4,14 +4,14 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'task-common.ps1')
 $root=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..')).TrimEnd('\')
 $python=Join-Path $root 'runtime\python\python.exe'
-$config=Join-Path $root 'strata-davidau.json'
+$config=Join-Path $root 'strata.json'
 if($CheckOnly){
     & $python -I -s -B (Join-Path $PSScriptRoot 'installer.py') --check-bundle
     if($LASTEXITCODE -ne 0){throw 'Bundle validation failed.'}
     Write-Output 'No task registered, server started or model downloaded.';return
 }
 if(-not(Test-Path -LiteralPath $config)){throw 'Run INSTALL.cmd first.'}
-$settings=Get-Content -LiteralPath $config -Raw|ConvertFrom-Json
+$settings=Get-Content -Encoding UTF8 -LiteralPath $config -Raw|ConvertFrom-Json
 $prefix=$root+'\'
 foreach($value in @($settings.exe,$settings.cwd,$settings.tokenizer,$settings.vision.exe)){
     if(-not [IO.Path]::GetFullPath($value).StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase)){throw 'Executable/source/tokenizer paths must stay in this installation. Reinstall the preset after moving it.'}
@@ -66,7 +66,7 @@ try{
     $argv=@('-I','-s','-B','-u',$bootstrap,'--source',(Join-Path $root 'app'),'--config',$config,'--control-path',$controlPath,'--control-nonce',$nonce)
     $command=($argv|ForEach-Object{Quote-Argument $_}) -join ' '
     $p=Start-Process -FilePath $python -ArgumentList $command -WorkingDirectory (Join-Path $root 'app') -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $logs 'server.stdout.log') -RedirectStandardError (Join-Path $logs 'server.stderr.log')
-    $active=Get-Content -LiteralPath (Join-Path $root 'runtime\active.json') -Raw|ConvertFrom-Json
+    $active=Get-Content -Encoding UTF8 -LiteralPath (Join-Path $root 'runtime\active.json') -Raw|ConvertFrom-Json
     $state=@{schema=3;pid=$p.Id;python=$python;config=$config;base_config=$config;source=(Join-Path $root 'app');engine=$settings.exe;vision=$settings.vision.exe;version=$active.id;started_utc=$p.StartTime.ToUniversalTime().ToString('o');launcher=@{broker='PortableWindowsTaskScheduler';task_name=$taskName;control_task_name=$identity.ControlName;logon_type=[string](Get-ScheduledTask -TaskPath '\' -TaskName $taskName).Principal.LogonType;pid=$PID};control=@{protocol='local_file_drain_v1';path=$controlPath;nonce=$nonce;bootstrap_sha256=(Get-FileHash -LiteralPath $bootstrap).Hash;review_sha256=(Get-FileHash -LiteralPath $review).Hash}}
     [IO.File]::WriteAllText((Join-Path $root 'strata-server-launch.json'),($state|ConvertTo-Json -Depth 8),[Text.UTF8Encoding]::new($false))
     $p.WaitForExit();exit $p.ExitCode

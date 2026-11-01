@@ -1,14 +1,9 @@
-# Verification and limits
+# Validation scope
 
-Native **0.1.54**, official source [870aedd9e1eb](https://github.com/Niko1221/Strata/commit/870aedd9e1ebe1c91f94da93b59af17729f6c5c0). Evidence is bound to exact source, EXE, DLL and library fingerprints.
+Engine **0.1.55**, upstream `c62d5e3a15b4` (`c62d5e3a15b40ea51c96aae9e8d36928965f53ab`).
 
-- Current CPU: AVX1/router/quantization, no-pin, real Windows NUMA (128 local / 0 remote samples), lifetime and cache checks; arithmetic parity: 4,866,048 finite bitwise comparisons; guided scheduling: 480 cases with each flag value.
-- Current GPU:27 staged numerical/Graph runs, including integrated GDN. Full DenseF32 5,201 cases, BF16 finite/NaN, actual-IQ MMQ, B6/EXPDEC and cache/copy identity passed. The selected Pascal Q8 runtime opt-in additionally passed65 direct + 65 Graph shape/column cases against the original reference tolerance; these supplement, not relabel, the native receipt.
-- Serving: 97 unit cases (one skip), 11 output-budget hardening cases and 14 mode cases. A mocked SSE browser fixture checked RU/EN, persisted Adaptive, separate High/Ultra request fields and unchanged chat text. This is not a new Cline GUI or agent-quality evaluation.
-- Live Qwen: protected schema3 drain, immutable activation, independent Windows-task launch and loaded API/128K/Q4/MTP/CPU-vision/owner proof. Latest same-binary Pascal Q8 series:30 direct API requests with equal fresh starts/warmups, main-only selected. Guided scheduling remains OFF after its earlier 0.1.52 trial. No new image or Cline agent-quality result is implied.
-- Optional CPU/CUDA/Vulkan/Poly binaries retain their earlier exact-byte component qualification: synthetic tensor, NextN acceptance/reset and OpenAI API/SSE checks. RX580 hardware and trained GLM/DeepSeek remain experimental; no new weights were downloaded.
-- Package: installer configuration delta checks, offline corruption/resume tests, isolated imports and executable versions, PS/CMD CheckOnly, source/native fingerprints, privacy/license scans and ZIP CRC/per-file SHA. Unchanged task/bootstrap helpers retain their exact-byte clean-folder/S4U proof.
+The native profile has source-pinned CPU/ISA/owner checks and applicable GPU numerical/Graph checks, including the complete DenseF32 sweep. Serving-only changes retain an explicit identical-native reuse proof; old GPU runs are never renamed to a new run. CPU vision is reused only with exact input/binary evidence.
 
-No fresh Windows installation, reboot, Codex-close, trained new-model, full 128K throughput or universal MTP-quality claim is implied. Targeted CPU checks are not a claim that every upstream CTest passed: the static wide-kernel annotation proposal PR4349 remains deferred. Microsoft VC Redist is obtained directly from Microsoft with Authenticode verification; its missing-runtime branch was not exercised here.
+The package checks changed installer/control helpers, imports/versions, PowerShell/CMD, source/native fingerprints, licenses, privacy and ZIP contents. These are distinct from trained-model quality, full-context performance and validation on untested hardware.
 
-Control source delta:45 targeted feed/ARM/fit tests and 4 mocked GPU-inventory cases passed. A broader upstream component-updater suite has known fake-engine E2E failures in this environment; a representative failure also occurs on the previous qualified source. This is not a green full-upstream-suite claim. The curated Windows installer/startup path is checked separately.
+Use INSTALL.cmd, CHECK.cmd, START.cmd and STOP.cmd. Keep one owner per port and drain accepted requests; do not force-kill a server or overwrite its loaded files.

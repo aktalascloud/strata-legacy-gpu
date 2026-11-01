@@ -1,145 +1,102 @@
 {
-  "schema": 2,
-  "hardware": {
-    "cpu": "2 x Xeon E5-2697 v2 (Ivy Bridge)",
-    "visible_logical_cpus": 16,
+  "schema": 3,
+  "active_source_sha": "c62d5e3a15b40ea51c96aae9e8d36928965f53ab",
+  "active_engine_sha256": "3B0486521742B5B2A40C5DD8B13014B63FA3090EAF4EF28BD4D305562A342BD7",
+  "active_full_model_benchmark": null,
+  "latest_controlled_model": {
+    "date": "2026-10-30",
+    "source_sha": "870aedd9e1ebe1c91f94da93b59af17729f6c5c0",
+    "engine_version": "0.1.54",
+    "model": "Swift1.5 IQ3_S",
+    "context_capacity": 1048576,
+    "filled_context_tested": 38912,
+    "rope": "YaRN4",
+    "kv": "q4_0;host streaming32768resident",
+    "MTP": "Q2/spec3",
     "workers": 14,
-    "ram_gib": 256,
-    "gpu": "Tesla P40",
-    "vram_gib": 24,
-    "compute_capability": "6.1",
-    "driver": "582.70",
-    "os": "Windows x64",
-    "numa_nodes": 2,
-    "gpu_numa_node": 0
-  },
-  "initial_installation": {
-    "date": "2026-10-20",
-    "native_tok_s_reported": 16.4,
-    "native_tok_s_exact": 16.44948209833706,
-    "api_tok_s": 11.645614489041167,
-    "generated_tokens": 64,
-    "context_capacity": 32768,
-    "kv": "fp16",
-    "mtp": false,
-    "thinking": false,
-    "temperature": 1,
-    "cache_tokens": 0,
-    "samples": 1,
-    "receipt_sha256": "f67072675a9daa4fce7ca6fe9cece8d940b32e1f90689e6361475289105a49a0",
-    "measurement_repeated": false,
-    "binary_retained": false,
-    "comparison_label": "Historical first-installation receipt, not a fresh stock run"
-  },
-  "latest_measured": {
-    "date": "2026-10-29",
-    "source_sha": "46c152a1310f77cd2f0ce2c7cd213962df14fe83",
-    "engine_version": "0.1.53",
-    "engine_sha256": "C07363232B5944E35DB0DAB817002F2EA558FC16A2C1E665EDAC1F1F5AE415BF",
-    "vision_sha256": "0C13C1E5C673363C1845101033CBA67F51F3C981DDAD38A99F2B7F2F7A1A3925",
-    "patch_sha256": "6DC18C0334B204EEC86731F3B4B7B6ADC655346330B4E02CF914358E2256C757",
-    "profile": "Ivy O3/CUDA12.9 sm61/CA/I64-J96/14workers/NUMA0 + PascalQ8 main1/MTPprojection0",
-    "context_capacity": 131072,
-    "kv": "q4_0",
-    "mtp": "Q2 / two draft tokens",
-    "reasoning": "author Ultra, native xhigh",
+    "reasoning": "xhigh",
     "temperature": 0,
     "seed": 12345,
-    "generated_tokens": 128,
-    "warmups_per_workload": 2,
-    "samples_per_workload": 3,
-    "cache_tokens": [
-      415,
-      4091
-    ],
-    "rate_formula": "1000 * predicted_n / predicted_ms",
-    "api_rate_formula": "completion_tokens / total_client_elapsed_s",
-    "includes_reasoning_tokens": true,
-    "full128k_speed_measured": false,
-    "qualification_only_is_not_throughput": true,
-    "benchmark_kind": "Bounded same-native3-profile PascalQ8 A/B, equal fresh starts,2warmups+3measured per workload;30requests total",
-    "stock_remeasured": false,
-    "native_tok_s": 55.14626685623196,
-    "api_tok_s": 48.922706709554305,
-    "native_samples_tok_s": [
-      52.009264150176755,
-      55.14626685623196,
-      55.27247603419984
-    ],
-    "api_samples_tok_s": [
-      46.01506151994904,
-      48.945353812629655,
-      48.922706709554305
-    ],
-    "payload_sha256": "62f96cdaeb67a559a85a28487a0dad033bf85030bba1b2af9b3e3c69edc339ff",
-    "first_reasoning_token_median_s": 0.33000040001934394,
-    "native_range_tok_s": [
-      52.009264150176755,
-      55.27247603419984
-    ],
-    "cached4k_native_tok_s": 51.23278898495037,
-    "cached4k_api_tok_s": 45.48681912854429,
-    "cached4k_native_samples_tok_s": [
-      51.23278898495037,
-      47.32852652985765,
-      51.750626667744804
-    ],
-    "cached4k_api_samples_tok_s": [
-      45.48681912854429,
-      42.185518331092986,
-      45.819503659100945
-    ],
-    "cached4k_payload_sha256": "0967b627540156dc5f78d18c7d2d9981e262bd4b257ca7a838df1ecdb43b2d1a",
-    "cached4k_first_reasoning_token_median_s": 0.3507790999719873,
-    "cached4k_native_range_tok_s": [
-      47.32852652985765,
-      51.750626667744804
-    ],
-    "observed_gpu_clock_mhz_range": [
-      1531,
-      1531
-    ],
-    "author_reason_mode": "ultra",
-    "receipt_sha256": "33de8613685fa8468652e319ab709b184ee6f84269d7ecf3fe1290d084af7e99",
-    "guided_cpu_rejected": true,
-    "L1_ca": true,
-    "measurement_scope": "Two fixed warmed workloads, not full128K speed; sampled outputs and adaptive expert residency vary; no guaranteed gain/quality claim.",
-    "measurement_finished_utc": "2026-10-28T22:11:29.375502+00:00",
-    "measurement_timezone": "Asia/Bishkek",
-    "Pascal_Q8_selected_flags": {
-      "STRATA_Q8_SM60": "1",
-      "STRATA_MTP_Q8_SM60": "0"
-    }
+    "completion_tokens": 128,
+    "measured_each": 2,
+    "warmup_each": 1,
+    "results": {
+      "short": {
+        "native_tok_s": 34.555901816020025,
+        "whole_API_tok_s": 31.110342403200928,
+        "TTFT_s": 0.44643595002708025,
+        "cache_n": [
+          103,
+          103
+        ],
+        "spread_percent": 5.812791472351764
+      },
+      "cached38K": {
+        "native_tok_s": 33.511672123340574,
+        "whole_API_tok_s": 27.21956932179973,
+        "TTFT_s": 0.919748249987606,
+        "cache_n": [
+          38907,
+          38907
+        ],
+        "spread_percent": 0.9496001683501509
+      }
+    },
+    "scope": "Native/API rates distinct. Shortbaseline noisy. Different from active user262144/MTPoff profile; not a0.55/fullcontext speed claim.",
+    "engine_sha256": "3BCFB617FC077CF9C6AEDE3822AD2E2328861CA6935D3A26CA602ED4E93BF283"
   },
-  "comparison_limits": [
-    "First-installation16.4495tok/s is the preserved historical cold64-token result; its executable was removed during authorized cleanup. The latest result is freshly measured, warmed128tokens, with different KV/MTP/reasoning/temperature settings. This is overall historical progress, not a controlled old/new binary A/B or an isolated patch gain.",
-    "No intermediate release/sweep tables are published. CPU/GPU component percentages below come from their separate controlled experiments; do not add or multiply them.",
-    "Thinking tokens count; full128K throughput is not measured."
-  ],
-  "component_effects": [
-    {
-      "component": "CPU worker pool:8 to14",
-      "gain_percent": 3.307,
-      "source_sha": "011c9e6",
-      "method": "Two warmups and five measured128-token requests per short/cached4K workload; harmonic mean of medians."
-    },
-    {
-      "component": "CPU memory preference:NUMA0",
-      "gain_percent": 1.454,
-      "source_sha": "011c9e6",
-      "method": "Same controlled workload method; preference only, no affinity."
-    },
-    {
-      "component": "GPU IQ staging/QFUSE/GR",
-      "gain_percent": 5.101,
-      "source_sha": "011c9e6",
-      "method": "Controlled combined setting, direct/graph numerical parity."
-    },
-    {
-      "component": "GPU B6/EXPDEC, I64/J96",
-      "gain_percent": 2.793,
-      "source_sha": "011c9e6",
-      "method": "Controlled combined setting, two warmups plus five samples per workload."
-    }
-  ]
+  "latest_operator": {
+    "date": "2026-11-01",
+    "kind": "Q2_0 CPU down-scale hoist",
+    "source_sha": "c62d5e3a15b40ea51c96aae9e8d36928965f53ab",
+    "cpu_seconds": 0.65625,
+    "wall_seconds": 0.660096,
+    "groups": [
+      {
+        "nt": 1,
+        "samples_per_arm": {
+          "baseline": 10,
+          "candidate": 10
+        },
+        "median_ns_per_row": {
+          "baseline": 126.93950000000001,
+          "candidate": 115.03649999999999
+        },
+        "observed_operator_gain_percent": 10.347150686955908,
+        "range_ns_per_row": {
+          "baseline": [
+            121.119,
+            127.904
+          ],
+          "candidate": [
+            110.479,
+            119.672
+          ]
+        }
+      },
+      {
+        "nt": 3,
+        "samples_per_arm": {
+          "baseline": 10,
+          "candidate": 10
+        },
+        "median_ns_per_row": {
+          "baseline": 334.5565,
+          "candidate": 219.514
+        },
+        "observed_operator_gain_percent": 52.40781909126526,
+        "range_ns_per_row": {
+          "baseline": [
+            331.078,
+            338.348
+          ],
+          "candidate": [
+            217.41,
+            223.547
+          ]
+        }
+      }
+    ],
+    "scope": "Synthetic hot640->2560 CPUoperator only, not full-model speed; 0.66sCPU, backgrounduserwork/build possible."
+  }
 }

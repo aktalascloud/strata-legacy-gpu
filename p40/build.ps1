@@ -1,14 +1,14 @@
-[CmdletBinding()]
-param([string]$Clang='clang-cl.exe',[string]$Cuda=$env:CUDA_PATH,[int]$Jobs=12)
+﻿[CmdletBinding()]
+param([string]$Clang='clang-cl.exe',[string]$Cuda=$env:CUDA_PATH,[ValidateRange(1,12)][int]$Jobs=12)
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
-$profile=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'build-profile.json') -Raw|ConvertFrom-Json
-$pins=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'patches\manifest.json') -Raw|ConvertFrom-Json
+$profile=Get-Content -Encoding UTF8 -LiteralPath (Join-Path $PSScriptRoot 'build-profile.json') -Raw|ConvertFrom-Json
+$pins=Get-Content -Encoding UTF8 -LiteralPath (Join-Path $PSScriptRoot 'patches\manifest.json') -Raw|ConvertFrom-Json
 foreach($command in @('cmake','ninja','git','cl.exe',$Clang)){if(-not(Get-Command $command -ErrorAction SilentlyContinue)){throw "Missing prerequisite: $command. Use a VS2022 x64 Developer PowerShell with Clang and CUDA12.9."}}
 if(-not $Cuda){throw 'CUDA_PATH or -Cuda is required.'}
 $nvcc=Join-Path $Cuda 'bin\nvcc.exe'
 if((& $nvcc -V|Out-String) -notmatch 'release 12\.9'){throw 'This profile is qualified with CUDA12.9 only.'}
-if($Jobs -lt 1 -or $Jobs -gt 256){throw 'Invalid parallelism'}
+if($Jobs -lt 1 -or $Jobs -gt 12){throw 'Invalid parallelism'}
 $env:GIT_CONFIG_NOSYSTEM='1';$env:GIT_CONFIG_GLOBAL='NUL'
 $env:STRATA_NO_CPU_PIN='1';$env:NVCC_PREPEND_FLAGS='--use-local-env'
 $env:CMAKE_BUILD_PARALLEL_LEVEL=[string]$Jobs
@@ -30,7 +30,7 @@ $args=@('-S',$root,'-B',$build,'-G','Ninja','-DCMAKE_BUILD_TYPE=Release',
     '-DCMAKE_CUDA_ARCHITECTURES=61',('-DCMAKE_C_FLAGS_RELEASE='+$profile.cpu_release_flags),('-DCMAKE_CXX_FLAGS_RELEASE='+$profile.cpu_release_flags),
     '-DCMAKE_CUDA_FLAGS=--allow-unsupported-compiler -Xcompiler=/arch:AVX',('-DCMAKE_CUDA_FLAGS_RELEASE='+$profile.cuda_release_flags),
     '-DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF','-DCMAKE_EXPORT_COMPILE_COMMANDS=ON',
-    '-DSTRATA_ENABLE_CUDA=ON','-DSTRATA_ENABLE_HIP=OFF','-DSTRATA_ENABLE_SYCL=OFF','-DSTRATA_EXPERIMENTAL_SM60=ON',
+    '-DSTRATA_WINDOW_MAX_T=8','-DSTRATA_ENABLE_CUDA=ON','-DSTRATA_ENABLE_HIP=OFF','-DSTRATA_ENABLE_SYCL=OFF','-DSTRATA_EXPERIMENTAL_SM60=ON',
     '-DSTRATA_ISA_FLOOR=avx','-DSTRATA_PORTABLE=OFF','-DSTRATA_NATIVE_EXPERTS=ON','-DSTRATA_Q6K_EXPERTS=ON',
     '-DSTRATA_MMQ_KQUANTS=ON','-DSTRATA_IVYBRIDGE_O3=ON','-DSTRATA_PASCALLAMA=ON',
     ('-DSTRATA_PASCALLAMA_PATCH='+(Join-Path $PSScriptRoot 'patches\pascallama-sm61.patch')),

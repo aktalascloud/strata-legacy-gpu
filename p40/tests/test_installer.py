@@ -7,6 +7,15 @@ DATA=b'local resumable fixture, not model weights\n'*257
 
 def entry():return dict(repo='public/test',revision='1'*40,remote='fixture.bin',size=len(DATA),sha256=hashlib.sha256(DATA).hexdigest())
 
+def native_manifest():
+    return dict(files=[dict(kind='model', name='one.gguf', repo='public/test', revision='1'*40, sha256='a'*64),
+                       dict(kind='model', name='two.gguf'), dict(kind='vision', name='vision.gguf')],
+                native_preset=dict(model_id='fixture', model_name='fixture-native', display_name='Fixture model',
+                    models_directory='models/fixture', pack_directory='packs/fixture', mtp_directory='mtp/rt',
+                    native_file='one.gguf', ple_file='two.gguf', vision_file='vision.gguf',
+                    reason_modes=False, reason_mode='off', reasoning_effort='high'))
+
+
 @contextlib.contextmanager
 def server(ignore_range=False):
     calls=[]
@@ -66,7 +75,7 @@ class InstallerTests(unittest.TestCase):
         kit.atomic(self.root/'bundle-manifest.json',dict(files=[dict(path='../outside',bytes=1,sha256='0'*64)]))
         with self.assertRaisesRegex(RuntimeError,'Unsafe bundle path'):kit.check_bundle(self.root)
     def test_generated_preset_has_no_authentication_material(self):
-        manifest=dict(files=[dict(kind='model',name='one.gguf'),dict(kind='model',name='two.gguf'),dict(kind='vision',name='vision.gguf')])
+        manifest=native_manifest()
         cfg=kit.make_config(self.root,self.root/'models',manifest,14,'0')
         self.assertFalse(any(k in cfg for k in ('api_key','token','password')))
         for flag,value in [('--max-context','131072'),('--kv','q4_0'),('--pool-workers','14'),('--spec','3'),('--spec-min-p','0.25'),('--ple-io','ram')]:self.assertEqual(cfg['args'][cfg['args'].index(flag)+1],value)
@@ -75,12 +84,28 @@ class InstallerTests(unittest.TestCase):
                          {'STRATA_CKPT_PARK_REUSE':'1','STRATA_PF_GROUP_SCRATCH':'1','STRATA_POOL_FUSED':'0'})
         self.assertNotIn('STRATA_PF_HC_REGION',cfg['env'])
     def test_separate_installation_port_and_paths_are_local(self):
-        manifest=dict(files=[dict(kind='model',name='one.gguf'),dict(kind='model',name='two.gguf'),dict(kind='vision',name='vision.gguf')])
+        manifest=native_manifest()
         cfg=kit.make_config(self.root,self.root/'models',manifest,14,'0',8094)
         self.assertEqual(cfg['port'],8094)
         for value in (cfg['exe'],cfg['cwd'],cfg['tokenizer'],cfg['log'],cfg['vision']['exe'],cfg['vision']['model'],cfg['vision']['mmproj']):
             self.assertTrue(pathlib.Path(value).is_relative_to(self.root))
         for flag in ('--pack','--native','--ple-gguf','--expert-profile','--mtp'):
             self.assertTrue(pathlib.Path(cfg['args'][cfg['args'].index(flag)+1]).is_relative_to(self.root))
+
+    def test_native_preset_rejects_unsafe_paths(self):
+        for value in ('../escape', 'C:/outside', '//host/share', 'packs/model:stream'):
+            manifest=native_manifest();manifest['native_preset']['pack_directory']=value
+            with self.subTest(value=value), self.assertRaises(ValueError):kit.native_preset(self.root,manifest)
+    def test_native_preset_requires_pinned_roles(self):
+        manifest=native_manifest();manifest['native_preset']['native_file']='unknown.gguf'
+        with self.assertRaises(ValueError):kit.native_preset(self.root,manifest)
+    def test_native_preset_rejects_spaces_in_API_id(self):
+        manifest=native_manifest();manifest['native_preset']['model_name']='model with spaces'
+        with self.assertRaises(ValueError):kit.native_preset(self.root,manifest)
+    def test_native_preset_binds_author_capability(self):
+        manifest=native_manifest();manifest['native_preset'].update(reason_modes=True,reason_mode='auto')
+        with self.assertRaises(ValueError):kit.native_preset(self.root,manifest)
+        manifest['native_preset']['author_identity']=dict(repo='public/test',revision='1'*40,main_sha256='a'*64)
+        self.assertTrue(kit.native_preset(self.root,manifest)['reason_modes'])
 
 if __name__=='__main__':unittest.main()

@@ -1,11 +1,12 @@
 # Current build
 
-Official source `870aedd9e1ebe1c91f94da93b59af17729f6c5c0`.
+Official source `c62d5e3a15b40ea51c96aae9e8d36928965f53ab`.
 
-- Official0.1.54, CUDA window8 explicit for legacyGPU footprint; widerHIP/SYCL changes retain their backend guards
-- Conversation/expert cache late-allocation headroom and policy PLE lock handling; explicit PLE RAM preserved
-- Quoted XML tool argument handling, family-specific end tokens and default declared-tool recovery; recovery remains bounded to declared names
-- LocalUnicode UTF16pair correctness fix for damagedJSON containers; strictvalidJSON behavior unchanged
-- RetainedAVX1/no-pin/Pascal/PCIeoverride/GGUFbounds/portableOpenAIID patches;3optionalcomponentCPU workspace/cvec fixes independentlyqualified
+- Merge official native0.1.55; retain the reviewed Ivy/Pascal/no-pin/FP/owner patches.
+- Q2 activation-scale hoist preserves quantization and reduction order; operator-only results are separate from model throughput.
+- Bounded MMQ ID reads and explicit unsigned IQ register-byte extraction in the pinned build copy.
+- API tool-result ID mapping, declared-tool authority, forced tool choice and correctly framed errors.
+- One model-neutral strata.json, explicit UTF8 readers, metadata-driven model paths and public presets.
+- Exact native reuse for serving-only changes; no relabelled GPU results, weights or private state.
 
 Measured performance is independently source-pinned in BENCHMARKS.md.

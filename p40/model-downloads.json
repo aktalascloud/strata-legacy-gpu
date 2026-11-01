@@ -68,5 +68,24 @@
       "size": 707788800,
       "sha256": "09398406be61f1f54c93861f449e48b8df0bfccbc9ec9b2b7636775a6ea9244f"
     }
-  ]
+  ],
+  "native_preset": {
+    "model_id": "Qwen",
+    "model_name": "davidau-qwen3.8-flash-next-iq3_s",
+    "display_name": "DavidAU Qwen3.8 IQ3_S",
+    "models_directory": "models/DavidAU-Qwen3.8-IQ3_S",
+    "pack_directory": "packs/davidau-iq3_s",
+    "mtp_directory": "mtp/rt",
+    "native_file": "Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00001-of-00002.gguf",
+    "ple_file": "Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00002-of-00002.gguf",
+    "vision_file": "mmproj-Qwen3.8-Flash-Next-BF16.gguf",
+    "reason_modes": true,
+    "reason_mode": "auto",
+    "reasoning_effort": "high",
+    "author_identity": {
+      "repo": "DavidAU/Qwen3.8-Flash-Next-Abliterated-Uncensored-Turbo-Brilliance-50x-Reasoning-Instruct-GSQ-RCO-GGUF",
+      "revision": "b7f9593a6e25d6b4db950f6d0a2cc08ced014cfa",
+      "main_sha256": "78706315c2fe912777c006b4ae18be1024c9f4353bd25d33b8a306c9c55f9e34"
+    }
+  }
 }

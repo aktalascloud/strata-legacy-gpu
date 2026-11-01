@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index ee7e9f1beab0671c01a6da8064cc3bb8873ca7b9..6f73a24890fe62dcb598b766d8afe5a3bf5fdd88 100644
+index 692484a807cd0d5151c7ee408aa5ae07cb26c404..d15c0b16ab179270fad0b9898fe772b22722035e 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -124,6 +124,12 @@ endif()
@@ -46,7 +46,7 @@ index ee7e9f1beab0671c01a6da8064cc3bb8873ca7b9..6f73a24890fe62dcb598b766d8afe5a3
          -Wl,--wrap=cudaDeviceSynchronize -Wl,--wrap=cudaGetLastError)
        target_link_libraries(conversation_transfer_test PRIVATE strata_engine)
        add_test(NAME conversation_transfer_test COMMAND conversation_transfer_test)
-@@ -1841,6 +1857,9 @@ endif()
+@@ -1869,6 +1885,9 @@ endif()
  include(CheckCXXSourceCompiles)
  if(MSVC)
    set(CMAKE_REQUIRED_FLAGS "/arch:AVX2")
@@ -56,7 +56,7 @@ index ee7e9f1beab0671c01a6da8064cc3bb8873ca7b9..6f73a24890fe62dcb598b766d8afe5a3
  else()
    set(CMAKE_REQUIRED_FLAGS "-mavx2 -mfma -mf16c")
  endif()
-@@ -2085,6 +2104,11 @@ if(STRATA_NATIVE_EXPERTS)
+@@ -2113,6 +2132,11 @@ if(STRATA_NATIVE_EXPERTS)
        set(_strata_tq_llama "${strata_llamacpp_SOURCE_DIR}")
      endif()
      include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/strata_ggml_tq_overlay.cmake)
@@ -68,7 +68,7 @@ index ee7e9f1beab0671c01a6da8064cc3bb8873ca7b9..6f73a24890fe62dcb598b766d8afe5a3
      set(_strata_tq_overlay_dir "${CMAKE_BINARY_DIR}/ggml-tq-overlay")
      strata_ggml_tq_overlay("${_strata_tq_llama}" "${_strata_tq_overlay_dir}")
      if(STRATA_TQ_OVERLAY_OK)
-@@ -2114,6 +2138,10 @@ if(STRATA_NATIVE_EXPERTS)
+@@ -2142,6 +2166,10 @@ if(STRATA_NATIVE_EXPERTS)
        set(_strata_gg ${strata_llamacpp_SOURCE_DIR}/ggml)
      endif()
      set(_strata_mmq ${_strata_gg}/src/ggml-cuda)
@@ -79,7 +79,7 @@ index ee7e9f1beab0671c01a6da8064cc3bb8873ca7b9..6f73a24890fe62dcb598b766d8afe5a3
      set(_strata_quantize_cu ${_strata_mmq}/quantize.cu)   # the overlay's copy when the trellis overlay is on: it includes mmq.cuh
      if(_strata_mmq_tq_overlay)
        set(_strata_quantize_cu ${_strata_tq_overlay_dir}/quantize.cu)
-@@ -2544,7 +2572,22 @@ if(STRATA_ENABLE_CUDA AND STRATA_BUILD_TESTS AND EXISTS "${CMAKE_CURRENT_SOURCE_
+@@ -2572,7 +2600,22 @@ if(STRATA_ENABLE_CUDA AND STRATA_BUILD_TESTS AND EXISTS "${CMAKE_CURRENT_SOURCE_
  endif()
  
  if(STRATA_BUILD_TESTS)
@@ -102,7 +102,7 @@ index ee7e9f1beab0671c01a6da8064cc3bb8873ca7b9..6f73a24890fe62dcb598b766d8afe5a3
      add_executable(pool_affinity_test src/kernels/cpu/pool_affinity_test.cpp)
      target_link_libraries(pool_affinity_test PRIVATE strata_kernels_cpu)
      add_test(NAME pool_affinity_test COMMAND pool_affinity_test)
-@@ -2673,6 +2716,25 @@ if(STRATA_BUILD_TESTS)
+@@ -2701,6 +2744,25 @@ if(STRATA_BUILD_TESTS)
      target_include_directories(direct_file_async_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
      target_link_libraries(direct_file_async_test PRIVATE Threads::Threads)
      add_test(NAME direct_file_async_test COMMAND direct_file_async_test)
@@ -128,7 +128,7 @@ index ee7e9f1beab0671c01a6da8064cc3bb8873ca7b9..6f73a24890fe62dcb598b766d8afe5a3
    endif()
    # --aux-cpus: the CPU-set derivation (pure) and the placement of live threads; header-only, no GPU
    add_executable(aux_cpus_test tests/platform/aux_cpus_test.cpp)
-@@ -2764,3 +2826,63 @@ if(STRATA_BUILD_DSV41 AND NOT STRATA_ENABLE_CUDA AND NOT STRATA_ENABLE_HIP AND N
+@@ -2792,3 +2854,63 @@ if(STRATA_BUILD_DSV41 AND NOT STRATA_ENABLE_CUDA AND NOT STRATA_ENABLE_HIP AND N
      target_compile_definitions(ds4_gg_bench PRIVATE STRATA_DSV41_TQ_CPU=1)
    endif()
  endif()
@@ -600,7 +600,7 @@ index c885e9703251450a62cf5e52092068eb9d208183..8416b294476115086a896c229c9a93a4
 +    text = to_dsml_force(force)
 +    return text.replace('<｜DSML｜ calls>', '<｜DSML｜tool_calls>').replace('<｜DSML｜ invoke', '<｜DSML｜invoke') if text else text
 diff --git a/serve/frontend.py b/serve/frontend.py
-index 3b3cdeb17a37e533a6f49f543de838d1f9387b22..ee62f5c3158451a16f7a229e4e98a532b51482e7 100644
+index 4955193c2d2f6ecb033e6b1d41c7e6e344f16afa..c5c1b41bb0cbaa509201790b23b42a32f9073d43 100644
 --- a/serve/frontend.py
 +++ b/serve/frontend.py
 @@ -26,6 +26,7 @@ from dataclasses import dataclass, field
@@ -749,7 +749,17 @@ index 3b3cdeb17a37e533a6f49f543de838d1f9387b22..ee62f5c3158451a16f7a229e4e98a532
      return {"reasoning_effort": "low" if n < 2048 else "medium" if n < 8192 else EFFORT["high"]}
  
  
-@@ -615,6 +664,7 @@ def openai_to_messages(req: dict) -> tuple[list[dict], list[dict] | None, dict]:
+@@ -576,6 +625,9 @@ def _order_chat_tool_results(messages: list[dict]) -> None:
+ 
+ def openai_to_messages(req: dict) -> tuple[list[dict], list[dict] | None, dict]:
+     """OpenAI Chat Completions -> (template messages, template tools, template kwargs)."""
++    count = req.get("n")
++    if count is not None and (type(count) is not int or count != 1):
++        raise ValueError('"n" must be 1; multiple choices are not supported')
+     messages = []
+     for i, m in enumerate(_object_list(req.get("messages"), "messages")):
+         role = m.get("role")
+@@ -615,6 +667,7 @@ def openai_to_messages(req: dict) -> tuple[list[dict], list[dict] | None, dict]:
              kwargs = {"enable_thinking": False}
          elif k == "reasoning_effort" and "enable_thinking" not in kwargs:
              kwargs.update(effort_kwargs(v))
@@ -757,7 +767,32 @@ index 3b3cdeb17a37e533a6f49f543de838d1f9387b22..ee62f5c3158451a16f7a229e4e98a532
      return _env_to_user(_late_system_to_user(messages)), tools, kwargs
  
  
-@@ -716,6 +766,7 @@ def anthropic_to_messages(req: dict, think_unasked: bool = True) -> tuple[list[d
+@@ -676,12 +729,14 @@ def anthropic_to_messages(req: dict, think_unasked: bool = True) -> tuple[list[d
+             elif kind == "thinking":
+                 reasoning.append(block.get("thinking", ""))
+             elif kind == "tool_use":
+-                calls.append({"function": {"name": block.get("name"), "arguments": tool_arguments(block.get("input"))}})
++                calls.append({"function": {"name": block.get("name"), "arguments": tool_arguments(block.get("input"))},
++                              "_call_id": block.get("id")})
+             elif kind == "tool_result":
+                 # A tool's image (Claude Code's Read of a picture) reaches the encoder like a user's, as the OpenAI
+                 # path's tool messages already do; a text-only result is one string, as before.
+                 messages.append({"role": "tool", "content": _parts_of(_check_parts(
+-                    block.get("content"), f"messages[{i}].content[{j}].content", TEXT_PARTS + IMAGE_PARTS))})
++                    block.get("content"), f"messages[{i}].content[{j}].content", TEXT_PARTS + IMAGE_PARTS)),
++                                 "_call_id": block.get("tool_use_id")})
+         if text or calls or reasoning or parts:
+             # an image sent beside tool results stays in this turn instead of being dropped
+             out = {"role": m["role"], "content": _parts_of(parts) if _has_image(parts) else "".join(text)}
+@@ -690,6 +745,7 @@ def anthropic_to_messages(req: dict, think_unasked: bool = True) -> tuple[list[d
+             if calls:
+                 out["tool_calls"] = calls
+             messages.append(out)
++    _order_chat_tool_results(messages)
+     tools = [{"name": t["name"], "description": t.get("description", ""), "parameters": t.get("input_schema", {})}
+              for t in _tool_list(req.get("tools"), None)] or None
+     kwargs = {}
+@@ -716,6 +772,7 @@ def anthropic_to_messages(req: dict, think_unasked: bool = True) -> tuple[list[d
          # A config's reasoning_effort still applies: Service.with_shared sets output_config before this runs.  A
          # request that gives its own reasoning_budget_tokens (#123) asks for thinking, so it thinks as before.
          kwargs["enable_thinking"] = False
@@ -765,7 +800,16 @@ index 3b3cdeb17a37e533a6f49f543de838d1f9387b22..ee62f5c3158451a16f7a229e4e98a532
      return _env_to_user(_late_system_to_user(messages)), tools, kwargs
  
  
-@@ -953,8 +1004,17 @@ class _Lenient:
+@@ -849,7 +906,7 @@ def forced_call(tool_choice, tools: list[dict] | None) -> str | None:
+     if kind == "required" and len(names) == 1:     # one tool to call: name it, the model cannot invent another
+         kind, name = "named", next(iter(names))
+     if kind == "required" and names:
+-        return CALL_START + "\n<function="
++        return CALL_START + "\n"
+     if kind == "named" and name in names:
+         return CALL_START + f"\n<function={name}>\n"
+     print(f"[strata] tool_choice {json.dumps(tool_choice)[:200]} is not supported here (or names no tool of the "
+@@ -953,8 +1010,17 @@ class _Lenient:
                  self.i += 1
                  e = s[self.i:self.i + 1]
                  if e == "u" and re.fullmatch(r"[0-9a-fA-F]{4}", s[self.i + 1:self.i + 5]):
@@ -784,7 +828,30 @@ index 3b3cdeb17a37e533a6f49f543de838d1f9387b22..ee62f5c3158451a16f7a229e4e98a532
                      continue
                  if e not in self._ESC:
                      raise ValueError("bad escape")
-@@ -1356,7 +1416,19 @@ class OutputParser:
+@@ -1372,20 +1438,34 @@ class OutputParser:
+         self.sdeclared = {}
+         self.spname = None
+         self.svstart = 0
++        self._param_end_checked = 0  # candidate search progress within one raw parameter
+ 
+     def _wrapped_call_end(self) -> int:
+-        # Without a closing tag the structural walk cannot finish. Search only
+-        # newly appended text plus enough overlap for a tag split across feeds.
+-        # A literal closing tag inside a value needs structural disambiguation:
+-        # once any candidate appears, keep the original full walk for this call.
+-        # Recovery can rewrite the buffer, so it always uses the full walk.
+-        if not self.recover and self._call_end_checked >= 0:
+-            start = max(0, self._call_end_checked - len(CALL_END) + 1)
+-            if self.buf.find(CALL_END, start) < 0:
++        # A canonical wrapped call cannot finish without a function or wrapper closer.
++        # Before either candidate the body is append-only, including with recovery:
++        # its in-call rewrite requires a completed function below. Once any candidate
++        # appears (even quoted in a value), retain the full structural walk for this call.
++        # Native family hooks keep their previous recovery behavior.
++        if self._call_end_checked >= 0 and (not self.recover or not self.native_call_format):
++            tags = (CALL_END,) if self.native_call_format else (CALL_END, FUNC_END)
++            start = max(0, self._call_end_checked - max(map(len, tags)) + 1)
++            if not any(self.buf.find(tag, start) >= 0 for tag in tags):
                  self._call_end_checked = len(self.buf)
                  return -1
              self._call_end_checked = -1
@@ -805,7 +872,7 @@ index 3b3cdeb17a37e533a6f49f543de838d1f9387b22..ee62f5c3158451a16f7a229e4e98a532
  
      def _scan(self) -> list[Event]:
          """Advance the streaming view of the call body in self.buf (see stream_tools)."""
-@@ -1375,7 +1447,9 @@ class OutputParser:
+@@ -1404,7 +1484,9 @@ class OutputParser:
                  raw_name = rest[a + 10:b]
                  name = raw_name.strip()
                  name = self.aliases.get(name, name)
@@ -816,7 +883,7 @@ index 3b3cdeb17a37e533a6f49f543de838d1f9387b22..ee62f5c3158451a16f7a229e4e98a532
                      return out
                  self.scall = ToolCall(name=name, arguments={})
                  props = ((self.schemas.get(name) or {}).get("parameters") or {}).get("properties") or {}
-@@ -1384,6 +1458,8 @@ class OutputParser:
+@@ -1413,6 +1495,8 @@ class OutputParser:
                  args("{")
                  self.sp += b + 1
                  self.ss = "between"
@@ -825,7 +892,30 @@ index 3b3cdeb17a37e533a6f49f543de838d1f9387b22..ee62f5c3158451a16f7a229e4e98a532
              elif self.ss == "between":
                  stripped = rest.lstrip()
                  self.sp += len(rest) - len(stripped)
-@@ -1491,18 +1567,18 @@ class OutputParser:
+@@ -1425,6 +1509,7 @@ class OutputParser:
+                     self.sfirst = False
+                     self.sp += b + 1
+                     self.spname = pname.strip()
++                    self._param_end_checked = 0
+                     if self.sdeclared.get(pname) == "string":
+                         args('"')
+                         self.ss, self.sval_started = "str", False
+@@ -1464,6 +1549,14 @@ class OutputParser:
+                     self.sp += safe
+                 return out
+             elif self.ss == "raw":
++                # Raw values are held whole; without a parameter closer the full walk
++                # cannot succeed. A quoted candidate permanently restores the full walk.
++                if self._param_end_checked >= 0:
++                    start = max(0, self._param_end_checked - len(PARAM_END) + 1)
++                    if rest.find(PARAM_END, start) < 0:
++                        self._param_end_checked = len(rest)
++                        return out
++                    self._param_end_checked = -1
+                 end = param_end(rest, name=self.spname)
+                 if end < 0:
+                     return out
+@@ -1520,18 +1613,18 @@ class OutputParser:
                  # #804: a `<tool_call>` inside the reasoning, with tools declared.  It is held whole (never streamed
                  # as a call) until it ends: a declared name is then a tool call, anything else stays reasoning text.
                  body = self.buf[len(CALL_START):]
@@ -848,7 +938,7 @@ index 3b3cdeb17a37e533a6f49f543de838d1f9387b22..ee62f5c3158451a16f7a229e4e98a532
                              call.name = name
                      except ValueError:
                          pass
-@@ -1638,6 +1714,10 @@ class OutputParser:
+@@ -1667,6 +1760,10 @@ class OutputParser:
                      out.append(Event("content", self._track(self.buf[:i + len(CALL_START)])))
                      self.buf = self.buf[i + len(CALL_START):]
                      continue
@@ -859,7 +949,17 @@ index 3b3cdeb17a37e533a6f49f543de838d1f9387b22..ee62f5c3158451a16f7a229e4e98a532
                  # A call is `<tool_call>` and then (after whitespace) `<function=`; the tag with anything else after
                  # it is prose that names the format ("I'll use a <tool_call> block") - content, not a malformed call
                  # that ends the request.  Until its follower has arrived it is held, like a partial tag.
-@@ -1768,7 +1848,7 @@ class OutputParser:
+@@ -1772,7 +1869,8 @@ class OutputParser:
+                     if i >= 0:
+                         drop = len(CALL_END)
+                     # Only a following call opener confirms an omitted wrapper closer.
+-                    f = function_end(self.buf)
++                    # The same candidate check covers omitted-wrapper recovery too.
++                    f = -1 if not self.native_call_format and self._call_end_checked >= 0 else function_end(self.buf)
+                     nxt = self.buf[f:].lstrip() if f >= 0 else ""
+                     if re.match(r"<tool_call>\s*<function=\s*[^<>\s]+\s*>", nxt):
+                         i, drop = f, 0
+@@ -1797,7 +1895,7 @@ class OutputParser:
                  self.buf = self.buf[i + drop:]
                  batch, self.batch = self.batch, False
                  out += self._finish_call(body)
@@ -868,7 +968,7 @@ index 3b3cdeb17a37e533a6f49f543de838d1f9387b22..ee62f5c3158451a16f7a229e4e98a532
                      self.state, self.lead = "call", False
  
      def finish(self, reason: str | None = None) -> list[Event]:
-@@ -1821,6 +1901,14 @@ class OutputParser:
+@@ -1850,6 +1948,14 @@ class OutputParser:
              return out
          if self.state == "reasoning" and self.buf == THINK_END:   # the output ends on a held `</think>`: its end
              self.buf, self.state = "", "content"
@@ -883,7 +983,7 @@ index 3b3cdeb17a37e533a6f49f543de838d1f9387b22..ee62f5c3158451a16f7a229e4e98a532
          if self.buf:
              # an unfinished call inside the reasoning (#804) is reasoning text, never a call
              kind = {"reasoning": "reasoning", "rcall": "reasoning", "content": "content"}.get(self.state, "content")
-@@ -1832,14 +1920,18 @@ class OutputParser:
+@@ -1861,14 +1967,18 @@ class OutputParser:
      def _finish_call(self, body: str) -> list[Event]:
          """A whole call body in the template's form -> its tool_call event.  With recover, one that still does not
          parse is the text it is instead of an error that ends the request."""
@@ -2090,7 +2190,7 @@ index 3448db06460edef4c5c8dc68821bdb8ce5d5d932..3d147149cb840c84aa8fdaf868f8fc46
       "Default temperature for requests that send none (0 = greedy; without it the model card's: 1.0 thinking, 0.7 not)"),
      ("sampling.top_p", ("sampling", "0<x<=1"), "Default top_p for requests that send none"),
 diff --git a/serve/server.py b/serve/server.py
-index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f9a662c55 100644
+index 768f6bcc374dad27052618465a0b6b500291f3a7..0f4382e713b341cd44bc3ebe60b8b317473e49e7 100644
 --- a/serve/server.py
 +++ b/serve/server.py
 @@ -26,6 +26,8 @@ talks to it over stdin/stdout; `MockEngine` is a scripted stand-in that makes ev
@@ -2115,7 +2215,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
      try:
          return lifeline.popen(args, role, **kw)       # a child that cannot outlive this server (serve/lifeline.py)
      except OSError as e:
-@@ -1404,6 +1410,12 @@ class StrataEngine:
+@@ -1420,6 +1426,12 @@ class StrataEngine:
              if time.time() > deadline:
                  raise EngineDied("the engine did not answer the VRAM command")
  
@@ -2128,7 +2228,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
      @staticmethod
      def sampling_keys(sampling: dict) -> str:
          keys = ""
-@@ -1827,7 +1839,7 @@ class StrataEngine:
+@@ -1901,7 +1913,7 @@ class StrataEngine:
              raise EngineDied("the engine is unavailable; this request was not sent")
          self.progress, self.progress_ms, self.reused = None, 0, 0
          born = self.gen                                 # the engine process this request is sent to
@@ -2137,7 +2237,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
          # logprobs: only an admission's token can have an LP line here (the slot's "BT" lines carry none), so the
          # server refuses these requests unless max_tokens is 1.  The lines go to the request itself, through its
          # cancel Event: several requests read control lines at once, and the engine's lp_lines is one attribute.
-@@ -2247,6 +2259,9 @@ class StrataEngine:
+@@ -2331,6 +2343,9 @@ class StrataEngine:
          if not self.alive():
              raise EngineDied("the engine is unavailable; this request was not sent")
          bias_api.validate_request(sampling or {}, self, None)
@@ -2147,7 +2247,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
          if getattr(self, "batch", 0):
              yield from self.generate_batched(ids, max_new, sampling, cancel, embeddings)
              return
-@@ -2259,8 +2274,8 @@ class StrataEngine:
+@@ -2343,8 +2358,8 @@ class StrataEngine:
          self.lp_lines = LPLines(cancel)
          carry = NO_LINE                  # a line read for a token's LP line, held until it is used
          # an image request takes the same sampling keys as text (#75: it used to decode greedily whatever was asked)
@@ -2158,7 +2258,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
          if prefill_only:                                 # split serving (serve/split.py): read the prompt, make no token
              if embeddings or int(max_new) != 0:
                  raise ValueError("prefill_only is a text prompt and max_new 0")
-@@ -2387,6 +2402,8 @@ class StrataEngine:
+@@ -2471,6 +2486,8 @@ class StrataEngine:
                      if line.startswith("DONE"):
                          self._parse_done(line)
                          break
@@ -2167,7 +2267,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
                      if not self.can_stop:
                          heard = time.monotonic()
  
-@@ -3162,6 +3179,9 @@ def engine_args(cfg: dict) -> list[str]:
+@@ -3246,6 +3263,9 @@ def engine_args(cfg: dict) -> list[str]:
      """The engine's arguments: the config's, and with several GPUs the layer split across them ("layer_split" in the
      config: "auto" by default, or the first layer of each later GPU's share, e.g. "18" or "16,32"; see
      layer_split_value)."""
@@ -2177,7 +2277,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
      args = list(cfg["args"])
      # "user_args" (strata_control/user_args.py): the options the person set by hand, over the generated ones at every start,
      # so a setup run or the app rewriting "args" cannot undo them (#3216 #3215 #3270)
-@@ -3592,7 +3612,7 @@ def child_env(cfg: dict, *, offline: bool = False) -> dict:
+@@ -3753,7 +3773,7 @@ def child_env(cfg: dict, *, offline: bool = False) -> dict:
          env["HIP_VISIBLE_DEVICES"] = ""
      elif hip_visible(cfg) and cfg.get("backend") == "hip":   # AMD: numbered as HIP numbers them (hip_visible)
          env["HIP_VISIBLE_DEVICES"] = ",".join(str(i) for i in hip_visible(cfg))
@@ -2186,7 +2286,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
          env["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"      # own default order (fastest first) can number the cards otherwise
          env["CUDA_VISIBLE_DEVICES"] = ",".join(str(i) for i in ordered_gpus(cfg))
      for k, v in (cfg.get("env") or {}).items():      # engine settings the config carries (AMD: the GEMM tuning table)
-@@ -3979,8 +3999,14 @@ def slot_save_dir(value, base: str | None = None) -> str:
+@@ -4173,8 +4193,14 @@ def slot_save_dir(value, base: str | None = None) -> str:
  class Service:
      def __init__(self, engine: Engine, tokenizer, template: ChatTemplate, model_name: str = "qwen3.8-flash-next",
                   vision: Vision | None = None, sampling_defaults: dict | None = None,
@@ -2203,7 +2303,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
          self.literals = literal_tags(getattr(tokenizer, "control_tokens", ()))   # texts that stay text inside a message
          self.fit_max_tokens = fit_max_tokens          # default: clamp the output cap to the room left; False (--no-fit-max-tokens) = 400
          self.aliases: list[str] = []                  # #297: other names of the model (the config's `aliases`)
-@@ -4097,6 +4123,10 @@ class Service:
+@@ -4291,6 +4317,10 @@ class Service:
      def set_family(self, family: str | None) -> None:
          """A family whose text differs from the Qwen form this server was written for (DeepSeek-V4.1: its own end
          token, DSML tool calls, reasoning-effort words).  The others keep the defaults."""
@@ -2214,7 +2314,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
          self.family = family
          if family == "deepseek41":
              from serve import dsml
-@@ -4104,6 +4134,33 @@ class Service:
+@@ -4298,6 +4328,33 @@ class Service:
              self.stop_ids = {int(eos)}
              self.parser_cls = dsml.DsmlOutputParser
              self._force_text = dsml.to_dsml_force
@@ -2248,7 +2348,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
          import serve.frontend as _frontend
          _frontend.use_family(family)
  
-@@ -4289,19 +4346,29 @@ class Service:
+@@ -4483,19 +4540,29 @@ class Service:
          if not isinstance(aliases, list) or not all(isinstance(x, str) for x in aliases):
              raise ValueError(f"aliases={aliases!r}: expected a list of model names")
          names = []
@@ -2284,7 +2384,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
  
      def reported_ctx(self) -> int:
          """The context the endpoints report (/v1/status, /v1/models, /props, /health, /slots, /metrics): the engine's,
-@@ -4637,9 +4704,42 @@ class Service:
+@@ -4831,9 +4898,42 @@ class Service:
                      print(f"[strata] idle unload: {e}", flush=True)
          threading.Thread(target=loop, daemon=True).start()
  
@@ -2328,7 +2428,16 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
          if self.shared_path:
              try:
                  if self.shared:
-@@ -4991,6 +5091,7 @@ class Service:
+@@ -4990,7 +5090,7 @@ class Service:
+             # the requests in flight that are not in a slot: the one alone on the solo path, or waiting their turn
+             in_slots = sum(1 for x in slots if x["state"] != "idle")
+             if PAR_COUNTERS:
+-                live["par_counters"] = dict(self.par_counters)
++                live["par_counters"] = dict(getattr(self.engine, "par_counters", {}))
+             live.update(parallel=par, running=running, slots=slots, outside_slots=max(0, running - in_slots),
+                         waiting=int(getattr(self.engine, "waiting", 0) or 0),
+                         admitting=int(getattr(self.engine, "admitting", 0) or 0))
+@@ -5187,6 +5287,7 @@ class Service:
          """-> (ids, thinking, max_new). An unset or non-positive max_new (some clients send -1) means "unlimited":
          the rest of the context.  `force` (forced_call): without thinking the reply starts with it, so it ends the
          prompt; with thinking, Service.run writes it once the thinking is over."""
@@ -2336,7 +2445,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
          # `cancel` (#1999): set when the client hangs up; the downloads, the wait for the turn and the encodes stop
          # between pictures and raise ClientGone
          # Cached tool images are references in browser history, never arbitrary file paths or huge base64 strings.
-@@ -5279,11 +5380,13 @@ class Service:
+@@ -5475,11 +5576,13 @@ class Service:
          """Yields ("event", Event) as text arrives, then ("done", {"finish": .., "completion_tokens": ..}).
          `force` (forced_call): the opening of the call the reply must make - see prepare()."""
          # the model card's sampling for this thinking state, then the config's block, then the Chat settings shared with
@@ -2354,7 +2463,16 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
          # #123: read after the merge, so a budget shared through POST /settings is seen like the other keys
          budget = self.reasoning_budget(sampling) if thinking else None
          if thinking and not budget and self.answer_room and max_new and max_new >= ANSWER_ROOM_MIN_CAP:
-@@ -5654,12 +5757,24 @@ class Service:
+@@ -5507,7 +5610,7 @@ class Service:
+                 print(f"[strata] thinking capped at {max_new - reserve} of max_tokens {max_new} to leave room for "
+                       f"the answer (budget {budget})", flush=True)
+                 budget = max(1, max_new - reserve)
+-        parser = self.parser_cls(thinking=thinking, tools=with_history_tools(tools, sampling), stream_tools=True,
++        parser = self.parser_cls(thinking=thinking, tools=tools, stream_tools=True,
+                                  recover=self.tool_call_recovery, declared_only=declared_only)
+         detok, n, finish = Detokenizer(self.tok), 0, "length"
+         run_tok, run_len, repeated = None, 0, False     # #606: the current run of one repeated token
+@@ -5850,12 +5953,24 @@ class Service:
                              text = "\n" * (2 - (len(tail) - len(tail.rstrip("\n")))) + force
                          force = None
                          extra = self.tok.encode(text, parse_special=True)
@@ -2382,7 +2500,18 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
                              n += 1
                              raw_ids.append(t)
                              thinking_n += parser.state in ("reasoning", "rcall")
-@@ -7136,7 +7251,7 @@ def make_handler(svc: Service):
+@@ -6983,6 +7098,10 @@ def make_handler(svc: Service):
+             self.end_headers()
+ 
+         def _json(self, code, obj, headers=None, retry_after=None):
++            path = self.path.split("?")[0].rstrip("/")
++            if code >= 400 and isinstance(obj, dict) and isinstance(obj.get("error"), dict) and \
++                    V1_V1_ALIASES.get(path, path) in ("/v1/messages", "/v1/messages/count_tokens"):
++                obj = {**obj, "type": "error"}
+             if self.record is not None:
+                 with svc.status_lock:
+                     self.record["http_status"] = code
+@@ -7332,7 +7451,7 @@ def make_handler(svc: Service):
                  self._json(200, {"status": "ok", "max_context": svc.reported_ctx(), "model": svc.model,
                                   "images": svc.vision is not None, "api_key": bool(svc.api_key),
                                   "image_generation": svc.images is not None,
@@ -2391,7 +2520,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
              elif path.startswith("/v1/images/files/"):
                  # response_format url: the name (32 random hex digits) is the access, as an OpenAI image URL is
                  f = svc.images.file(path[len("/v1/images/files/"):]) if svc.images is not None else None
-@@ -7150,6 +7265,8 @@ def make_handler(svc: Service):
+@@ -7346,6 +7465,8 @@ def make_handler(svc: Service):
                  self.send_header("Content-Length", str(len(body)))
                  self.end_headers()
                  self.wfile.write(body)
@@ -2400,7 +2529,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
              elif path == "/status":
                  if not self._authorized():                  # #212: it shows the end of the last answer
                      return
-@@ -7167,8 +7284,11 @@ def make_handler(svc: Service):
+@@ -7363,8 +7484,11 @@ def make_handler(svc: Service):
              elif path in ("/v1/models", "/models"):
                  if self._authorized():
                      loaded = svc.loaded()
@@ -2414,7 +2543,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
                               "architecture": {"input_modalities": ["text", "image"] if svc.vision is not None else ["text"],
                                                "output_modalities": ["text"]}}
                      if not loaded and (svc.idle_unload_s or getattr(svc.engine, "unloaded", False)):
-@@ -7176,7 +7296,7 @@ def make_handler(svc: Service):
+@@ -7372,7 +7496,7 @@ def make_handler(svc: Service):
                          loaded = True
                      if svc.aliases:                       # #297: the aliases, and each one listed under its own id
                          model["aliases"] = list(svc.aliases)
@@ -2423,7 +2552,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
                      data = data if loaded else []
                      if svc.images is not None:            # the image model: POST /v1/images/generations
                          data.append({"id": svc.images.model, "object": "model", "status": {"value": "loaded"},
-@@ -7432,8 +7552,8 @@ def make_handler(svc: Service):
+@@ -7628,8 +7752,8 @@ def make_handler(svc: Service):
              self._json(200, gen.response(images, job, figures, f"{scheme}://{host}"))
  
          def _props(self):
@@ -2434,7 +2563,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
                  self._json(404, {"error": {"message": "model not found"}})
                  return
              if not svc.loaded() and not getattr(svc.engine, "unloaded", False):
-@@ -7447,7 +7567,7 @@ def make_handler(svc: Service):
+@@ -7643,7 +7767,7 @@ def make_handler(svc: Service):
              params["n_predict"] = svc.shared.get("max_tokens", -1)
              props = {"default_generation_settings": {"n_ctx": svc.reported_ctx(), "params": params},
                       "total_slots": max(1, int(getattr(svc.engine, "batch", 0) or 0)),   # #1004: the batch slots
@@ -2443,7 +2572,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
                       "chat_template_caps": svc.template.caps,
                       "modalities": {"vision": svc.vision is not None}, "models_autoload": hasattr(svc.engine, "restart"),
                       "is_sleeping": not svc.loaded()}
-@@ -7632,6 +7752,7 @@ def make_handler(svc: Service):
+@@ -7828,6 +7952,7 @@ def make_handler(svc: Service):
                  items.close()
  
          def _openai(self, req):
@@ -2451,7 +2580,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
              req = svc.with_shared(req, "openai")
              bias_api.normalize(req.get("logit_bias"), len(getattr(svc.tok, "tokens", ())) or None)
              messages, tools, kw = openai_to_messages(req)
-@@ -7644,7 +7765,7 @@ def make_handler(svc: Service):
+@@ -7840,7 +7965,7 @@ def make_handler(svc: Service):
              if validator is not None and (tools or req.get("strata_mcp")):
                  raise ValueError("structured response_format with tools/MCP is not supported")
              svc.load()
@@ -2460,7 +2589,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
              # No cap of our own on the reply's length when logprobs are asked for: the reply is already bounded by
              # max_tokens (by the rest of the context when it is not sent), which is the only bound OpenAI and vLLM
              # put on it either.  A reply that is not streamed does hold every entry (its token, bytes and up to 20
-@@ -7692,10 +7813,20 @@ def make_handler(svc: Service):
+@@ -7888,10 +8013,20 @@ def make_handler(svc: Service):
              if not req.get("stream"):
                  return self._json(200, openai_collect(chunks))
              self._sse()
@@ -2481,7 +2610,33 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
                      else:
                          self.wfile.write(b"data: " + json.dumps(c, ensure_ascii=False).encode() + b"\n\n")
                      self.wfile.flush()
-@@ -7737,6 +7868,7 @@ def make_handler(svc: Service):
+@@ -7916,6 +8051,25 @@ def make_handler(svc: Service):
+                 err = {"error": {"type": "server_error", "message": str(e)}}   # headers are sent, so no 400 now
+                 self._note(error=err["error"])
+                 self.wfile.write(b"data: " + json.dumps(err).encode() + b"\n\ndata: [DONE]\n\n")
++            except (GpuBusy, EngineStarting, EngineStuck, ModelBusy) as e:
++                self._chat_failed(str(e))
++            except ClientGone:
++                raise
++            except Exception:
++                self._chat_failed(self._stream_crashed())
++
++        def _stream_crashed(self):
++            import traceback
++            print("[strata] error in a started stream:\n" + traceback.format_exc(), flush=True)
++            return "the server failed while answering; the server's log has the details"
++
++        def _chat_failed(self, message):
++            err = {"error": {"type": "server_error", "message": message}}
++            self._note(error=err["error"])
++            try:
++                self.wfile.write(b"data: " + json.dumps(err).encode() + b"\n\ndata: [DONE]\n\n")
++            except OSError:
++                self._note(outcome="disconnected")
+ 
+         def _responses_ready(self, req, events):
+             """Send a finished Responses result that did not run on the engine."""
+@@ -7933,6 +8087,7 @@ def make_handler(svc: Service):
          def _responses(self, req):
              """#451: POST /v1/responses - OpenAI's Responses API, stateless (serve/responses.py), on the chat path.
              Errors use the Responses format; once the stream has started they arrive as a response.failed event."""
@@ -2489,7 +2644,20 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
              try:
                  title = (responses_api.thread_title_events(req, svc.model_for(req))
                           if svc.codex_thread_titles else None)
-@@ -7897,6 +8029,7 @@ def make_handler(svc: Service):
+@@ -8020,6 +8175,12 @@ def make_handler(svc: Service):
+                 self._responses_failed(asm, str(e), "structured_output_failed", send)
+             except ValueError as e:                          # the engine's ERR after the stream started
+                 self._responses_failed(asm, str(e), "server_error", send)
++            except (GpuBusy, EngineStarting, EngineStuck, ModelBusy) as e:
++                self._responses_failed(asm, str(e), "server_error", send)
++            except ClientGone:
++                raise
++            except Exception:
++                self._responses_failed(asm, self._stream_crashed(), "server_error", send)
+ 
+         def _responses_failed(self, asm, message, code, send):
+             e = asm.failed(message, code)
+@@ -8093,6 +8254,7 @@ def make_handler(svc: Service):
          def _count_tokens(self, req):
              """Anthropic's token count, which Claude Code asks for its context figures: the prompt this server would
              read for the same request, rendered and tokenized - the model does not run."""
@@ -2497,7 +2665,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
              req = svc.with_shared(req, "anthropic")
              messages, tools, kw = anthropic_to_messages(req, svc.anthropic_think_unasked)
              stop_strings(req)                                 # the same 400 as the request itself would get
-@@ -7904,6 +8037,7 @@ def make_handler(svc: Service):
+@@ -8100,6 +8262,7 @@ def make_handler(svc: Service):
              self._json(200, {"input_tokens": len(svc.encode_prompt(messages, tools, kw, store=False))})
  
          def _anthropic(self, req):
@@ -2505,7 +2673,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
              svc.load()
              req = svc.with_shared(req, "anthropic")
              messages, tools, kw = anthropic_to_messages(req, svc.anthropic_think_unasked)
-@@ -7911,7 +8045,7 @@ def make_handler(svc: Service):
+@@ -8107,7 +8270,7 @@ def make_handler(svc: Service):
              if tool_choice_of(req.get("tool_choice"))[0] == "none":   # Anthropic's {"type": "none"}: no tools offered
                  tools = None
              force = svc.force_text(forced_call(req.get("tool_choice"), tools))        # "any" / {"type": "tool", "name": N}
@@ -2514,7 +2682,28 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
              svc.reasoning_budget(req)                         # a bad value is a 400 before anything is sent
              stop_strings(req)                                 # ... and so is a bad stop / stop_sequences
              check_request_sampling(req)                       # ... and a sampling field of the wrong type
-@@ -8270,7 +8404,7 @@ def origins_of(value, key: str, wildcard: bool) -> list[str]:
+@@ -8146,6 +8309,20 @@ def make_handler(svc: Service):
+                 err = {"type": "error", "error": {"type": "api_error", "message": str(e)}}
+                 self._note(error=err["error"])
+                 self.wfile.write(b"event: error\ndata: " + json.dumps(err).encode() + b"\n\n")
++            except (GpuBusy, EngineStarting, EngineStuck, ModelBusy) as e:
++                self._anthropic_failed(str(e), "overloaded_error" if isinstance(e, GpuBusy) else "api_error")
++            except ClientGone:
++                raise
++            except Exception:
++                self._anthropic_failed(self._stream_crashed(), "api_error")
++
++        def _anthropic_failed(self, message, kind):
++            err = {"type": "error", "error": {"type": kind, "message": message}}
++            self._note(error=err["error"])
++            try:
++                self.wfile.write(b"event: error\ndata: " + json.dumps(err).encode() + b"\n\n")
++            except OSError:
++                self._note(outcome="disconnected")
+ 
+     return Handler
+ 
+@@ -8466,7 +8643,7 @@ def origins_of(value, key: str, wildcard: bool) -> list[str]:
      return out
  
  
@@ -2523,7 +2712,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
                 "experimental_speed_projection")
  
  
-@@ -8286,8 +8420,10 @@ def clean_shared_defaults(d) -> dict:
+@@ -8482,8 +8659,10 @@ def clean_shared_defaults(d) -> dict:
              continue
          number = isinstance(value, (int, float)) and not isinstance(value, bool)
          if key == "reasoning_effort":
@@ -2535,7 +2724,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
          elif key == "temperature":
              if not number or not 0 <= value <= 2:
                  raise ValueError("temperature: 0..2")
-@@ -8394,6 +8530,8 @@ def apply_saved_tuning(cfg: dict, *, say=None) -> dict:
+@@ -8590,6 +8769,8 @@ def apply_saved_tuning(cfg: dict, *, say=None) -> dict:
      Every start path runs this (the Terminal, `runtime start`, the app's load, a restart of the app, an unload and a load), so the
      tuning is applied every time and never re-measured. A tune's own worker sets STRATA_NO_PRESET so that it measures the
      configuration it was given. Never fails a start: a store that cannot be read means the configuration as it is."""
@@ -2544,7 +2733,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
      if os.environ.get("STRATA_NO_PRESET"):
          return cfg
      say = say or (lambda line: print(line, flush=True))
-@@ -8607,6 +8745,41 @@ FAMILY_MODEL_NAMES = {"qwen4exp": "qwen3.8-flash-next", "qwen35moe": "qwen3.6-35
+@@ -8828,6 +9009,41 @@ FAMILY_MODEL_NAMES = {"qwen4exp": "qwen3.8-flash-next", "qwen35moe": "qwen3.6-35
                        "deepseek41": "deepseek-v4.1-flash"}
  
  
@@ -2586,7 +2775,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
  # The sampling each model card recommends ("Best Practices"), used when neither the request, the Chat settings nor the
  # run config's `sampling` block says otherwise.  Greedy is only for a request or config that asks for temperature 0.
  # min_p 0, repetition_penalty 1 and presence_penalty 0 are the engine's own "off", so they are not listed.
-@@ -8637,10 +8810,52 @@ def arch_from_tokenizer(arch, pre) -> str | None:
+@@ -8858,10 +9074,52 @@ def arch_from_tokenizer(arch, pre) -> str | None:
          return arch
      return "deepseek41" if str(pre or "").startswith("deepseek") else None
  
@@ -2640,7 +2829,38 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
  
  
  def with_current_reader(cfg: dict, package: Path) -> dict:
-@@ -8875,6 +9090,12 @@ def main(argv=None, *, lifecycle_event=None, interrupt_exit_code: int = 0) -> in
+@@ -8904,30 +9162,6 @@ def with_component_engine(cfg: dict) -> dict:
+     return cfg
+ 
+ 
+-def with_history_tools(tools, req) -> list:
+-    """#4663: an agent's tool set changes between turns (deferred tools, MCP servers, a compacted history), and the model calls a tool it used
+-    earlier in this conversation that this turn's `tools` no longer lists.  That call came back as raw text with finish_reason "stop", and the
+-    client took it for prose and stopped.  A name the conversation's own assistant messages called is a tool the client has, so it counts as
+-    declared (the call comes back as a tool call; the client says what it does with it).  Nothing is added when the request declared no
+-    tools at all, or for a name that is already declared."""
+-    if not tools or not isinstance(req, dict):
+-        return tools
+-    try:
+-        have = {t.get("name") for t in tools if isinstance(t, dict)}
+-        extra = []
+-        for message in req.get("messages") or []:
+-            if not isinstance(message, dict) or message.get("role") != "assistant":
+-                continue
+-            for call in message.get("tool_calls") or []:
+-                name = (call.get("function") or {}).get("name") if isinstance(call, dict) else None
+-                if isinstance(name, str) and name and name not in have:
+-                    have.add(name)
+-                    extra.append({"name": name, "parameters": {"type": "object", "properties": {}}})
+-        return [*tools, *extra] if extra else tools
+-    except Exception:
+-        return tools
+-
+-
+ def _component_exe(reference: str, cfg: dict) -> str:
+     """The engine a run config names as "component:strata-engine". No engine for this PC is a clear notice and exit 5;
+     the server never goes looking on the internet for one (strata_control/engine_component.py)."""
+@@ -9126,6 +9360,12 @@ def main(argv=None, *, lifecycle_event=None, interrupt_exit_code: int = 0) -> in
          cfg["gpu"] = int(a.gpu) if a.gpu.strip().isdigit() else a.gpu
      a.host = a.host or cfg.get("host") or "127.0.0.1"   # issue #26: the run scripts pass no --host, the config can
      supplied_args = argv if argv is not None else sys.argv[1:]
@@ -2653,7 +2873,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
      if ("STRATA_API_KEY" in os.environ and not os.environ["STRATA_API_KEY"].strip()) or \
              any((x == "--api-key" and i + 1 < len(supplied_args) and not supplied_args[i + 1].strip()) or
                  x.strip() == "--api-key=" for i, x in enumerate(supplied_args)):
-@@ -8903,19 +9124,9 @@ def main(argv=None, *, lifecycle_event=None, interrupt_exit_code: int = 0) -> in
+@@ -9154,19 +9394,9 @@ def main(argv=None, *, lifecycle_event=None, interrupt_exit_code: int = 0) -> in
          ap.error(f"the model's tokenizer is missing ({tpath / 'vocab.json'}); run setup again")
      if (tpath / "vocab.json").exists():
          import strata_tokenizer as ST
@@ -2676,7 +2896,7 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
          print(f"[strata] the config names no \"arch\" and this tokenizer is DeepSeek's: serving it as {cfg['arch']} (its end token, DSML tool "
                f"calls and effort words); add \"arch\": \"{cfg['arch']}\" to the config to say it outright", flush=True)
      hub = hub_from_config(cfg, a.mcp_config)            # before the minutes of loading: a bad entry stops here
-@@ -9045,6 +9256,7 @@ def main(argv=None, *, lifecycle_event=None, interrupt_exit_code: int = 0) -> in
+@@ -9299,6 +9529,7 @@ def main(argv=None, *, lifecycle_event=None, interrupt_exit_code: int = 0) -> in
                    "using the V4.1 template so tool calls come back as real calls", flush=True)
      svc = Service(engine, tok, ChatTemplate(tpl if tpl.exists() else ROOT / "serve/chat_template.jinja"),
                    model_name=default_model_name(cfg), vision=vision,
@@ -2684,6 +2904,177 @@ index 5614dbf1eaf3ba1820b61a13d7eb5cc22f4e791a..ccc5d7772bbb958ecb735f08d1a10f8f
                    sampling_defaults=sampling_defaults,
                    fit_max_tokens=a.fit_max_tokens or (not a.no_fit_max_tokens and cfg.get("fit_max_tokens") is not False))
      svc.launch_attestation = launch_attestation
+diff --git a/serve/test_api_protocol.py b/serve/test_api_protocol.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..eabcbbaf115916234c723aee9e70e003b6707e08
+--- /dev/null
++++ b/serve/test_api_protocol.py
+@@ -0,0 +1,144 @@
++"""Actual ephemeral HTTP/MockEngine checks; never connects to the model or port8093."""
++import contextlib
++import copy
++import http.client
++import io
++import json
++from pathlib import Path
++import sys
++import time
++import unittest
++from unittest import mock
++
++HERE = Path(__file__).resolve().parent
++BASE = HERE.parent
++sys.path[:0] = [str(BASE), str(BASE / 'tools')]
++from serve import server
++from serve.frontend import ChatTemplate, anthropic_to_messages
++
++ARGS = '<parameter=zone>\nUTC\n</parameter>\n</function>\n</tool_call>'
++
++
++class Engine(server.MockEngine):
++    failure = None
++    forcing = False
++
++    def generate(self, ids, *args, **kwargs):
++        if self.forcing:
++            prompt = self.tok.decode(ids)
++            text = ARGS if prompt.endswith('<function=clock>\n') else '<function=clock>\n' + ARGS
++            self.script = self.tok.encode(text, parse_special=True) + self.tok.encode(server.IM_END, parse_special=True)
++        tokens = list(super().generate(ids, *args, **kwargs))
++        if tokens:
++            yield tokens[0]
++        if self.failure:
++            raise self.failure
++        yield from tokens[1:]
++
++
++class API(unittest.TestCase):
++    def setUp(self):
++        self.tok = server.ByteTokenizer()
++        self.engine = Engine(self.tok, 'ordinary answer', max_context=4096)
++        self.svc = server.Service(self.engine, self.tok, ChatTemplate(HERE / 'chat_template.jinja'))
++        self.httpd = server.serve(self.svc, port=0)
++        self.port = self.httpd.server_address[1]
++        self.assertNotEqual(self.port, 8093)
++
++    def tearDown(self):
++        self.httpd.shutdown()
++        self.httpd.server_close()
++
++    def post(self, path, body):
++        c = http.client.HTTPConnection('127.0.0.1', self.port, timeout=15)
++        try:
++            c.request('POST', path, json.dumps(body), {'Content-Type': 'application/json'})
++            r = c.getresponse()
++            return r.status, dict(r.getheaders()), r.read()
++        finally:
++            c.close()
++
++    def test_parallel_result_ids_and_safe_incomplete_fallback(self):
++        raw = [
++            {'role': 'user', 'content': 'read both'},
++            {'role': 'assistant', 'content': [
++                {'type': 'tool_use', 'id': 'slow', 'name': 'read', 'input': {'p': 'slow'}},
++                {'type': 'tool_use', 'id': 'fast', 'name': 'read', 'input': {'p': 'fast'}}]},
++            {'role': 'user', 'content': [
++                {'type': 'tool_result', 'tool_use_id': 'fast', 'content': 'RESULT_FAST'},
++                {'type': 'tool_result', 'tool_use_id': 'slow', 'content': 'RESULT_SLOW'}]}]
++        before = copy.deepcopy(raw)
++        for stream in (False, True):
++            code, _, _ = self.post('/v1/messages', {'model': 'mock', 'messages': raw, 'max_tokens': 32,
++                                                   'thinking': {'type': 'disabled'}, 'stream': stream})
++            self.assertEqual(code, 200)
++            prompt = self.tok.decode(self.engine.last_prompt)
++            self.assertLess(prompt.index('RESULT_SLOW'), prompt.index('RESULT_FAST'))
++        self.assertEqual(raw, before)
++        malformed = copy.deepcopy(raw)
++        malformed[2]['content'][0]['tool_use_id'] = 'unknown'
++        got = anthropic_to_messages({'messages': malformed})[0]
++        self.assertEqual([m['content'] for m in got if m['role'] == 'tool'], ['RESULT_FAST', 'RESULT_SLOW'])
++        self.assertFalse(any('_call_id' in m for m in got))
++
++    def test_error_envelope_preserves_status_retry_header_and_other_routes(self):
++        for path in ('/v1/messages', '/v1/v1/messages/count_tokens?beta=true'):
++            code, _, raw = self.post(path, {'messages': 5, 'max_tokens': 8})
++            self.assertEqual(code, 400)
++            self.assertEqual(json.loads(raw)['type'], 'error')
++        body = {'messages': [{'role': 'user', 'content': 'hi'}], 'max_tokens': 8}
++        with mock.patch.object(self.svc, 'load', side_effect=server.GpuBusy('synthetic busy', retry_after=7)):
++            code, headers, raw = self.post('/v1/messages', body)
++        self.assertEqual((code, headers.get('Retry-After')), (503, '7'))
++        err = json.loads(raw)
++        self.assertEqual((err['type'], err['error']['type']), ('error', 'server_error'))
++        code, _, raw = self.post('/v1/chat/completions', {'messages': 5})
++        self.assertEqual(code, 400)
++        self.assertNotIn('type', json.loads(raw))
++
++    def test_started_stream_errors_and_admission_drain(self):
++        self.engine.failure = server.GpuBusy('synthetic busy')
++        cases = [('/v1/chat/completions', {'messages': [{'role': 'user', 'content': 'hi'}]}, b'data: [DONE]'),
++                 ('/v1/messages', {'messages': [{'role': 'user', 'content': 'hi'}]}, b'event: error'),
++                 ('/v1/responses', {'input': 'hi', 'store': False}, b'event: response.failed')]
++        for path, body, final in cases:
++            code, _, raw = self.post(path, {**body, 'model': 'mock', 'stream': True, 'max_tokens': 32,
++                                           'max_output_tokens': 32, 'reasoning_effort': 'none',
++                                           'thinking': {'type': 'disabled'}})
++            self.assertEqual(code, 200, raw)
++            self.assertNotIn(b'HTTP/1.', raw)
++            self.assertIn(final, raw)
++            self.assertIn(b'synthetic busy', raw)
++            self.assertEqual(self.svc.wait_for_drain(1), 0)
++        self.engine.failure = RuntimeError('synthetic private detail')
++        code, _, raw = self.post('/v1/chat/completions', {'messages': [{'role': 'user', 'content': 'hi'}],
++                                                        'stream': True, 'max_tokens': 32})
++        self.assertEqual(code, 200)
++        self.assertIn(b"server's log", raw)
++        self.assertNotIn(b'private detail', raw)
++        self.assertEqual(self.svc.wait_for_drain(1), 0)
++        self.assertEqual(self.svc.begin_drain(), 0)
++        self.assertEqual(self.svc.wait_for_drain(1), 0)
++        code, _, raw = self.post('/v1/chat/completions', {'messages': [{'role': 'user', 'content': 'hi'}]})
++        self.assertEqual(code, 503)
++        self.assertIn(b"drain", raw.lower())
++
++    def test_required_many_and_named_one_keep_declared_calls(self):
++        self.engine.forcing = True
++        tools = [{'type': 'function', 'function': {'name': name, 'parameters': {
++            'type': 'object', 'properties': {'zone': {'type': 'string'}}}}} for name in ('clock', 'weather')]
++        for offered, choice, suffix in [(tools, 'required', '<tool_call>\n'),
++                                        (tools[:1], 'required', '<function=clock>\n')]:
++            code, _, raw = self.post('/v1/chat/completions', {'messages': [{'role': 'user', 'content': 'time'}],
++                                                            'tools': offered, 'tool_choice': choice, 'max_tokens': 128,
++                                                            'reasoning_effort': 'none'})
++            self.assertEqual(code, 200, raw)
++            data = json.loads(raw)
++            self.assertEqual(data['choices'][0]['finish_reason'], 'tool_calls', raw)
++            call = data['choices'][0]['message']['tool_calls'][0]['function']
++            self.assertEqual((call['name'], json.loads(call['arguments'])), ('clock', {'zone': 'UTC'}))
++            self.assertTrue(self.tok.decode(self.engine.last_prompt).endswith(suffix))
++
++
++if __name__ == '__main__':
++    unittest.main(verbosity=2)
+diff --git a/serve/test_choice_count.py b/serve/test_choice_count.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..84d07be05ebc4c908657bdac3b0211a4af4500a7
+--- /dev/null
++++ b/serve/test_choice_count.py
+@@ -0,0 +1,15 @@
++"""One supported OpenAI choice; refuse unsupported counts instead of silently returning one."""
++import unittest
++from serve.frontend import openai_to_messages
++
++class ChoiceCount(unittest.TestCase):
++    def test_default_and_single_choice_keep_conversion(self):
++        req = {"messages": [{"role": "user", "content": "hello"}]}
++        expected = openai_to_messages(req)
++        for count in (None, 1):
++            self.assertEqual(openai_to_messages({**req, "n": count}), expected)
++
++    def test_other_counts_are_refused(self):
++        for count in (False, True, 0, -1, 2, 1.0, "1", [], {}):
++            with self.subTest(count=count), self.assertRaisesRegex(ValueError, '"n" must be 1'):
++                openai_to_messages({"messages": [], "n": count})
 diff --git a/serve/test_declared_tool_boundary.py b/serve/test_declared_tool_boundary.py
 new file mode 100644
 index 0000000000000000000000000000000000000000..8422f3ceca0820dd8aed4c97f31e725640675b58
@@ -2763,6 +3154,93 @@ index 0000000000000000000000000000000000000000..8422f3ceca0820dd8aed4c97f31e7256
 +
 +if __name__ == "__main__":
 +    unittest.main()
+diff --git a/serve/test_history_tools.py b/serve/test_history_tools.py
+index d874913d14db58411f08c1edbd260dbd070021f6..93fa8e3051495f40b45820f2a01ad46a19b5d14e 100644
+--- a/serve/test_history_tools.py
++++ b/serve/test_history_tools.py
+@@ -1,48 +1,49 @@
+-"""#4663: a call to a tool that this turn's `tools` no longer lists, but that the conversation already called, is a tool call (not raw text).
+-
+-    python -m unittest serve.test_history_tools
++"""Current request declarations remain authoritative even when old assistant turns name other tools.
++MockEngine only: no HTTP listener, native engine, GPU or model request.
+ """
++import contextlib
++import io
++from pathlib import Path
++import threading
+ import unittest
+ 
+-import serve.server as server
+-from serve.frontend import OutputParser
++from serve.server import ByteTokenizer, MockEngine, Service
++from serve.frontend import ChatTemplate
+ 
+ TODO = {"name": "TodoWrite", "parameters": {"type": "object", "properties": {"todos": {"type": "array"}}}}
++BASH = {"name": "Bash", "parameters": {"type": "object", "properties": {"command": {"type": "string"}}}}
+ CALL = "<tool_call>\n<function=Bash>\n<parameter=command>\nls -la\n</parameter>\n</function>\n</tool_call>"
+ 
+ 
+-def history(*names):
+-    return {"messages": [{"role": "user", "content": "go"},
+-                         *[{"role": "assistant", "content": "", "tool_calls": [{"id": f"c{i}", "type": "function",
+-                           "function": {"name": n, "arguments": "{}"}}]} for i, n in enumerate(names)]]}
+-
+-
+-def run(tools, text=CALL):
+-    p = OutputParser(thinking=False, tools=tools, stream_tools=True, recover=True, declared_only=True)
+-    evs = p.feed(text) + p.finish("stop")
+-    return [e.call.name for e in evs if e.kind == "tool_call"], "".join(e.text for e in evs if e.kind == "content")
+-
+-
+ class HistoryTools(unittest.TestCase):
+-    def test_a_tool_the_conversation_called_is_a_tool_call_again(self):
+-        names, answer = run(server.with_history_tools([TODO], history("Bash")))
+-        self.assertEqual(names, ["Bash"])
+-        self.assertEqual(answer, "")
+-
+-    def test_without_the_history_it_stays_text(self):
+-        names, answer = run(server.with_history_tools([TODO], history("Read")))
+-        self.assertEqual(names, [])
++    def run_script(self, tools, history_name):
++        tok = ByteTokenizer()
++        template = ChatTemplate(Path(__file__).parent / "chat_template.jinja")
++        svc = Service(MockEngine(tok, CALL, max_context=16384), tok, template)
++        req = {"messages": [{"role": "assistant", "tool_calls": [{"function": {"name": history_name}}]}]}
++        with contextlib.redirect_stdout(io.StringIO()):
++            rows = list(svc.run([], False, tools, 512, req, threading.Event(), declared_only=True))
++        events = [value for kind, value in rows if kind == "event"]
++        return [e.call for e in events if e.kind == "tool_call"], "".join(e.text for e in events if e.kind == "content")
++
++    def test_old_tool_is_not_implicitly_declared(self):
++        calls, answer = self.run_script([TODO], "Bash")
++        self.assertEqual(calls, [])
+         self.assertIn("<tool_call>", answer)
+ 
+-    def test_declared_names_are_not_doubled_and_no_tools_stays_no_tools(self):
+-        tools = [TODO, {"name": "Bash", "parameters": {"type": "object", "properties": {"command": {"type": "string"}}}}]
+-        self.assertIs(server.with_history_tools(tools, history("Bash", "TodoWrite")), tools)
+-        self.assertEqual(server.with_history_tools([], history("Bash")), [])
+-        self.assertIsNone(server.with_history_tools(None, history("Bash")))
++    def test_current_declaration_retains_its_schema(self):
++        calls, answer = self.run_script([TODO, BASH], "Bash")
++        self.assertEqual([(c.name, c.arguments) for c in calls], [("Bash", {"command": "ls -la"})])
++        self.assertEqual(answer, "")
+ 
+-    def test_odd_requests_are_left_alone(self):
+-        self.assertEqual(server.with_history_tools([TODO], None), [TODO])
+-        self.assertEqual(server.with_history_tools([TODO], {"messages": [None, {"role": "assistant", "tool_calls": [None, {}]}]}), [TODO])
++    def test_unrelated_history_does_not_change_current_tools(self):
++        calls, _ = self.run_script([TODO], "Read")
++        self.assertEqual(calls, [])
++
++    def test_no_tools_does_not_gain_tools_from_history(self):
++        calls, answer = self.run_script([], "Bash")
++        self.assertEqual(calls, [])
++        self.assertIn("<tool_call>", answer)
+ 
+ 
+ if __name__ == "__main__":
 diff --git a/serve/test_legacy_models.py b/serve/test_legacy_models.py
 new file mode 100644
 index 0000000000000000000000000000000000000000..73c81f16705248b05359f865b49ce140b49f9b38
@@ -3080,6 +3558,77 @@ index 0000000000000000000000000000000000000000..e0c482683b2e7dba53e6719081acd011
 +
 +if __name__ == '__main__':
 +    unittest.main()
+diff --git a/serve/test_parallel_counter_metrics.py b/serve/test_parallel_counter_metrics.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..af0c3d5fb95394789b9e0f96f4671e2a61ac311c
+--- /dev/null
++++ b/serve/test_parallel_counter_metrics.py
+@@ -0,0 +1,21 @@
++"""Research queue metrics belong to the engine, not Service. No HTTP/native/GPU."""
++from pathlib import Path
++import unittest
++from unittest import mock
++from serve import server
++from serve.frontend import ChatTemplate
++
++class ParallelCounterMetrics(unittest.TestCase):
++    def test_reads_engine_counters_and_supports_engine_without_them(self):
++        tok = server.ByteTokenizer()
++        engine = server.MockEngine(tok, "", max_context=16384)
++        engine.batch = 2
++        engine.par_counters = {"queued": 3, "queue_wait_s": 1.25}
++        svc = server.Service(engine, tok, ChatTemplate(Path(__file__).parent / "chat_template.jinja"))
++        with mock.patch.object(server, "PAR_COUNTERS", True):
++            got = svc.metrics()["live"]["par_counters"]
++            self.assertEqual(got, engine.par_counters)
++            got["queued"] = 99
++            self.assertEqual(engine.par_counters["queued"], 3)
++            del engine.par_counters
++            self.assertEqual(svc.metrics()["live"]["par_counters"], {})
+diff --git a/serve/test_recover_scan_work.py b/serve/test_recover_scan_work.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..1c99450741f90ac3bd1408f2dab793f401f4009b
+--- /dev/null
++++ b/serve/test_recover_scan_work.py
+@@ -0,0 +1,38 @@
++"""Deterministic parser-work regression, not a wall-clock performance threshold."""
++import json,unittest
++from unittest import mock
++import serve.frontend as front
++
++TOOLS=[{'name':'write_file','parameters':{'properties':{'content':{'type':'string'},'edits':{'type':'array'}}}}]
++class RecoverScanWork(unittest.TestCase):
++ def parse(self,key,value):
++  counts={'call_end':0,'function_end':0,'param_chars':0}
++  originals={n:getattr(front,n) for n in ['call_end','function_end','param_end']}
++  def count(n):
++   def wrapped(text,*args,**kwargs):
++    if n=='param_end':counts['param_chars']+=len(text)
++    else:counts[n]+=1
++    return originals[n](text,*args,**kwargs)
++   return wrapped
++  raw='<tool_call><function=write_file><parameter='+key+'>\n'+value+'\n</parameter></function></tool_call>'
++  with mock.patch.object(front,'call_end',count('call_end')),mock.patch.object(front,'function_end',count('function_end')),mock.patch.object(front,'param_end',count('param_end')):
++   parser=front.OutputParser(thinking=False,tools=TOOLS,stream_tools=True,recover=True,declared_only=True);calls=[]
++   for i in range(0,len(raw),8):calls += [e.call for e in parser.feed(raw[i:i+8]) if e.kind=='tool_call']
++   calls += [e.call for e in parser.finish() if e.kind=='tool_call']
++  self.assertEqual(len(calls),1)
++  self.assertEqual(calls[0].arguments,{key:value if key=='content' else json.loads(value)})
++  return counts
++ def test_large_plain_string_has_bounded_structural_work(self):
++  value='x'*32768;got=self.parse('content',value)
++  self.assertLessEqual(got['call_end'],4);self.assertLessEqual(got['function_end'],4)
++  self.assertLessEqual(got['param_chars'],20*len(value))
++ def test_large_json_array_has_bounded_structural_work(self):
++  value=json.dumps(['ordinary source text']*1500);got=self.parse('edits',value)
++  self.assertLessEqual(got['call_end'],4);self.assertLessEqual(got['function_end'],4)
++  self.assertLessEqual(got['param_chars'],20*len(value))
++ def test_native_family_hook_keeps_recovery_dispatch(self):
++  class Native(front.OutputParser):
++   native_call_format=True
++   def _body_end(self,body):return body.find('END_NATIVE')
++  p=Native(thinking=False,recover=True);p.buf='payloadEND_NATIVE'
++  self.assertEqual(p._wrapped_call_end(),7)
 diff --git a/serve/test_request_hardening.py b/serve/test_request_hardening.py
 index 37eb849c8e606f0051c857ed8999fc4684f5fa72..0d83a8a0c9f0096875385a30b5b3d356e3cf6ee0 100644
 --- a/serve/test_request_hardening.py
@@ -4918,10 +5467,10 @@ index c670ef138ed46ca058434d4b44dd17231fa65520..e5f47acc7aa71a42b0e104857f723cf6
      *s = reinterpret_cast<cudaStream_t>(static_cast<uintptr_t>(1)); return cudaSuccess;
  }
 diff --git a/src/core/expert_source.cpp b/src/core/expert_source.cpp
-index 583ee07f58f2041e9b3fbbcf804c07ea50a0e81c..68c05456178e8c674302527b1d5428efea5e09bf 100644
+index f4d41e180871c4b5af2bc380f9bf8034a8f3cba4..4de19c5d0038c40f4d358228f8d3c39233604c29 100644
 --- a/src/core/expert_source.cpp
 +++ b/src/core/expert_source.cpp
-@@ -5194,7 +5194,11 @@ void expert_pool_dispatch_multi(ExpertDispatch& d, const float* x_f, const int32
+@@ -5219,7 +5219,11 @@ void expert_pool_dispatch_multi(ExpertDispatch& d, const float* x_f, const int32
      {
          const auto b0 = std::chrono::steady_clock::now();
          if (njobs > 0) {
@@ -4934,7 +5483,7 @@ index 583ee07f58f2041e9b3fbbcf804c07ea50a0e81c..68c05456178e8c674302527b1d5428ef
              else d.pool->run_split_multi(d.jobs_multi.data(), njobs);
              ++d.cold_batches;
          }
-@@ -5239,7 +5243,11 @@ void expert_pool_dispatch_multi(ExpertDispatch& d, const float* x_f, const int32
+@@ -5264,7 +5268,11 @@ void expert_pool_dispatch_multi(ExpertDispatch& d, const float* x_f, const int32
      if (d.plan != nullptr) d.plan->cpu_jobs = njobs;
      pt("run", njobs);
      if (njobs > 0 && npend == 0) {
@@ -4947,7 +5496,7 @@ index 583ee07f58f2041e9b3fbbcf804c07ea50a0e81c..68c05456178e8c674302527b1d5428ef
          else d.pool->run_split_multi(d.jobs_multi.data(), njobs);
      }
      if (d.remote_count > 0) {
-@@ -5747,12 +5755,29 @@ LoadStats load_experts_gguf(const std::string& gguf, uint8_t* dst, const strata:
+@@ -5772,12 +5780,29 @@ LoadStats load_experts_gguf(const std::string& gguf, uint8_t* dst, const strata:
      return st;
  }
  
@@ -4977,7 +5526,7 @@ index 583ee07f58f2041e9b3fbbcf804c07ea50a0e81c..68c05456178e8c674302527b1d5428ef
      const std::string path = pack_dir + "/experts.bin";
      // plan v0.3 P6: the layout (canonical, or a native pack's per-layer blobs) was loaded by the driver
      const strata::kernels::cpu::ExpertLayout& lay = strata::kernels::cpu::expert_layout();
-@@ -5836,7 +5861,13 @@ bool ArenaExpertSource::open(const std::string& pack_dir, int64_t n_layers, int6
+@@ -5861,7 +5886,13 @@ bool ArenaExpertSource::open(const std::string& pack_dir, int64_t n_layers, int6
      // engine still exiting) is only a warning - the OS may make room - per the recommend-not-force rule.
      ram_warning_.clear();
      // (a shared arena, --shared-expert-arena, may already be in RAM for another engine: not checked)
@@ -4991,7 +5540,7 @@ index 583ee07f58f2041e9b3fbbcf804c07ea50a0e81c..68c05456178e8c674302527b1d5428ef
          const uint64_t need = want + (uint64_t) blob;
          const double gib = 1073741824.0;
          char buf[512];
-@@ -5971,11 +6002,33 @@ bool ArenaExpertSource::open(const std::string& pack_dir, int64_t n_layers, int6
+@@ -5996,11 +6027,33 @@ bool ArenaExpertSource::open(const std::string& pack_dir, int64_t n_layers, int6
  #else
      const bool deferred = false;
  #endif
@@ -5025,7 +5574,7 @@ index 583ee07f58f2041e9b3fbbcf804c07ea50a0e81c..68c05456178e8c674302527b1d5428ef
      if (!a->valid()) {
          const std::string why = a->note;
          delete a;
-@@ -5996,10 +6049,21 @@ bool ArenaExpertSource::open(const std::string& pack_dir, int64_t n_layers, int6
+@@ -6021,8 +6074,13 @@ bool ArenaExpertSource::open(const std::string& pack_dir, int64_t n_layers, int6
      } else {
          files.push_back(path);
      }
@@ -5038,6 +5587,11 @@ index 583ee07f58f2041e9b3fbbcf804c07ea50a0e81c..68c05456178e8c674302527b1d5428ef
 +#endif
      const int readers = unbuffered ? std::max(threads, 16) : threads;   // 16 keep a PCIe 5 drive's queue full
      LoadStats st;
+     // A shared arena (--shared-expert-arena, the replicas): ONE engine reads the experts into it, the others wait and skip the
+@@ -6062,6 +6120,12 @@ bool ArenaExpertSource::open(const std::string& pack_dir, int64_t n_layers, int6
+             std::this_thread::sleep_for(std::chrono::milliseconds(200));
+         }
+     }
 +#ifdef STRATA_EARLY_ARENA_BUILT
 +    if (early) {
 +        st = early_load->st;
@@ -5047,19 +5601,22 @@ index 583ee07f58f2041e9b3fbbcf804c07ea50a0e81c..68c05456178e8c674302527b1d5428ef
      std::atomic<int> ready{0};
      std::thread reg;
      if (deferred) {
-@@ -6011,6 +6075,11 @@ bool ArenaExpertSource::open(const std::string& pack_dir, int64_t n_layers, int6
-         });
-     }
-     const std::atomic<int>* rp = deferred ? &ready : nullptr;
+@@ -6078,7 +6142,13 @@ bool ArenaExpertSource::open(const std::string& pack_dir, int64_t n_layers, int6
+         st.bytes = want;
+         st.seconds = 0.0;
+         std::fprintf(stderr, "strata generate: shared expert arena: already filled by another engine; the read is skipped\n");
+-    } else if (from_gguf) {
++    } else
 +#ifdef STRATA_EARLY_ARENA_BUILT
 +    if (early) {
 +        // loaded by the early thread
 +    } else
 +#endif
-     if (from_gguf) {
++    if (from_gguf) {
          st = load_experts_gguf(gguf_, a->data(), lay, readers, unbuffered, rp, padded_ ? &pad_ : nullptr);
      } else {
-@@ -6115,8 +6184,95 @@ bool ArenaExpertSource::open(const std::string& pack_dir, int64_t n_layers, int6
+         if (unbuffered && !padded_) st = load_experts_direct(path, a->data(), loff, lbytes, readers, /*chunk=*/8u << 20, rp);
+@@ -6185,8 +6255,95 @@ bool ArenaExpertSource::open(const std::string& pack_dir, int64_t n_layers, int6
      record_inputs(path, gguf_, lay, from_gguf);
      return true;
  }
@@ -5377,10 +5934,10 @@ index 25efb6f6217991100c2a1a6599a17917cba49cea..99e8d2f6d11e097001656b5a58cfc9bf
          weights_.reserve(pending.size());
          uint64_t packed_bytes = 0;
 diff --git a/src/core/pinned.cu b/src/core/pinned.cu
-index 0c45c051c5685a8581c1607f6d6f3bc7a7df2be5..026059e89e5623a861de524e1456af544ae8d945 100644
+index 01591340d31c9ac41f73f2fd000a3866d330eaa0..04470492dc0b3e7480d47ffbc20c49a82abf3824 100644
 --- a/src/core/pinned.cu
 +++ b/src/core/pinned.cu
-@@ -6,6 +6,10 @@
+@@ -7,6 +7,10 @@
  #include <cuda_runtime.h>
  
  #include <atomic>
@@ -5391,7 +5948,7 @@ index 0c45c051c5685a8581c1607f6d6f3bc7a7df2be5..026059e89e5623a861de524e1456af54
  #include <climits>
  #include <cerrno>
  #include <cstdlib>
-@@ -28,6 +32,7 @@
+@@ -29,6 +33,7 @@
  
  #ifdef _WIN32
  #include <windows.h>
@@ -5399,9 +5956,9 @@ index 0c45c051c5685a8581c1607f6d6f3bc7a7df2be5..026059e89e5623a861de524e1456af54
  #else
  #include <fcntl.h>
  #include <sys/mman.h>
-@@ -99,6 +104,24 @@ void* reserve(uint64_t bytes, PageBacking& got, std::string& note, const std::st
-         note = "shared-file arena backing is not implemented on Windows";
-         return nullptr;
+@@ -242,6 +247,24 @@ void* reserve(uint64_t bytes, PageBacking& got, std::string& note, const std::st
+         note = "shared section " + nm + " (pack hash checked)";
+         return static_cast<uint8_t*>(view) + kSharedArenaHeaderBytes;
      }
 +    // Explicit opt-in only. A single exposed NUMA node keeps ordinary allocation; no CPU affinity changes.
 +    const char* numa_mode = std::getenv("STRATA_WIN_NUMA_NODE");
@@ -5424,7 +5981,7 @@ index 0c45c051c5685a8581c1607f6d6f3bc7a7df2be5..026059e89e5623a861de524e1456af54
      // MEM_LARGE_PAGES needs SeLockMemoryPrivilege.  Having it assigned to the account is not enough: the
      // PROCESS must enable it in its own token (AdjustTokenPrivileges) before VirtualAlloc, or the call fails.
      // An account without the assignment, or a failure to enable, leaves the process as it was: VirtualAlloc
-@@ -125,11 +148,11 @@ void* reserve(uint64_t bytes, PageBacking& got, std::string& note, const std::st
+@@ -268,11 +291,11 @@ void* reserve(uint64_t bytes, PageBacking& got, std::string& note, const std::st
          // anything else is ERROR_INVALID_PARAMETER (87), which reads like a privilege problem but is not.
          // Round up: the slack is under 2 MB and the tail stays unused.
          const SIZE_T lbytes = (SIZE_T) (((SIZE_T) bytes + large - 1) / large * large);
@@ -5438,7 +5995,7 @@ index 0c45c051c5685a8581c1607f6d6f3bc7a7df2be5..026059e89e5623a861de524e1456af54
              return p;
          }
          // 1450 (ERROR_NO_SYSTEM_RESOURCES) is the large-page pool saying no, 87 is a size that is not a
-@@ -142,7 +165,8 @@ void* reserve(uint64_t bytes, PageBacking& got, std::string& note, const std::st
+@@ -285,7 +308,8 @@ void* reserve(uint64_t bytes, PageBacking& got, std::string& note, const std::st
      } else {
          note = "this system has no large-page minimum; using 4 KB pages";
      }
@@ -5448,7 +6005,7 @@ index 0c45c051c5685a8581c1607f6d6f3bc7a7df2be5..026059e89e5623a861de524e1456af54
      got = PageBacking::NormalPages;
      return p;
  #else
-@@ -414,6 +438,40 @@ PinnedArena::PinnedArena(uint64_t bytes, const std::vector<uint64_t>& bounds,
+@@ -626,6 +650,40 @@ PinnedArena::PinnedArena(uint64_t bytes, const std::vector<uint64_t>& bounds,
          mapping_base = base;
          mapping_bytes = bytes;
      }
@@ -5490,7 +6047,7 @@ index 0c45c051c5685a8581c1607f6d6f3bc7a7df2be5..026059e89e5623a861de524e1456af54
      // Register with CUDA BEFORE any page is touched: cudaHostRegister pins what is resident now, and a region
      // that has already been faulted in page by page is far more expensive to register and may fail outright.
 diff --git a/src/kernels/cpu/iq_avx1.cpp b/src/kernels/cpu/iq_avx1.cpp
-index f80cc652b05653a2e4080e19cfcfb49d918b8df0..d4e72de2c00cf1b0e524097e04c58dac69184b15 100644
+index f80cc652b05653a2e4080e19cfcfb49d918b8df0..5b311d99b173839120e5bd662b67f422bab7254c 100644
 --- a/src/kernels/cpu/iq_avx1.cpp
 +++ b/src/kernels/cpu/iq_avx1.cpp
 @@ -31,6 +31,7 @@
@@ -5664,7 +6221,7 @@ index f80cc652b05653a2e4080e19cfcfb49d918b8df0..d4e72de2c00cf1b0e524097e04c58dac
  template <int NT>
  void iq4nl_rows(const uint8_t* w, size_t row_bytes, int n, const block_q8_0* const* y, float* const* out,
                  int r0, int r1) {
-@@ -321,40 +365,136 @@ void iq4nl_rows(const uint8_t* w, size_t row_bytes, int n, const block_q8_0* con
+@@ -321,40 +365,142 @@ void iq4nl_rows(const uint8_t* w, size_t row_bytes, int n, const block_q8_0* con
      const int pf = prefetch_distance();
      for (int r = r0; r < r1; ++r) {
          const uint8_t* row = w + (size_t) r * row_bytes;
@@ -5757,6 +6314,12 @@ index f80cc652b05653a2e4080e19cfcfb49d918b8df0..d4e72de2c00cf1b0e524097e04c58dac
      const int nb = n / QK2_0;
      const int pf = prefetch_distance();
 -    for (int r = r0; r < r1; ++r) {
++    // Activation scales are row-independent; widen each once per token/block.
++    std::vector<float> yd((size_t) NT * nb * 2);
++    for (int t = 0; t < NT; ++t)
++        for (int b = 0; b < nb * 2; ++b)
++            yd[(size_t) t * nb * 2 + b] = h2f(y[t][b].d);
++
 +    // sum(q) per lane depends only on the activations, not the row: compute the per-lane y-sum vectors once
 +    // per call and reuse them across every row (the kernel runs thousands of rows against the same NT token
 +    // blocks).  Lane m of yv[t][i][k] = sum of the 8 k-half-0 and 8 k-half-1 activation values that p0/p1
@@ -5799,7 +6362,7 @@ index f80cc652b05653a2e4080e19cfcfb49d918b8df0..d4e72de2c00cf1b0e524097e04c58dac
 +                    const __m128i qb = _mm_sub_epi32(_mm_add_epi32(
 +                        _mm_madd_epi16(_mm_maddubs_epi16(k0b, y0), ones),
 +                        _mm_madd_epi16(_mm_maddubs_epi16(k1b, y1), ones)), yv01);
-+                    const float dy = h2f(y[0][i * 2 + k].d);
++                    const float dy = yd[(size_t) i * 2 + k];
 +                    accA = _mm_add_ps(accA, _mm_mul_ps(_mm_set1_ps(dxa * dy), _mm_cvtepi32_ps(qa)));
 +                    accB = _mm_add_ps(accB, _mm_mul_ps(_mm_set1_ps(dxb * dy), _mm_cvtepi32_ps(qb)));
 +                }
@@ -5812,7 +6375,7 @@ index f80cc652b05653a2e4080e19cfcfb49d918b8df0..d4e72de2c00cf1b0e524097e04c58dac
          const uint8_t* row = w + (size_t) r * row_bytes;
          __m128 accf[NT];
          for (int t = 0; t < NT; ++t) accf[t] = _mm_setzero_ps();
-@@ -365,24 +505,18 @@ void q2_0_rows(const uint8_t* w, size_t row_bytes, int n, const block_q8_0* cons
+@@ -365,25 +511,19 @@ void q2_0_rows(const uint8_t* w, size_t row_bytes, int n, const block_q8_0* cons
              const uint8_t* qs = blk + 2;
              for (int k = 0; k < 2; ++k) {
                  // 8 code bytes -> 32 unsigned codes in order (c0..c3 = the four 2-bit groups of each byte)
@@ -5836,16 +6399,18 @@ index f80cc652b05653a2e4080e19cfcfb49d918b8df0..d4e72de2c00cf1b0e524097e04c58dac
 -                    const __m128i d1 = _mm_sub_epi16(_mm_maddubs_epi16(k1, y1), _mm_maddubs_epi16(_mm_set1_epi8(1), y1));
 -                    const __m128 f = _mm_add_ps(_mm_cvtepi32_ps(_mm_madd_epi16(d0, ones)),
 -                                                _mm_cvtepi32_ps(_mm_madd_epi16(d1, ones)));
+-                    accf[t] = _mm_add_ps(accf[t], _mm_mul_ps(_mm_set1_ps(dx * h2f(y[t][i * 2 + k].d)), f));
 +                    // (c-1)*qy: c*qy at int16 level, minus the precomputed per-lane sum(qy) at int32 level
 +                    // (same integer as the per-row subtraction, all values exact in int32)
 +                    const __m128i p0 = _mm_madd_epi16(_mm_maddubs_epi16(k0, y0), ones);
 +                    const __m128i p1 = _mm_madd_epi16(_mm_maddubs_epi16(k1, y1), ones);
 +                    const __m128i q = _mm_sub_epi32(_mm_add_epi32(p0, p1), yv[((size_t) t * nb + i) * 2 + k]);
 +                    const __m128 f = _mm_cvtepi32_ps(q);
-                     accf[t] = _mm_add_ps(accf[t], _mm_mul_ps(_mm_set1_ps(dx * h2f(y[t][i * 2 + k].d)), f));
++                    accf[t] = _mm_add_ps(accf[t], _mm_mul_ps(_mm_set1_ps(dx * yd[(size_t) t * nb * 2 + i * 2 + k]), f));
                  }
              }
-@@ -402,7 +536,12 @@ bool iq128_supported(int type) noexcept {
+         }
+@@ -402,7 +542,12 @@ bool iq128_supported(int type) noexcept {
  }
  
  bool iq128_down_supported(int type) noexcept {
@@ -6278,10 +6843,10 @@ index 6e108ac352fdb1bcc6cd3325b0638e26441f044b..6055a2faaf5a44124fc23db54cf0f2c4
      m.threaded = false;
      m.stop = false;
 diff --git a/src/prefill/kernels.cu b/src/prefill/kernels.cu
-index 365d5a906484e7312867d495f0e23da2587f92bd..42bbddd30cdc5887bf1806fbb8b83959dd6e99e5 100644
+index 883490eccb2b87cd6dd7ca6c9180e5ca5c85acf4..70bc09a157acbca1930ad72381343ae7df511144 100644
 --- a/src/prefill/kernels.cu
 +++ b/src/prefill/kernels.cu
-@@ -35,6 +35,8 @@ __device__ __forceinline__ float warp_max(float v) {
+@@ -36,6 +36,8 @@ __device__ __forceinline__ float warp_max(float v) {
  }
  __device__ __forceinline__ uint16_t bf(float f) {
      uint32_t u = __float_as_uint(f);
@@ -6290,8 +6855,30 @@ index 365d5a906484e7312867d495f0e23da2587f92bd..42bbddd30cdc5887bf1806fbb8b83959
      u += 0x7fffu + ((u >> 16) & 1u);
      return (uint16_t) (u >> 16);
  }
+diff --git a/src/prefill/moe_mmq_tab.cuh b/src/prefill/moe_mmq_tab.cuh
+index 3bd0742a61d5cd83d746a1a2049f5df852c2c422..2f16c6555f245beefa6eeca9b96de3bcddac789a 100644
+--- a/src/prefill/moe_mmq_tab.cuh
++++ b/src/prefill/moe_mmq_tab.cuh
+@@ -168,7 +168,7 @@ static __global__ void mul_mat_q_tab(
+                     break;
+                 }
+ 
+-                ids_dst_shared[j] = ids_dst[col_low + jt*J + j];
++                ids_dst_shared[j] = jt*J + j < col_diff ? ids_dst[col_low + jt*J + j] : 0;
+             }
+             __syncthreads();
+         }
+@@ -263,7 +263,7 @@ static __global__ void mul_mat_q_tab(
+                     break;
+                 }
+ 
+-                ids_dst_shared[j] = ids_dst[col_low + jt*J + j];
++                ids_dst_shared[j] = jt*J + j < col_diff ? ids_dst[col_low + jt*J + j] : 0;
+             }
+             __syncthreads();
+         }
 diff --git a/src/prefill/prefill.cpp b/src/prefill/prefill.cpp
-index 16a609a5ded1174115c54bef2564112e82b1c899..ec5c269134f2a1901c0380ed3e0e495ea5b15821 100644
+index 5182a41cd95de44c8e386dc6c85d49e1ecdb08d7..377c3a225384a57103c092430731cb26554d040c 100644
 --- a/src/prefill/prefill.cpp
 +++ b/src/prefill/prefill.cpp
 @@ -1044,6 +1044,12 @@ struct Prefill::Impl {
@@ -6472,7 +7059,7 @@ index 16a609a5ded1174115c54bef2564112e82b1c899..ec5c269134f2a1901c0380ed3e0e495e
          o.take<uint8_t>(MMQ_GROUP * mp.gu_max + MMQ_TAIL, ok);
          o.take<uint8_t>(MMQ_GROUP * mp.d_max + MMQ_TAIL, ok);
          if (ws::mode() != 0) {   // carve's STRATA_MMQ_WS offsets and chunks
-@@ -4141,7 +4212,7 @@ bool Prefill::run_impl(const int64_t* tokens, int64_t n, int64_t pos0, std::stri
+@@ -4156,7 +4227,7 @@ bool Prefill::run_impl(const int64_t* tokens, int64_t n, int64_t pos0, std::stri
                                  cudaMemcpy(hid.data(), m.ids, hid.size() * 4, cudaMemcpyDeviceToHost);
                                  cudaMemcpy(hw.data(), m.w, hw.size() * 4, cudaMemcpyDeviceToHost);
                                  std::vector<uint16_t> ids16(hid.size()), w16(hw.size());
@@ -6481,7 +7068,7 @@ index 16a609a5ded1174115c54bef2564112e82b1c899..ec5c269134f2a1901c0380ed3e0e495e
                                  const int32_t hd[4] = {(int32_t) l, pos, (int32_t) T, featl[(size_t) (l & 63)] ? 1 : 0};
                                  std::fwrite(hd, 4, 4, ff);
                                  std::fwrite(ids16.data(), 2, ids16.size(), ff);
-@@ -4206,6 +4277,10 @@ bool Prefill::run_impl(const int64_t* tokens, int64_t n, int64_t pos0, std::stri
+@@ -4221,6 +4292,10 @@ bool Prefill::run_impl(const int64_t* tokens, int64_t n, int64_t pos0, std::stri
                      const bool fused_nat = (use_mmq || fused_only) && stream_all && no_peer && lay.native && !had_gu && !had_d &&
                                             fused::native_supported(mmq_gt, mmq_dt);
                      const bool fused_l = (use_mmq && stream_all && no_peer && !lay.native && fused::enabled()) || fused_nat;
@@ -6492,7 +7079,7 @@ index 16a609a5ded1174115c54bef2564112e82b1c899..ec5c269134f2a1901c0380ed3e0e495e
                      // #583 / #954: the fused layout's GU/H/Xq hold the grouping tables and the int8 rows, sized for
                      // stream_all_min() - 1 tokens of MMQ's rows, so a layer that takes MMQ or the FP16 path at the FULL
                      // chunk would write T*K rows into a (stream_all_min() - 1)*K-row buffer: an illegal access, or a kernel
-@@ -4694,6 +4769,29 @@ bool Prefill::run_impl(const int64_t* tokens, int64_t n, int64_t pos0, std::stri
+@@ -4709,6 +4784,29 @@ bool Prefill::run_impl(const int64_t* tokens, int64_t n, int64_t pos0, std::stri
                                  for (size_t i = 0; i <= MMQ_GROUP; ++i)
                                      m.bounds_host[n + 1 + g * (MMQ_GROUP + 1) + i] =
                                          m.bounds_host[std::min(n, g * MMQ_GROUP + i)] - m.bounds_host[g * MMQ_GROUP];
@@ -6522,7 +7109,7 @@ index 16a609a5ded1174115c54bef2564112e82b1c899..ec5c269134f2a1901c0380ed3e0e495e
                              if (grp_mapped) {
                                  int32_t* bh = m.grp_host + 3 * m.grp_tk;
                                  std::memcpy(bh, m.bounds_host.data(), m.bounds_host.size() * 4);
-@@ -5296,6 +5394,53 @@ bool Prefill::run_impl(const int64_t* tokens, int64_t n, int64_t pos0, std::stri
+@@ -5311,6 +5409,53 @@ bool Prefill::run_impl(const int64_t* tokens, int64_t n, int64_t pos0, std::stri
                                  // the group's products: gate/up, swiglu, the group's H to q8_1, down
                                  const size_t j0 = j - q, g = j0 / MMQ_GROUP, n = order.size();
                                  const int ngx = (int) (q + 1);
@@ -6576,7 +7163,7 @@ index 16a609a5ded1174115c54bef2564112e82b1c899..ec5c269134f2a1901c0380ed3e0e495e
                                  const int64_t r0 = m.bounds_host[j0], nr = m.bounds_host[j + 1] - r0;
                                  int64_t maxr = 0;
                                  for (size_t i = j0; i <= j; ++i) maxr = std::max<int64_t>(maxr, m.cnt[(size_t) order[i]]);
-@@ -5521,9 +5666,9 @@ bool Prefill::run_impl(const int64_t* tokens, int64_t n, int64_t pos0, std::stri
+@@ -5536,9 +5681,9 @@ bool Prefill::run_impl(const int64_t* tokens, int64_t n, int64_t pos0, std::stri
                          // (fused: GU and H hold the grouping tables and int8 rows, not floats)
                          // (the CPU's rows, the last rows_cpu of GU and H, are never written by the GPU: not checked)
                          const int64_t gpu_rows = T * K - rows_cpu;
@@ -6588,7 +7175,7 @@ index 16a609a5ded1174115c54bef2564112e82b1c899..ec5c269134f2a1901c0380ed3e0e495e
                          static int64_t reported = -1;
                          if ((bgu || bdm || bbo || bh > 0) && reported != stats_.chunks) {
                              reported = stats_.chunks;
-@@ -5695,6 +5840,10 @@ bool Prefill::run_impl(const int64_t* tokens, int64_t n, int64_t pos0, std::stri
+@@ -5710,6 +5855,10 @@ bool Prefill::run_impl(const int64_t* tokens, int64_t n, int64_t pos0, std::stri
                      for (int64_t i = 0; i < nr * D; ++i) {
                          uint32_t u;
                          std::memcpy(&u, &rows[(size_t) i], 4);
@@ -6600,7 +7187,7 @@ index 16a609a5ded1174115c54bef2564112e82b1c899..ec5c269134f2a1901c0380ed3e0e495e
                          out[(size_t) i] = (uint16_t) (u >> 16);
                      }
 diff --git a/src/program/generate.cpp b/src/program/generate.cpp
-index 956d2c56254bee1754d0b1b7c7d91d73d680b58e..d168721cea27282ae05412ecf2fb7fb0de1f630f 100644
+index ce44646d83918f082a1c8514482898c279dc5bea..687cc9fb6f39e412d34f364da925dd52c25233d1 100644
 --- a/src/program/generate.cpp
 +++ b/src/program/generate.cpp
 @@ -50,6 +50,7 @@
@@ -6611,7 +7198,7 @@ index 956d2c56254bee1754d0b1b7c7d91d73d680b58e..d168721cea27282ae05412ecf2fb7fb0
  #include "strata/kernels/cpu/expert_layout.hpp"
  #include "strata/kernels/cpu/hadamard.hpp"
  #include "strata/kernels/ngram.hpp"
-@@ -261,6 +262,10 @@ bool admit_merge_first_env() {
+@@ -302,6 +303,10 @@ bool admit_merge_first_env() {
  // checkpoints it drops (evicted, pruned, a batch slot's old one) and saves the next checkpoint into them, so a save
  // resizes nothing (no zero-fill of ~118 MB of fresh vectors) and a slot's copy reuses their pages.  Every byte is
  // overwritten by the copy, so the checkpoints are the same
@@ -6622,7 +7209,7 @@ index 956d2c56254bee1754d0b1b7c7d91d73d680b58e..d168721cea27282ae05412ecf2fb7fb0
  bool park_async_env() {   // STRATA_PARK_ASYNC (strata/core/conversation_snapshot.hpp)
      static const bool on = [] { const char* v = std::getenv("STRATA_PARK_ASYNC"); return v != nullptr && v[0] == '1'; }();
      return on;
-@@ -4066,6 +4071,36 @@ int main(int argc, char** argv) {
+@@ -4134,6 +4139,36 @@ int main(int argc, char** argv) {
          }
      }
      const bool native_pack = strata::kernels::cpu::expert_layout().native;
@@ -6659,7 +7246,7 @@ index 956d2c56254bee1754d0b1b7c7d91d73d680b58e..d168721cea27282ae05412ecf2fb7fb0
      // STRATA_MMQ_DIRECT: the room each sized expert slot keeps after its blob (0 unless it is on: the slot costs and
      // the arena are then today's, byte for byte)
      const int64_t slot_guard = native_pack ? (int64_t) strata::prefill::Prefill::slot_guard_bytes() : 0;
-@@ -6465,7 +6500,11 @@ int main(int argc, char** argv) {
+@@ -6533,7 +6568,11 @@ int main(int argc, char** argv) {
              return 1;
          }
      }
@@ -6671,7 +7258,7 @@ index 956d2c56254bee1754d0b1b7c7d91d73d680b58e..d168721cea27282ae05412ecf2fb7fb0
      strata::core::ExpertSource* srcp = nullptr;
      if (o.mmap_experts) {
          // FileExpertSource maps the pack's experts.bin: a canonical pack has it; a native (IQ) pack has it when
-@@ -6729,6 +6768,8 @@ int main(int argc, char** argv) {
+@@ -6797,6 +6836,8 @@ int main(int argc, char** argv) {
          }
      }
  #endif
@@ -6680,7 +7267,7 @@ index 956d2c56254bee1754d0b1b7c7d91d73d680b58e..d168721cea27282ae05412ecf2fb7fb0
      if (o.pool_measure)
          o.pool_affinity = measure_pool_affinity(srcp, o.pool_workers, !o.no_host_worker, o.pool_tasks);
      strata::kernels::cpu::ExpertPool pool(o.pool_workers, /*pin=*/true, /*host_works=*/!o.no_host_worker,
-@@ -10324,7 +10365,7 @@ int main(int argc, char** argv) {
+@@ -10392,7 +10433,7 @@ int main(int argc, char** argv) {
          strata::prefill::KvaFloorRegistry kva_floors;
          // STRATA_CKPT_POOL: the dropped checkpoints' storage, reused.  STRATA_SLOT_CKPT_MOVE turns it on too: a moved
          // checkpoint frees nothing at the next prune, so every save would fault in fresh pages (17 -> 40-60 ms)
@@ -6689,7 +7276,7 @@ index 956d2c56254bee1754d0b1b7c7d91d73d680b58e..d168721cea27282ae05412ecf2fb7fb0
          uint64_t check_clock = 0;   // the checkpoints' LRU clock; creation and every use advance it
          int64_t tail_ckpt_len = -1;   // --prompt-cache-tail: the length of the one tail checkpoint alive (-1 = none)
          // --prefill-pipe: the plan of the prompt segment being read (read_part sets it around its runs), for the
-@@ -11124,10 +11165,10 @@ int main(int argc, char** argv) {
+@@ -11192,10 +11233,10 @@ int main(int argc, char** argv) {
          // PcieAuto after a decode window (the serial loop, and 0.1.44 the pipelined one at every verdict): the share, refined from
          // the CPU pool's speed.  A layer split: every later stage takes the share its own probed link gives against the same pool
          // rate, on both parities' routing (the pipelined loop's second verifier).
@@ -6702,7 +7289,7 @@ index 956d2c56254bee1754d0b1b7c7d91d73d680b58e..d168721cea27282ae05412ecf2fb7fb0
                                    ? pcie_auto.window(drive.d.ms_run, drive.d.multi_misses, o.pcie_frac, &tc_us, &rate)
                                    : (pcie_auto.mark(drive.d.ms_run, drive.d.multi_misses), -1.0);
              if (nf < 0.0) return;
-@@ -14281,7 +14322,7 @@ int main(int argc, char** argv) {
+@@ -14395,7 +14436,7 @@ int main(int argc, char** argv) {
                  std::function<bool(const ConvCheckpoint&)>& f;
                  ~ParkDrops() { f = nullptr; }
              } park_drops_reset{park_drops};
@@ -6711,7 +7298,7 @@ index 956d2c56254bee1754d0b1b7c7d91d73d680b58e..d168721cea27282ae05412ecf2fb7fb0
                  const bool drops_all = incoming.has_value() || borrow || slot_source >= 0 || want_cvec != cvec_cached;
                  park_drops = [&, drops_all](const ConvCheckpoint& c) {
                      return drops_all || (int64_t) c.ids.size() > resume || !starts_with(c.ids, c.imgs);
-@@ -15178,7 +15219,7 @@ int main(int argc, char** argv) {
+@@ -15431,7 +15472,7 @@ int main(int argc, char** argv) {
                          return v == nullptr || std::atoi(v) != 0;
                      }();
  #if defined(_WIN32)
@@ -6720,7 +7307,7 @@ index 956d2c56254bee1754d0b1b7c7d91d73d680b58e..d168721cea27282ae05412ecf2fb7fb0
                      std::vector<ULONG> host_cpu_sets;
                      if (conc_on_host) {
                          const HANDLE self = GetCurrentThread();
-@@ -15206,6 +15247,7 @@ int main(int argc, char** argv) {
+@@ -15459,6 +15500,7 @@ int main(int argc, char** argv) {
                              std::fprintf(stderr, "strata batch: %d threads that ran on the host thread's core moved off "
                                                   "it, for reads beside the slots\n", moved);
                      auto conc_thread_cpus = [&] {
@@ -6728,7 +7315,7 @@ index 956d2c56254bee1754d0b1b7c7d91d73d680b58e..d168721cea27282ae05412ecf2fb7fb0
                          strata::aux_cpus::pin_current_thread();
  #if defined(_WIN32)
                          const HANDLE self = GetCurrentThread();
-@@ -15559,7 +15601,7 @@ int main(int argc, char** argv) {
+@@ -15812,7 +15854,7 @@ int main(int argc, char** argv) {
              drive.d.pcie_num = std::max(0, std::min(256, (int) (req_pcie_frac * 256.0 + 0.5)));
              // a layer split: CUDA0's share as asked; a later GPU keeps its own (its link) unless the request sets one
              for (int st = 0; st < split_drive.n; ++st)
@@ -6737,7 +7324,7 @@ index 956d2c56254bee1754d0b1b7c7d91d73d680b58e..d168721cea27282ae05412ecf2fb7fb0
                                                 ? drive.d.pcie_num : pcie_num_of(stages[(size_t) st - 1]->pcie_frac);
              if (pipe) for (int st = 0; st < split_drive.n; ++st) split_drive_b.pcie_num[st] = split_drive.pcie_num[st];
              const int hist_n = std::min(req_sp.penalty_last_n, kPenaltyWindowCap);
-@@ -16376,7 +16418,7 @@ int main(int argc, char** argv) {
+@@ -16629,7 +16671,7 @@ int main(int argc, char** argv) {
                      }
                      x = outp[(size_t) a];
                      p = A.p + a + 1;
@@ -6746,7 +7333,7 @@ index 956d2c56254bee1754d0b1b7c7d91d73d680b58e..d168721cea27282ae05412ecf2fb7fb0
                      if (!last && !ajob && !pl_adapt()) return die("an adaptive refill failed");
                      if (on && !last) {
                          ++pl_on;
-@@ -16819,7 +16861,7 @@ int main(int argc, char** argv) {
+@@ -17072,7 +17114,7 @@ int main(int argc, char** argv) {
                      dt_run += msd(tw0, tw1); dt_commit += msd(tw1, tw2); dt_draft += msd(tw2, tw3);
                      ++dec_windows; dec_T += merged ? 1 : T;   // a merged window's prompt rows are not decode rows
                  }

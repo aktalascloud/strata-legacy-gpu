@@ -443,6 +443,12 @@ void q2_0_rows(const uint8_t* w, size_t row_bytes, int n, const block_q8_0* cons
     const __m128i ones = _mm_set1_epi16(1);
     const int nb = n / QK2_0;
     const int pf = prefetch_distance();
+    // Activation scales are row-independent; widen each once per token/block.
+    std::vector<float> yd((size_t) NT * nb * 2);
+    for (int t = 0; t < NT; ++t)
+        for (int b = 0; b < nb * 2; ++b)
+            yd[(size_t) t * nb * 2 + b] = h2f(y[t][b].d);
+
     // sum(q) per lane depends only on the activations, not the row: compute the per-lane y-sum vectors once
     // per call and reuse them across every row (the kernel runs thousands of rows against the same NT token
     // blocks).  Lane m of yv[t][i][k] = sum of the 8 k-half-0 and 8 k-half-1 activation values that p0/p1
@@ -485,7 +491,7 @@ void q2_0_rows(const uint8_t* w, size_t row_bytes, int n, const block_q8_0* cons
                     const __m128i qb = _mm_sub_epi32(_mm_add_epi32(
                         _mm_madd_epi16(_mm_maddubs_epi16(k0b, y0), ones),
                         _mm_madd_epi16(_mm_maddubs_epi16(k1b, y1), ones)), yv01);
-                    const float dy = h2f(y[0][i * 2 + k].d);
+                    const float dy = yd[(size_t) i * 2 + k];
                     accA = _mm_add_ps(accA, _mm_mul_ps(_mm_set1_ps(dxa * dy), _mm_cvtepi32_ps(qa)));
                     accB = _mm_add_ps(accB, _mm_mul_ps(_mm_set1_ps(dxb * dy), _mm_cvtepi32_ps(qb)));
                 }
@@ -517,7 +523,7 @@ void q2_0_rows(const uint8_t* w, size_t row_bytes, int n, const block_q8_0* cons
                     const __m128i p1 = _mm_madd_epi16(_mm_maddubs_epi16(k1, y1), ones);
                     const __m128i q = _mm_sub_epi32(_mm_add_epi32(p0, p1), yv[((size_t) t * nb + i) * 2 + k]);
                     const __m128 f = _mm_cvtepi32_ps(q);
-                    accf[t] = _mm_add_ps(accf[t], _mm_mul_ps(_mm_set1_ps(dx * h2f(y[t][i * 2 + k].d)), f));
+                    accf[t] = _mm_add_ps(accf[t], _mm_mul_ps(_mm_set1_ps(dx * yd[(size_t) t * nb * 2 + i * 2 + k]), f));
                 }
             }
         }

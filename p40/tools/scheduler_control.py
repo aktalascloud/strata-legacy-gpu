@@ -29,7 +29,7 @@ def sha(path):
 
 
 def pins():
-    return {name: sha(ROOT / name) for name in ('strata-server-launch.json', 'strata-davidau.json',
+    return {name: sha(ROOT / name) for name in ('strata-server-launch.json', 'strata.json',
             'tools/service-lifecycle.py', 'tools/scheduler_control.py', 'tools/service-control-review.json', 'tools/start-server.py')}
 
 

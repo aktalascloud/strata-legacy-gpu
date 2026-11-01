@@ -1,6 +1,6 @@
 """Install this public, weights-free distribution. No credentials, global environment edits or server start."""
 from __future__ import annotations
-import argparse, contextlib, datetime, hashlib, json, os, pathlib, shutil, subprocess, sys, time
+import argparse, re, stat, contextlib, datetime, hashlib, json, os, pathlib, shutil, subprocess, sys, time
 import http.client, importlib.util, urllib.error, urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -103,10 +103,51 @@ def check_bundle(root=ROOT):
     print(f'Bundle verified: {len(manifest["files"])} files; no model downloaded or server started.')
     return manifest
 
+def native_preset(root, manifest):
+    preset = manifest.get('native_preset')
+    if (not isinstance(preset, dict) or not isinstance(preset.get('model_id'), str) or not preset['model_id'] or
+            not isinstance(preset.get('model_name'), str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._/-]{0,255}', preset['model_name']) or
+            not isinstance(preset.get('display_name'), str) or not preset['display_name'] or
+            type(preset.get('reason_modes')) is not bool or preset.get('reason_mode') not in ('off', 'auto', 'ultra') or
+            preset.get('reasoning_effort') not in ('none', 'low', 'medium', 'high', 'xhigh')):
+        raise ValueError('Invalid prepared native model metadata')
+    if not preset['reason_modes'] and preset['reason_mode'] != 'off':
+        raise ValueError('Unprepared author capability')
+    for key in ('models_directory', 'pack_directory', 'mtp_directory'):
+        value = preset.get(key)
+        if not isinstance(value, str) or not value or ':' in value or value.startswith(('\\\\', '//')):
+            raise ValueError('Invalid preset path')
+        path = pathlib.Path(value)
+        target = (root / path).absolute()
+        if path.is_absolute() or '..' in path.parts or not target.is_relative_to(root.absolute()):
+            raise ValueError('Preset path leaves installation')
+        for parent in (target, *target.parents):
+            if parent.exists() and (parent.is_symlink() or getattr(parent.lstat(), 'st_file_attributes', 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+                raise ValueError('Reparse preset path')
+    if not isinstance(manifest.get('files'), list):
+        raise ValueError('Pinned model file list required')
+    for key, kind in [('native_file', 'model'), ('ple_file', 'model'), ('vision_file', 'vision')]:
+        name = preset.get(key)
+        if not isinstance(name, str) or ':' in name or pathlib.Path(name).name != name or not name.lower().endswith('.gguf'):
+            raise ValueError('Invalid preset GGUF name')
+        entries = [entry for entry in manifest['files'] if entry['kind'] == kind and entry['name'] == name]
+        if len(entries) != 1:
+            raise ValueError('Preset role does not name one pinned file')
+    if preset['reason_modes']:
+        first = next(entry for entry in manifest['files'] if entry['kind'] == 'model' and entry['name'] == preset['native_file'])
+        if (not isinstance(first.get('repo'), str) or not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', first['repo']) or
+                not isinstance(first.get('revision'), str) or not re.fullmatch('[0-9a-f]{40}', first['revision']) or
+                not isinstance(first.get('sha256'), str) or not re.fullmatch('[0-9a-f]{64}', first['sha256']) or
+                preset.get('author_identity') != dict(repo=first['repo'], revision=first['revision'], main_sha256=first['sha256'])):
+            raise ValueError('Author capability is not bound to pinned model')
+    return preset
+
+
 def make_config(root, models, manifest, workers, numa, port=8093):
-    weights = [models / e['name'] for e in manifest['files'] if e['kind'] == 'model']
-    projector = next(models / e['name'] for e in manifest['files'] if e['kind'] == 'vision')
-    pack = root / 'packs/davidau-iq3_s'; mtp = root / 'mtp/rt'
+    preset = native_preset(root, manifest)
+    weights = [models / preset['native_file'], models / preset['ple_file']]
+    projector = models / preset['vision_file']
+    pack = root / preset['pack_directory']; mtp = root / preset['mtp_directory']
     env = dict(STRATA_NO_CPU_PIN='1', STRATA_ROUTE_TAIL_SKIP='0', STRATA_WIN_NUMA_NODE=str(numa),
         STRATA_DENSE_F32='1', STRATA_IQ_STAGE_TABLES='1', STRATA_IQ_STAGE_GRID_MMVQ='1',
         STRATA_QFUSE='1', STRATA_GR_NORM_FAST='1', STRATA_B6_MMVQ_ROWS='1', STRATA_EXPDEC='1',
@@ -119,22 +160,23 @@ def make_config(root, models, manifest, workers, numa, port=8093):
               '--spec','3','--spec-min-p','0.25','--prompt-cache','6','--prompt-cache-every','16384',
               '--prompt-cache-root','2048','--vision','--vram-reserve-mib','1216','--mtp',str(mtp),
               '--suffix-draft','0','--lookup-chain','0','--ple-io','ram','--adapt-async','1','--pool-tasks','0'],
-        model_name='davidau-qwen3.8-flash-next-iq3_s',host='127.0.0.1',port=port,
+        model_id=preset['model_id'], model_name=preset['model_name'], api_model_id=preset['model_name'], display_name=preset['display_name'],host='127.0.0.1',port=port,
         log=str(root/'logs/engine.log'),mtp=True,open_browser=False,env=env,
-        reasoning_effort='high',reason_modes=True,reason_mode='auto',sampling=dict(temperature=1.0,top_p=0.95,top_k=64,min_p=0.05,repetition_penalty=1.0),
+        reasoning_effort=preset['reasoning_effort'],reason_modes=preset['reason_modes'],reason_mode=preset['reason_mode'],sampling=dict(temperature=1.0,top_p=0.95,top_k=64,min_p=0.05,repetition_penalty=1.0),
         vision=dict(exe=str(root/'runtime/vision/strata-vision.exe'),model=str(weights[0]),mmproj=str(projector),
                     gpu=False,threads=8,max_tokens=300))
 
 def install(args):
     root = ROOT; bundle = check_bundle(root)
-    if (root/'strata-davidau.json').exists():
+    if (root/'strata.json').exists():
         print('Existing profile retained. No weights downloaded. Run START.cmd, or extract another folder for another model/backend.')
         return
     if getattr(args,'backend','native')!='native':
         return install_local(args,root,bundle)
     manifest = json.loads((root/'p40/model-downloads.json').read_text(encoding='utf8'))
-    models = pathlib.Path(args.models_dir).expanduser().absolute() if args.models_dir else root/'models/DavidAU-Qwen3.8-IQ3_S'
-    if (root/'strata-davidau.json').exists():
+    preset = native_preset(root, manifest)
+    models = pathlib.Path(args.models_dir).expanduser().absolute() if args.models_dir else root/preset['models_directory']
+    if (root/'strata.json').exists():
         print('Existing local configuration retained. Installer will not overwrite it.')
     (root/'logs').mkdir(exist_ok=True)
     needed = sum(e['size'] for e in manifest['files'])
@@ -143,7 +185,7 @@ def install(args):
         # Already downloaded data must not count against resumability.
         remaining = 0
         for e in manifest['files']:
-            target = (root/'mtp/rt' if e['kind']=='mtp' else models)/e['name']
+            target = (root/preset['mtp_directory'] if e['kind']=='mtp' else models)/e['name']
             p = target if target.exists() else target.with_name(target.name+'.part')
             remaining += max(0, e['size'] - (p.stat().st_size if p.exists() else 0))
         if shutil.disk_usage(models).free < remaining + (3 << 30): raise RuntimeError('Not enough disk space for remaining weights and local pack')
@@ -151,10 +193,10 @@ def install(args):
         for e in manifest['files']:
             if e['repo'] not in manifest['allowed_repositories'] or len(e['revision']) != 40:
                 raise RuntimeError('Unpinned download repository/revision')
-            target = (root/'mtp/rt' if e['kind']=='mtp' else models)/e['name']
+            target = (root/preset['mtp_directory'] if e['kind']=='mtp' else models)/e['name']
             if pathlib.Path(e['name']).name != e['name']: raise RuntimeError('Unsafe download filename')
             fetch(e, target)
-        pack = root/'packs/davidau-iq3_s'; ready = pack/'.ready.json'; owner = pack/'.installer-owner.json'
+        pack = root/preset['pack_directory']; ready = pack/'.ready.json'; owner = pack/'.installer-owner.json'
         fingerprint = sha(root/'p40/model-downloads.json')
         first = next(e['name'] for e in manifest['files'] if e['kind']=='model')
         reuse = False
@@ -172,7 +214,7 @@ def install(args):
                      'tokenizer/merges.txt','tokenizer/token_type.json','tokenizer/tokenizer.json','tokenizer/chat_template.jinja']
             if not all((pack/n).is_file() and (pack/n).stat().st_size for n in names): raise RuntimeError('Incomplete pack')
             atomic(ready, {'downloads_sha256':fingerprint,'files':{n:sha(pack/n) for n in names}})
-        path = root/'strata-davidau.json'
+        path = root/'strata.json'
         if not path.exists(): atomic(path, make_config(root,models,manifest,args.workers,args.numa_node,args.port))
         atomic(root/'runtime/active.json',dict(id=bundle['release_tag'],source='app',engine='runtime/engine/strata.exe',vision='runtime/vision/strata-vision.exe',source_sha=bundle['source_sha']))
     port=json.loads(path.read_text(encoding='utf8'))['port']
@@ -197,8 +239,8 @@ def install_local(args,root,bundle):
 
 def _install_local(args,root,bundle):
     """One local-model setup for CPU/CUDA/Vulkan/Poly; no HF request or implicit MTP fallback."""
-    if not args.model:raise ValueError('Choose a local GGUF with --model; only the native Qwen preset downloads weights')
-    config=root/'strata-davidau.json'
+    if not args.model:raise ValueError('Choose a local GGUF with --model; only the prepared native preset downloads weights')
+    config=root/'strata.json'
     if config.exists():raise ValueError('This installation already has a profile. Use another extracted folder; the existing profile is preserved')
     backend=args.backend;device_backend='cuda' if backend=='poly' else backend
     registry=json.loads((root/'p40/backends.json').read_text(encoding='utf8'))
@@ -233,19 +275,19 @@ def _install_local(args,root,bundle):
             source_sha=bundle['source_sha'],backend=backend,engine_sha256=row['sha256']))
         (root/'logs').mkdir(exist_ok=True)
     print(f'Ready: {backend}, {report["architecture"]}, MTP {args.mtp}. Run START.cmd; API http://127.0.0.1:{args.port}/v1')
-    print('Local API key is generated in strata-davidau.json. No model downloaded. AUTOSTART.cmd enables independent startup.')
+    print('Local API key is generated in strata.json. No model downloaded. AUTOSTART.cmd enables independent startup.')
 
 def interactive_choices(args):
     if args.backend is not None:return
     if not sys.stdin.isatty():args.backend='native';return
-    print('Choose engine / Выберите движок:')
-    print('1. Qwen3.8 DavidAU — native CUDA/P40, resumable download / загрузка с докачкой')
-    print('2. Local GGUF — CUDA NVIDIA; 3. Vulkan AMD Polaris/RX580; 4. CPU AVX1; 5. Poly CUDA')
+    print('Choose engine / Р вЂ™РЎвЂ№Р В±Р ВµРЎР‚Р С‘РЎвЂљР Вµ Р Т‘Р Р†Р С‘Р В¶Р С•Р С”:')
+    print('1. Prepared native model РІР‚вЂќ CUDA/P40, resumable download / Р В·Р В°Р С–РЎР‚РЎС“Р В·Р С”Р В° РЎРѓ Р Т‘Р С•Р С”Р В°РЎвЂЎР С”Р С•Р в„–')
+    print('2. Local GGUF РІР‚вЂќ CUDA NVIDIA; 3. Vulkan AMD Polaris/RX580; 4. CPU AVX1; 5. Poly CUDA')
     choice=input('[1-5, default1]: ').strip() or '1'
     modes={'1':'native','2':'cuda','3':'vulkan','4':'cpu','5':'poly'}
     if choice not in modes:raise ValueError('Choose1..5')
     args.backend=modes[choice]
-    if args.backend!='native' and not args.model:args.model=input('Local GGUF path / Путь к GGUF: ').strip().strip('"')
+    if args.backend!='native' and not args.model:args.model=input('Local GGUF path / Р СџРЎС“РЎвЂљРЎРЉ Р С” GGUF: ').strip().strip('"')
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
@@ -254,7 +296,7 @@ def main():
     p.add_argument('--workers',type=int,default=max(1,min(14,(os.cpu_count() or 2)-2)))
     p.add_argument('--port',type=int,default=8093,help='Local API port; choose a free port for a separate installation')
     p.add_argument('--numa-node',choices=['off','0','1'],default='off',help='Reference machine used node0; generic default leaves NUMA allocation unchanged')
-    p.add_argument('--backend',choices=('native','cpu','cuda','vulkan','poly'),help='Native optimized Qwen or an embedded local-GGUF engine')
+    p.add_argument('--backend',choices=('native','cpu','cuda','vulkan','poly'),help='Prepared native model or an embedded local-GGUF engine')
     p.add_argument('--model',help='Existing local GGUF; never downloaded by a generic backend')
     p.add_argument('--draft-model',help='Existing matching NextN-head GGUF, when not embedded in the target')
     p.add_argument('--device',help='Explicit CUDA0 or Vulkan0; one available GPU may be detected automatically')

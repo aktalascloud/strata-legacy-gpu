@@ -1,27 +1,9 @@
-# P40 kit maintenance
+# Maintainer route
 
-This directory contains the AVX1/P40-specific release helpers and measured results.
-Keep source MIT notices and separate binary dependency licenses. The Pascal patch's
-MIT declaration is in the pinned upstream README, reproduced in licenses/.
-
-Never commit model weights, generated packs, live configurations, credentials,
-launch receipts, logs, caches, local paths or hardware owner identities. Export
-aggregate benchmark measurements, not private prompts or responses.
-
-The native aggregate is already applied in this fork. The Pascal patch applies
-only to the pinned build-local GGML copy. Do not apply historical patches again.
-Keep ISA/SM/uniqueness/SRAM checks and exact numerical tolerances. Other backends
-are not qualified by the Windows P40 release.
-
-Preserve the distinction between the measured reference source and the current
-release source. A new correctness-qualified binary is not automatically faster.
-Do not add percentages from separate sweeps or fabricate per-patch attribution.
-
-Merge official upstream main with normal Git ancestry, review conflicts by meaning,
-retain new upstream behavior, then update the patch manifest and source pins after
-review. Never use force push, reset a published branch, or accept all ours/theirs.
-Keep raw upstream bench/results and experimental model artifacts out of the current
-tree. No logs or model files belong in this kit's release.
-
-CMD files in windows/ are release-root templates. Test helpers offline with tiny
-local HTTP fixtures; never download a second large model just to test the installer.
+1. Read README.md, build-profile.json, source-provenance.json and CHANGES.md. Use exact source/pins; do not invent flags.
+2. Build from VS2022 x64 Developer PowerShell with Clang23.1.4/CUDA12.9/CMake/Ninja/Git: `powershell -File p40/build.ps1 -Jobs 12`. Dependencies are pinned; weights are unnecessary for compilation.
+3. Never overwrite a loaded engine or a pinned check tree. Apply only after source review and the checks required by the actual delta. Reuse unchanged bytes explicitly; do not rename old checks.
+4. Preserve user strata.json, supported native model modes and source-bound author capabilities. Model names/paths are data, not application switches.
+5. Before a switch prove exact owner/source/config/nonce/time, graceful drain, captured-tree completion and a free port. No kill/cancel. After startup prove loaded/API/settings/owner. Unknown state blocks switching and rollback.
+6. Keep current outputs and necessary build/dependency/license inputs. Do not publish weights/pack/MTP, keys, private configs/state, hosts, raw logs or caches.
+7. Report actual validation and limits. Operator speed is not model throughput; experimental hardware/models remain experimental.

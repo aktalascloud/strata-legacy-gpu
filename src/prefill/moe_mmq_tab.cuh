@@ -168,7 +168,7 @@ static __global__ void mul_mat_q_tab(
                     break;
                 }
 
-                ids_dst_shared[j] = ids_dst[col_low + jt*J + j];
+                ids_dst_shared[j] = jt*J + j < col_diff ? ids_dst[col_low + jt*J + j] : 0;
             }
             __syncthreads();
         }
@@ -263,7 +263,7 @@ static __global__ void mul_mat_q_tab(
                     break;
                 }
 
-                ids_dst_shared[j] = ids_dst[col_low + jt*J + j];
+                ids_dst_shared[j] = jt*J + j < col_diff ? ids_dst[col_low + jt*J + j] : 0;
             }
             __syncthreads();
         }

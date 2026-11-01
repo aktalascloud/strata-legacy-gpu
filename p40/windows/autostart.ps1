@@ -8,7 +8,7 @@ if($CheckOnly){
     [pscustomobject]@{startup_name=$identity.StartupName;control_name=$identity.ControlName;startup_xml=(Get-PortableTaskXml $root $UserId -Boot);control_xml=(Get-PortableTaskXml $root $UserId -Control);registered=$false}|ConvertTo-Json -Depth 4
     return
 }
-if(-not(Test-Path -LiteralPath (Join-Path $root 'strata-davidau.json'))){throw 'Run INSTALL.cmd first.'}
+if(-not(Test-Path -LiteralPath (Join-Path $root 'strata.json'))){throw 'Run INSTALL.cmd first.'}
 $principal=[Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
 if(-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){
     if($Elevated){throw 'Administrator approval is required to register a boot task.'}

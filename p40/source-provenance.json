@@ -1,103 +1,580 @@
 {
-  "source_sha": "011c9e600a93bbc9fd451c563501b5831c32bbca",
-  "review": "Git checkout LF versus qualified Windows CRLF only; every source body matches after EOL normalization. Public source pins reflect actual LF bytes after this comparison; no ISA/SM/count/uniqueness/SRAM changes.",
+  "source_sha": "c62d5e3a15b40ea51c96aae9e8d36928965f53ab",
+  "reviewed_source_patch_sha256": "19429F7C5CB566D46D564E859C93BC3AB99A68988E78579968536CE63FC8C6AC",
+  "compiled_native_patch_sha256": "6C44F868EF355119868428C42A16512707818C8550D3B933B3E8DD4873A3B429",
+  "native_engine_sha256": "3B0486521742B5B2A40C5DD8B13014B63FA3090EAF4EF28BD4D305562A342BD7",
+  "serving_only_reuse": true,
+  "native_qualification_candidate": "c62d5e3a15b4-6c44f868-3b048652-0c13c1e5-d0bddbd7",
+  "native_numerical_cases": 27,
+  "new_GPU_cases_for_serving": 0,
   "files": [
     {
       "path": "CMakeLists.txt",
-      "qualified_private_sha256": "e64e7b0a24947c6992049f7f28581af7fddf78cf8047e894377c272a3f6f54e1",
-      "public_lf_sha256": "effd6d9bd083f16d5e09ed73382bf0d4d7eeb67db6ead17ac1027daf6994aa3d",
-      "only_eol_difference": true
-    },
-    {
-      "path": "src/core/pinned.cu",
-      "qualified_private_sha256": "6c51dfda7fa8ce5347aeac95d77929892d11f88fbfff60838ed11d2dce139922",
-      "public_lf_sha256": "2ae5381c0bdabe7ccbc44af0000176fa7eaf0ff629b7962d9458e7d7f934d820",
-      "only_eol_difference": true
-    },
-    {
-      "path": "src/kernels/cpu/iq_avx2_parity.cpp",
-      "qualified_private_sha256": "ef9767c7663b22e52d9bddf7ba7d37adf14b81d177bfe8a4fddb58abd61cad4a",
-      "public_lf_sha256": "2a7e96bda844dcdd1b49c25174967f75f82136f68ed9adb9de11853dfc0012d4",
-      "only_eol_difference": true
-    },
-    {
-      "path": "src/kernels/cpu/pool.cpp",
-      "qualified_private_sha256": "c9ee6a3e432e47a9262358a0d5b802a702e50293e781909c6c7368bc0a2f4c16",
-      "public_lf_sha256": "d576d9c73fc5ece87f09e9da5e883644bcef00015f1b03a6274c2a45c668887d",
-      "only_eol_difference": true
-    },
-    {
-      "path": "src/kernels/cpu/pool_affinity_win.hpp",
-      "qualified_private_sha256": "20c2f47f2c37bd2fb8743385bbb7d5fc29d32e05048a88461e3ce2cbd174a6fd",
-      "public_lf_sha256": "24d5b3046a55ca470d48fa2719490d227ce6671098f38c2d7d4ce619e5264385",
-      "only_eol_difference": true
-    },
-    {
-      "path": "src/program/generate.cpp",
-      "qualified_private_sha256": "d6bff514379f8704989e0bd94520ea7e0f92e5286f5d87fef4d89b21c42782f5",
-      "public_lf_sha256": "0237176619207ba31c092dbabb0f638cc314c2dab459109a5a71379bf8baf5b0",
-      "only_eol_difference": true
-    },
-    {
-      "path": "include/strata/platform/cpu_pinning.hpp",
-      "qualified_private_sha256": "cbc5470b1c526ff0e722e3ad34dc9eded8f71df74b8d5acb1304e059c299079d",
-      "public_lf_sha256": "7de35320e83e5e74d32d54f349f0908dc598b08f6491783ad8e6489112fc2f82",
-      "only_eol_difference": true
-    },
-    {
-      "path": "tests/platform/no_cpu_pin_test.cpp",
-      "qualified_private_sha256": "8f8a3796f8143e66fa714be67c7b38775c51ab226cc51a875b9b93098848f962",
-      "public_lf_sha256": "457c28d2b3851f8999a24f6488472294a8b64a5d3bcd9558c55afa9427304859",
-      "only_eol_difference": true
-    },
-    {
-      "path": "tests/platform/cpu_format_parity.cpp",
-      "qualified_private_sha256": "d43851fa7acebfaa0241447a9f96e154950a322cdb058e87f6543ec49d2f4366",
-      "public_lf_sha256": "b299ae6db664a3a5732cc58587c6e086e73f0289232db26c2df0a13d5da689d8",
-      "only_eol_difference": true
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "24e891c4002d2f127ec68eef54bebb65c4f77c2857267049dbaecd302e51b162",
+      "public_sha256": "d571ef0b112526e82c43080005664cb0787ebb7dfe7faa1a7aa35d4882e3860b",
+      "equal_after_EOL": true
     },
     {
       "path": "cmake/strata_ivybridge_o3.cmake",
-      "qualified_private_sha256": "f7ef2183d5a87dcbefeb8c862ead3e4681df46e8a52153a1f414e079d62ddebf",
-      "public_lf_sha256": "f7ef2183d5a87dcbefeb8c862ead3e4681df46e8a52153a1f414e079d62ddebf",
-      "only_eol_difference": false
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "b820de0bc845083492cbc32e125856018ec440ef4cf95a27ef29444ec72a7fd2",
+      "public_sha256": "b820de0bc845083492cbc32e125856018ec440ef4cf95a27ef29444ec72a7fd2",
+      "equal_after_EOL": true
     },
     {
       "path": "cmake/strata_pascallama_overlay.cmake",
-      "qualified_private_sha256": "3ce85ec06a0a3484f8e66e44e192a3319a26ca842a4d3e62d3db9e284cc12372",
-      "public_lf_sha256": "3ce85ec06a0a3484f8e66e44e192a3319a26ca842a4d3e62d3db9e284cc12372",
-      "only_eol_difference": false
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "906a4f3a5e2e25f2badfaba3bbfdb8f490a0401133da6cf4000509fbe0d7c687",
+      "public_sha256": "906a4f3a5e2e25f2badfaba3bbfdb8f490a0401133da6cf4000509fbe0d7c687",
+      "equal_after_EOL": true
     },
     {
-      "path": "tests/cuda/pascallama_mmq_screen.cpp",
-      "qualified_private_sha256": "3aec4268c94cf51e56c60d267970a5e93bc619136e2d96e4f1c5e197e46eacfe",
-      "public_lf_sha256": "3aec4268c94cf51e56c60d267970a5e93bc619136e2d96e4f1c5e197e46eacfe",
-      "only_eol_difference": false
+      "path": "include/strata/artifact/gguf_reader.hpp",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "385e962b791da7afe7b223a000420f4fa04526cd990cc74af19fd9469fb03605",
+      "public_sha256": "c7b280685b647f99571a264e94d3f8cbe9dd07337815ad55779bf95f9dd09b7f",
+      "equal_after_EOL": true
     },
     {
-      "path": "tests/cuda/sm61_graph_parity.cu",
-      "qualified_private_sha256": "95be69144c64af187f174c35654971d7edc4e2efa3ec7bbe1ae0c3eca1975567",
-      "public_lf_sha256": "95be69144c64af187f174c35654971d7edc4e2efa3ec7bbe1ae0c3eca1975567",
-      "only_eol_difference": false
+      "path": "include/strata/core/conversation_cache.hpp",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "7282ae64a1f73638b229be08556c2dc0d2ad5911194d5701c8b1be0f3f903a9e",
+      "public_sha256": "a96c582cd3e8adb2b33318195603592abef83dea45dbca3b2e996150e569d987",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "include/strata/core/expert_source.hpp",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "f3857331660d13deb7002cbf25a0209ef1f12640763176e9811b542572aa9f6f",
+      "public_sha256": "093376fc0c1d50885eb431de6ba737613f502379578ef7e095a2106d6282ab9f",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "include/strata/kernels/cpu/pool.hpp",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "8fec5d969a86f8e2774a076596378a0933561f0558c19fff2f3414dc09cfb0c3",
+      "public_sha256": "bb38d125c2f5b558240e2fb283f7f21e5f7768bbecb64dfe5bd58a29af78e425",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "include/strata/platform/cpu_pinning.hpp",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "cbc5470b1c526ff0e722e3ad34dc9eded8f71df74b8d5acb1304e059c299079d",
+      "public_sha256": "7de35320e83e5e74d32d54f349f0908dc598b08f6491783ad8e6489112fc2f82",
+      "equal_after_EOL": true
     },
     {
       "path": "include/strata/platform/win_numa_arena.hpp",
-      "qualified_private_sha256": "f43ffa02c2d4bab285260da7c4f8b4572a5503b563abda67c350b663d747cfac",
-      "public_lf_sha256": "f43ffa02c2d4bab285260da7c4f8b4572a5503b563abda67c350b663d747cfac",
-      "only_eol_difference": false
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "40814b5244d0e5d202584d900eb3b8c8d2d098786d2f4f7d0ec3261b56730b3e",
+      "public_sha256": "f43ffa02c2d4bab285260da7c4f8b4572a5503b563abda67c350b663d747cfac",
+      "equal_after_EOL": true
     },
     {
-      "path": "tests/platform/windows_numa_arena_test.cpp",
-      "qualified_private_sha256": "c1ccf7fab20c8218e1f933338abe8588a87a873dc30971ec2ee538624b3cdff9",
-      "public_lf_sha256": "c1ccf7fab20c8218e1f933338abe8588a87a873dc30971ec2ee538624b3cdff9",
-      "only_eol_difference": false
+      "path": "serve/dsml.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "e409b6196f994859d030c17e570d1e4a6be6eb726c6b3b5f86e8240e788a1c34",
+      "public_sha256": "cb218d016f0106bb662c6ab727ff9fbbadb0134308393fd3b57081d39fa8371b",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/frontend.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "96f8d33dbc4aeec6dec3e6d3e84f51f4fdbcf88a2d7b220a0b480672db202b18",
+      "public_sha256": "96f8d33dbc4aeec6dec3e6d3e84f51f4fdbcf88a2d7b220a0b480672db202b18",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/glm.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "fb2360e061d3a6b9993c778f22bc261fc0d54d0c77277829ebbd1924bb628e25",
+      "public_sha256": "1dcf8997bddd6f955cc6f367b97f0b151f476f6c3f9854075e53900dd5e8f7c6",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/model_backends.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "d6afcf77582ba9b0f3a9ecc1b0009b91a4810cb24249d42fd2279d1bd9f27334",
+      "public_sha256": "2d528849803654dde6b38b42b11fa995397bfb63e31b98b2d8c751daeec05246",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/model_identity.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "a91642109249e1a57e9f110e2fc1aa83a14de9bb96c31d5aa05fe435d3745d98",
+      "public_sha256": "ddc83effc499665afed0e98318be23dc6cf62693c51aa5ebad62be8f5e192168",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/reason_modes.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "956e5357441e053d9cfe84037d6c5317bb6b2f66268f13a9efd61a681856b222",
+      "public_sha256": "f0a97f9706cadc01a8ce0f7147b4c23ee255870d1fb6cd6ac8680e8b6f896b48",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/responses.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "9ac34e83c095f12982096aa343fd88eba2284f6908fcb4dbc6e92cd994a62561",
+      "public_sha256": "06d399c1fc354a8f1228fa958b3a9a5b8079566bd4ea9791299e7e0ce86190d8",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/runconfig.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "7a3b9fab8348c9e710ca601c9afb8ff74997c830ef8860db558376a9ff128ab5",
+      "public_sha256": "81ea7f5d9cfa63fd6bccea8e114da561ef97e278492484b69ea7bdd4302038a4",
+      "equal_after_EOL": true
     },
     {
       "path": "serve/server.py",
-      "qualified_private_sha256": "44f8e27aa6226832eb75fea71af55581543ba425df054e298418e866d5b24152",
-      "public_lf_sha256": "bc09af76400932500f9ce09f401bf097ad7e7b120374d2cfbe3f4142fadd2304",
-      "only_eol_difference": true
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "3be214a46c1fd1b7f23483d64050fdeb5c754e29421a03bbabe777d75447bc60",
+      "public_sha256": "3be214a46c1fd1b7f23483d64050fdeb5c754e29421a03bbabe777d75447bc60",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/test_api_protocol.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "02565ffb93bae7fa7a05c0977f6e21644a69999174d441b1a431ba0f8b9bc0f5",
+      "public_sha256": "9f6126a784f7aae87b243fb8a187567883db187407b0b52d4becb4f7dea925f5",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/test_choice_count.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "0078dc72cd646ba185cda367eb57e0cac8159508b47da949aa499c9725adf243",
+      "public_sha256": "0078dc72cd646ba185cda367eb57e0cac8159508b47da949aa499c9725adf243",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/test_declared_tool_boundary.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "52013b987acc1721eafb78aafbe728ba5f75b09dacb390a2d32a921132d96e5d",
+      "public_sha256": "cd857515b0a7d1e395f453bcd74ca41acf977667a95d5382bac68f9ca7e5e6ce",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/test_history_tools.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "d471634deb32c3b586329543a80e876c4a160e7cfd8da84d864cd54f66977d43",
+      "public_sha256": "d471634deb32c3b586329543a80e876c4a160e7cfd8da84d864cd54f66977d43",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/test_legacy_models.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "3d9c2083c4d24619702f77e69f543a9cbe9c88ad1aea788c1f7937dd03998fee",
+      "public_sha256": "7c0daab57be017d92738ec0d32043542dc2ef14ce4568f34bfcfdccd7769903a",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/test_lenient_unicode.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "540bc79e3fb1cd8f75ba85b1afceac05063f548f5d046fd5c152b4aec861fcd3",
+      "public_sha256": "7bf07506da773e9b3856bfd1073b8dcbc944daad4fa01d6f4f48828e05827c66",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/test_model_identity.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "c487a9a155f16f3d57960f1ef75fe6dc85bfcee3d48e7bee71835c8374b604cd",
+      "public_sha256": "10072b16d7629bd0ea9cfe75b8d4fd34125878d9506f34444f0e02fc63550058",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/test_parallel_counter_metrics.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "3be71dbf2ae5ee8264c2780f7f939a08888173b7ab8e8eebcec93248c5354903",
+      "public_sha256": "3be71dbf2ae5ee8264c2780f7f939a08888173b7ab8e8eebcec93248c5354903",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/test_recover_scan_work.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "0c63ea49773c0763e0ab1ac356fedbcb12637ce4289b13b6fa0abeef0df3c058",
+      "public_sha256": "0c63ea49773c0763e0ab1ac356fedbcb12637ce4289b13b6fa0abeef0df3c058",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/test_request_hardening.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "a52212646af80c96efd7804e41a30e2902e1da58a313515cc673f3ed7f966a8b",
+      "public_sha256": "b69174011e4c84464f3d39edcb6a301f92db21f6bb842159969bf9318f28c39a",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/test_responses.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "27e3d4c91898c15951fbb0754d5b2d5ae9becb36400e1ca405f20c2bf7411737",
+      "public_sha256": "234008d98ef218843846a69eb63ebea371b1be885a35499e60a8d4875a043238",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/test_sampling_merge.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "ba465b228a88186268eaa8d3e60a9c7912625233be4900be2015fefb6a2b922c",
+      "public_sha256": "d0be7814e02081d04e8b742aa45a9c3c139d50bd2ecaffbf50083af0530029b0",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/test_server.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "03fcc2231be003ea471a5d2d64ebbc2e49ed53d0327b61114fdf427ea2ffad69",
+      "public_sha256": "45b6dd5d7ebf781e463a80be96631607f9de02b9752847ca43b913e6f514355a",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/web/app.css",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "a59eb1cd94fbe190678b5497addc96fb6605b23b1e5ae60783685ea423c0dfae",
+      "public_sha256": "baa95b0fd7d7208c22f9147663e19fa6c2febd0d7e00a2613d9cee670eae655e",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/web/app.js",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "391ddeae47fd8deb4d78d69412f39d984789897a7144471e356d428655bea679",
+      "public_sha256": "aab6d6966d16d3837af3f0ae0c3685d7dff55d399b0551549b1a4e43e9052b94",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/web/index.html",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "ca75b30ea5e8e7e67d368bf97c1fab8e6b74b9171a8173cf297d31ccb1f2c3bb",
+      "public_sha256": "5ffe1449dda07a039ae5e5352527cbf684df9e72edac9b991badfa5b4f6cebec",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/web/locales/de.json",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "524147d58268e9baa4d7d2ca0f7e2d53734777906a81850cf90ae1b797033bd8",
+      "public_sha256": "3d0e6a885b251ed2c7d5a92159005283c55da1c212eecd6d56181f8bb96fc801",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/web/locales/en.json",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "123fc5ec16f35b3863c61327b46caae747a03df485c1d365a18f43303364d7c5",
+      "public_sha256": "d509cd4d80cc334cc2ba62a828efe77c1bfee2fd74e3556f5d42b22ca7f979c1",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/web/locales/es.json",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "394b9cbacde197732f264d5cc17f058ebf665e9c1620c15f518f21497d0505bf",
+      "public_sha256": "2efca207cf7386d0969e9bfe075134663ccfb5a5d36a943d1bfdc312b4947c2b",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/web/locales/fr.json",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "cc3ef12d6a75f3cc3854b54af6b0450a295c488c3cfeb3c50db2e0d8b443ea69",
+      "public_sha256": "fbaa08da43b7db5614ae77e9de7c8485d582e68a4f9d2d83a60f38a83c60adad",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/web/locales/ja.json",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "69c8c9ec658b330199cce11cfab7f044fc8c0407e09cfef4092bce0e23c857f0",
+      "public_sha256": "9a2655ef89a64f75d018019a444f497c5bedd23fde1f93ebf6ed17dc94b4824d",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/web/locales/ko.json",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "c86715c4eda1dfacd7514dc7e98875bf9315df92e5e6976a3f5679cad6ca23d5",
+      "public_sha256": "6a5422a53811ac55fb8f50effafed18280b02fe829682624ea166cf39baa3b42",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/web/locales/pt.json",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "9ebe7847ed9f98a85b8510a65328f99edab3c80c66fa7b288ab3f25ba0a44e31",
+      "public_sha256": "923d29f6848ea10233cf0a1f763a8181c1ef6840af997a598e39fcf0af3e6d47",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/web/locales/ru.json",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "8edd7c66d089ccada3102e913f441e1c4fa0966d86624469d129adf7d7b2f85f",
+      "public_sha256": "bd9cafbf38619c1e77fb86623755da054626d10f9288b5143b86807a7f79bcfc",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/web/locales/zh.json",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "3bf776ace7484e8bc917adb37c35cba9703f2bdc7cab650bb770580662139572",
+      "public_sha256": "317ceeac9472f34512581d5431cb7d37233b102ebc68de038c80bb9c50ac0a9c",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/web/monitor-i18n.js",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "d9854938aae11879418b3f816f21886c1eebcda4223bb3c1d19d617e770e9ed6",
+      "public_sha256": "3ff5ac9ebada4a3871fc7f88d813e1ca7f56e4cdd6dd4d8a6cef2180da6e9a92",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "serve/web/monitor.html",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "8fa1718519e1f36518904e77d53af797e806763e2b7597a29e93c30a51580dfe",
+      "public_sha256": "57915af8c1afcd43daa741ab3bebe96fb39085afd6e1c0571bc24da5e680242c",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "src/artifact/gguf_reader_test.cpp",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "cd8e13a5b975455caf35aaa0108ae2f74d0aff4028d5d4bf75ce6429e411daf2",
+      "public_sha256": "b204c0a643820d17da2d071c814b4c7f697121f511b82145368431bd75b7356f",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "src/core/conversation_cache_test.cpp",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "f7597a91a6d5649cdd17fc0ec70cfc1f0e8290b9fe40292076ee3dab8a94438c",
+      "public_sha256": "11aede9ea724b84b2510c0b3041ab8ab315be8d046a072940525bd7d5e2e53df",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "src/core/conversation_copy_lifetime_test.cpp",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "42c2fc61cbacbbf626d400016722f3d8596f08074aa8b6b1aa70af073a5f60fa",
+      "public_sha256": "391298e77877382d179f8b95b6db46bdaceb6539e22e2cd1e517391466d76880",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "src/core/conversation_reuse_identity_test.cpp",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "3f98d411a8dfb70d45e5c693fc292b834994870a2c5163d7431404c5252cf76a",
+      "public_sha256": "bd11503d09041a58782682f7ffba1681aef6a6b9d9531f0af387a1065c371373",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "src/core/conversation_validation_test.cpp",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "2ae34635566db6b217388977bf0c40d734a8a6d75077fe2f2607d19e47b049a5",
+      "public_sha256": "da9104545dd031a5fb760b5c7260dd3a120cb7448a1f06ff394af8cedb3b1497",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "src/core/expert_source.cpp",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "9dd0805f7df0e66cc58928461b4cbe452a2afb18f55cc8ebd58b610865c7a04f",
+      "public_sha256": "9dd0805f7df0e66cc58928461b4cbe452a2afb18f55cc8ebd58b610865c7a04f",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "src/core/native_dense.cpp",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "05439bace9ba6ce47d0439029955f229040a74543061717e67aaf0b8e5b47934",
+      "public_sha256": "a7f5b450ec3ccf7b42143b6487658dea32ccbd8d0813eeadbad185b3e790d472",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "src/core/pinned.cu",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "a94a70f7602a38ec1c508ac6fec1f34ecda0695e5362bc8d11b653f66aa14a5f",
+      "public_sha256": "bb6a672ae6a9b9c731d81d1fef4ddcf31aafc34d14c82601a229f6e729eb9811",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "src/kernels/cpu/iq_avx1.cpp",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "8d17103513fa75a8a12fe20055a2efde3952eb9df5b9ac8a0d9dcf7d5d33824a",
+      "public_sha256": "8d17103513fa75a8a12fe20055a2efde3952eb9df5b9ac8a0d9dcf7d5d33824a",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "src/kernels/cpu/iq_avx1_parity.cpp",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "2bfe3ddf96160415bbf89f1c425a58bb7fe65e4259ef153f3161c42d03c60df6",
+      "public_sha256": "44e65ac27f36fd52573375a3c7827083f39c37c6a5c8b78d490deb8aa55d416e",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "src/kernels/cpu/iq_avx2_parity.cpp",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "ef9767c7663b22e52d9bddf7ba7d37adf14b81d177bfe8a4fddb58abd61cad4a",
+      "public_sha256": "2a7e96bda844dcdd1b49c25174967f75f82136f68ed9adb9de11853dfc0012d4",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "src/kernels/cpu/iq_avx512.cpp",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "c5b491b10cbc3d75656c67b12548b4b3f3fac9a1f3a0145a6beaa8cd9efc9e70",
+      "public_sha256": "2fc03e3ef34060b351fc5be7330b00b9934c7805535fd52e618f5712cc8cfc2f",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "src/kernels/cpu/pool.cpp",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "32a8185d5666643d44f8eb40e1994e0893e8edf27435f0341b0a43df29a767a9",
+      "public_sha256": "ab5b60c24bc82e8543e4dcb4eae3611dd23f1e84c8c73065c542860d987635a7",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "src/kernels/cpu/pool_affinity_win.hpp",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "20c2f47f2c37bd2fb8743385bbb7d5fc29d32e05048a88461e3ce2cbd174a6fd",
+      "public_sha256": "24d5b3046a55ca470d48fa2719490d227ce6671098f38c2d7d4ce619e5264385",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "src/kernels/cpu/q2_avx1.cpp",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "b689fd0d309e2b0cd28a95a65647e917ab4443fcd6ff241c85196fed8ac52781",
+      "public_sha256": "1f3bb0dad5f48c414e86e149ae01b6f33cce2470f468f8b2f8935063e5c554ab",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "src/kernels/cuda/iq_kernels.cu",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "4c21399d784782b8a2b46d8084035acd1bf5c0fb791177a7f032a4175be772fc",
+      "public_sha256": "587c75e4489663383854e88ea80b168ba3b4699b830d7ad44f99caa9cc659c32",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "src/kernels/cuda/ple.cu",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "b896a153c47ab3aaf78afb0d182d0997f62f7e6ed55721dba27a5d0a5545e963",
+      "public_sha256": "c6ecc475035457ae9628cbaa5529b5d48041966689303298111088bbd0bc1423",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "src/ngram/ple_reader.cpp",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "d5f40ce21b4fc32d6a10694e27618e064bee4f7cede2766296c1a7245a8e18a8",
+      "public_sha256": "082799b17ec55c3c8dc1971df4854f079b7daeaf737f387b36e05cce55ff299d",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "src/prefill/kernels.cu",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "a07b6837261abacab1ce8c90ec6fe7e495def569db79bd951bb03673557c1c90",
+      "public_sha256": "1346fdcd7c2b7b58620321cf8585e75d05a480bfcc10712c68722e546dda22f4",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "src/prefill/moe_mmq_tab.cuh",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "1e992a117cfdf7eecc220db473dbfa6c0ee3b08c10bbd8eecea652e192654121",
+      "public_sha256": "1e992a117cfdf7eecc220db473dbfa6c0ee3b08c10bbd8eecea652e192654121",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "src/prefill/prefill.cpp",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "22b4f85d2e436dc956c11911e60618a90c45bb1da60264c988a8a784148a4fe5",
+      "public_sha256": "2b1f174545a896ae18bb6e8601b219d272d07ec7c954f0b27618512752e36152",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "src/program/generate.cpp",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "609eacc1c1122a87ef65f7d01332f95f29d44012cc81aac2fdd6378b8cb0f6ba",
+      "public_sha256": "e089b4046fadeb43efc61822c2d418cfd83836b8d18123652e3a5149bfa0ea86",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "strata_control/procs.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "e30a46d9015ddfe654ab3e54732c45a60889f0853852deb66ea216e16271448d",
+      "public_sha256": "e0c25bb79bde55a42be2f7f3240ac099acd9596105657c2ae8e5a3b48c2f6dba",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "tests/cuda/bf16_nan_parity.cpp",
+      "origin": "frozen_reviewed_source_omitted_from_runtime_snapshot",
+      "private_sha256": "167a5520b4b0507f0d168b9680e3f76dfc35e16e01918f413217521ac84814a9",
+      "public_sha256": "7a6e80ce5501699f7bf8f2bea7bc71d0e9deac8316f22fb2f28ceef6593aebb3",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "tests/cuda/pascallama_mmq_screen.cpp",
+      "origin": "frozen_reviewed_source_omitted_from_runtime_snapshot",
+      "private_sha256": "5ea7bbc08e0fa37e93f5ef0701089fe347f8a5522ed5cc2fe384d53c828e5113",
+      "public_sha256": "3aec4268c94cf51e56c60d267970a5e93bc619136e2d96e4f1c5e197e46eacfe",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "tests/cuda/prefill_group_scratch_parity.cpp",
+      "origin": "frozen_reviewed_source_omitted_from_runtime_snapshot",
+      "private_sha256": "6835991b862860e4dd41a887cfd16a4421b08336bdc58214078dd129698c2809",
+      "public_sha256": "0a2a9742b826ee79e2c4712fe5405a72556f09ba9154112e72deeceb736c3a29",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "tests/cuda/sm61_graph_parity.cu",
+      "origin": "frozen_reviewed_source_omitted_from_runtime_snapshot",
+      "private_sha256": "e9b78ded7cfe0dcd76bb86a3be196d9d667065048d6eb3d20ae16e29b138c49f",
+      "public_sha256": "95be69144c64af187f174c35654971d7edc4e2efa3ec7bbe1ae0c3eca1975567",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "tests/platform/cpu_format_parity.cpp",
+      "origin": "frozen_reviewed_source_omitted_from_runtime_snapshot",
+      "private_sha256": "d43851fa7acebfaa0241447a9f96e154950a322cdb058e87f6543ec49d2f4366",
+      "public_sha256": "b299ae6db664a3a5732cc58587c6e086e73f0289232db26c2df0a13d5da689d8",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "tests/platform/cpu_pool_fused_parity.cpp",
+      "origin": "frozen_reviewed_source_omitted_from_runtime_snapshot",
+      "private_sha256": "3eb9fae783e90d1defee024bb91dda334c48c49f5c23c09670467c0ee824267c",
+      "public_sha256": "f9b33d2af306ac11aff8ddf0554f2416d005dd96a2b5e47e8b4000fe854e1a4d",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "tests/platform/cpu_pool_guided_parity.cpp",
+      "origin": "frozen_reviewed_source_omitted_from_runtime_snapshot",
+      "private_sha256": "7bf02e54f806e41d8175d70061908ee08ad3fdad395bc24f295e71afe9e63bcf",
+      "public_sha256": "892e58f5128108f3336f1af1ac42e904364af30be66dc3ddd1799e26d4d9eeac",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "tests/platform/no_cpu_pin_test.cpp",
+      "origin": "frozen_reviewed_source_omitted_from_runtime_snapshot",
+      "private_sha256": "8f8a3796f8143e66fa714be67c7b38775c51ab226cc51a875b9b93098848f962",
+      "public_sha256": "457c28d2b3851f8999a24f6488472294a8b64a5d3bcd9558c55afa9427304859",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "tests/platform/ple_reader_lifecycle.cpp",
+      "origin": "frozen_reviewed_source_omitted_from_runtime_snapshot",
+      "private_sha256": "5407c4283a4291da128790b36b4d3d807b5869980e8c7b17d22c82fda161801c",
+      "public_sha256": "10a11105a93e9257975f6819f6534e7eda8c3d8082932360f21a351f6e7294b9",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "tests/platform/windows_numa_arena_test.cpp",
+      "origin": "frozen_reviewed_source_omitted_from_runtime_snapshot",
+      "private_sha256": "540423605b110a2e173a370cf0d955d70275d374bd2f4977a6fd95bf1d45c66d",
+      "public_sha256": "c1ccf7fab20c8218e1f933338abe8588a87a873dc30971ec2ee538624b3cdff9",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "tests/terminal/test_launch_engine_first.py",
+      "origin": "frozen_reviewed_source_omitted_from_runtime_snapshot",
+      "private_sha256": "930f264db2ece5e97c839838d0b8a177803c0620170870f688f60e416c479919",
+      "public_sha256": "eaa9356bf93fb81564a90d7281d85cbd80cd2d4ba55d795a0913bda88485cce9",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "tools/strata_tokenizer.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "08f0a3e9838ed04a7a4af197657257c10af16dc98a2a6c5bc451f23e359c5304",
+      "public_sha256": "a8824fa10e5c83e9ec1638fbb899b1d8ccaebcccfc2e43fc81638ae9dca51757",
+      "equal_after_EOL": true
+    },
+    {
+      "path": "tools/test_strata_tokenizer.py",
+      "origin": "qualified_immutable_snapshot",
+      "private_sha256": "6963407c7904d5ab0ce4ec92f71f781d00cc452e7d49f3b17496429fe643aab5",
+      "public_sha256": "7922f72b43f64be6f425eb3d2877620f9e4b3071f343820dbaf79435de1a18a9",
+      "equal_after_EOL": true
     }
   ],
-  "parity_source_pins_reviewed": true
+  "scope": "Every exported owned source body matches the qualified snapshot after explicit EOL normalization; native/DLL/check bytes retain original qualification. No private paths/state/payloads included."
 }
