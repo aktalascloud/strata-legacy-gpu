@@ -10,5 +10,5 @@
   "logs_included": false,
   "caches_included": false,
   "credentials_included": false,
-  "qualification": "Exact native/vision/CUDA bytes passed CPU/ISA/private-DLL checks and 27 numerical/graph GPU runs, including the full 5,201-case DenseF32 sweep, BF16 bit parity, checkpoint/MMQ and GDN checks. Offline installer/task/import/package checks passed. Unchanged launcher helpers retain their exact-byte clean-folder/S4U proof. No OS reboot or fresh-Windows test is claimed. Throughput remains tied to the separately identified measured source; this build is not a fresh throughput measurement."
+  "qualification": "Exact native/vision/CUDA bytes passed CPU/ISA/private-DLL checks and 27 numerical/graph GPU runs, including the full 5,201-case DenseF32 sweep, BF16 bit parity, checkpoint/MMQ and GDN checks. Offline installer/task/import/package checks passed. Portable launchers passed fresh offline and fake-HTTP bootstrap/identity/nonce/hash/graceful-drain checks. No fresh Windows installation, S4U task registration or OS reboot is claimed; private-host startup/drain evidence is separate. Throughput remains tied to the separately identified measured source; this build is not a fresh throughput measurement."
 }
