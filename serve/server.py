@@ -1600,7 +1600,15 @@ class StrataEngine:
         if (getattr(self, "info", None) or {}).get("engine_kind") in ("ggml", "poly", "mm3"):
             from serve.model_backends import sampling_keys
             return sampling_keys(sampling)
-        return self.sampling_keys(sampling)
+        keys = self.sampling_keys(sampling)
+        # DS4 already accepts spec=0|1; keep its loaded drafter while comparing requests.
+        if (getattr(self, "info", None) or {}).get("engine_kind") == "ds4":
+            tune = sampling.get("strata_tune")
+            if isinstance(tune, dict):
+                spec = tune.get("spec")
+                if type(spec) in (bool, int) and spec in (0, 1):
+                    keys += f" spec={int(spec)}"
+        return keys
 
     @staticmethod
     def sampling_keys(sampling: dict) -> str:
