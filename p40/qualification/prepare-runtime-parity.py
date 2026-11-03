@@ -27,7 +27,7 @@ b=replace(b,'const double ta = median_ms(c, b, T, reps, s, ev);','const double t
 b=replace(b,'const double tb = median_ms(c, b, T, reps, s, ev);','const double tb = 0.0; // numerical-only driver: no timing loop')
 b=replace(b,'    setvbuf(stdout, nullptr, _IONBF, 0);','    setvbuf(stdout, nullptr, _IONBF, 0);\n    std::puts("# NUMERICAL_ONLY: timing columns are disabled placeholders, not measurements");')
 (P/'b6_runtime_parity.cpp').write_text(b,encoding='utf-8')
-e=(R/'src/kernels/expdec_bench.cpp').read_text(encoding='utf-8-sig')
+e=(R/'p40/qualification/reference-inputs/expdec_bench.cpp').read_text(encoding='utf-8-sig')
 e=replace(e,'constexpr int kMaxEntries = kMaxT * kTop;','constexpr int kMaxEntries = kMaxT * kTop;\nint qualification_grid_groups = 0;')
 e=replace(e,'dout, stream, 0);','dout, stream, qualification_grid_groups);')
 e=replace(e,'const int reps = argc > 1 ?', 'qualification_grid_groups = argc > 7 ? std::atoi(argv[7]) : 0;\n    if (qualification_grid_groups < 0 || qualification_grid_groups > 8) return 1;\n    std::printf("# qualification grid_groups=%d (0 VRAM, 1..8 strided PCIe)\\n", qualification_grid_groups);\n    const int reps = argc > 1 ?')

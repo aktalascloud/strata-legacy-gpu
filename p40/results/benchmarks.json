@@ -1,7 +1,9 @@
 {
   "schema": 3,
-  "active_source_sha": "c62d5e3a15b40ea51c96aae9e8d36928965f53ab",
-  "active_engine_sha256": "3B0486521742B5B2A40C5DD8B13014B63FA3090EAF4EF28BD4D305562A342BD7",
+  "active_source_sha": "ffa80d73133ea5c548aefe57889a16e8085a938f",
+  "active_engine_sha256": "E4F6A9843E434CC6484A3647614CC4F235B402EBC7BE27A0134CBDFE09B628D7",
+  "active_measurement_available": false,
+  "measurement_binding": "historical_other_source_or_native",
   "latest_controlled_model": {
     "date": "2026-11-01",
     "source_sha": "c62d5e3a15b40ea51c96aae9e8d36928965f53ab",
@@ -20,6 +22,10 @@
     "sampling": "unchanged; seed requested",
     "background_traffic": "Other PC/client traffic permitted; native SSE timings ranked, not queue latency",
     "warmups_included": false,
+    "harmonic_native_tok_s": 37.346910491418235,
+    "baseline_harmonic_native_tok_s": 32.39936254935109,
+    "harmonic_gain_percent": 15.270510135904637,
+    "scope": "Short Russian and cached4K/code decode only; not a filled262K benchmark, quality evaluation or exhaustive tuning.",
     "results": {
       "short-ru": {
         "native_tok_s": 37.97036531644443,
@@ -35,11 +41,7 @@
         "measured_samples": 3,
         "baseline_samples": 4
       }
-    },
-    "harmonic_native_tok_s": 37.346910491418235,
-    "baseline_harmonic_native_tok_s": 32.39936254935109,
-    "harmonic_gain_percent": 15.270510135904637,
-    "scope": "Short Russian and cached4K/code decode only; not a filled262K benchmark, quality evaluation or exhaustive tuning."
+    }
   },
   "private_config_or_sampler_included": false
 }

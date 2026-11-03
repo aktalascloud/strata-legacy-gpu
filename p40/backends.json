@@ -1,46 +1,6 @@
 {
   "schema": 1,
-  "native_source_sha": "c62d5e3a15b40ea51c96aae9e8d36928965f53ab",
-  "engines": {
-    "cpu": {
-      "path": "runtime/backends/cpu/strata-ggml.exe",
-      "sha256": "bc1fdde4158a90e03f8a809f273c5dc5c64b825ab240e4a71d9a07806cdfb2fa",
-      "backend": "cpu",
-      "qualification": "New CPU SET_ROWS workspace and model-bounded cvec loader; actual CPU scratch/tensor/cvec/grammar regressions passed. GPU/device objects unchanged by byte proof; no new GPU or trained-model qualification, no speed claim.",
-      "trained_model_qualified": false,
-      "rx580_hardware_qualified": false,
-      "component_build_source_sha": "41cf05a06a25dd29103b7b27a2279a3f60c21876",
-      "reused_exact_checked_bytes": true
-    },
-    "cuda": {
-      "path": "runtime/backends/cuda/strata-ggml.exe",
-      "sha256": "724999664ea56f42576478c44fb970d113720a4a96be9cac455946d2176b63d8",
-      "backend": "cuda",
-      "qualification": "New CPU SET_ROWS workspace and model-bounded cvec loader; actual CPU scratch/tensor/cvec/grammar regressions passed. GPU/device objects unchanged by byte proof; no new GPU or trained-model qualification, no speed claim.",
-      "trained_model_qualified": false,
-      "rx580_hardware_qualified": false,
-      "component_build_source_sha": "41cf05a06a25dd29103b7b27a2279a3f60c21876",
-      "reused_exact_checked_bytes": true
-    },
-    "vulkan": {
-      "path": "runtime/backends/vulkan/strata-ggml.exe",
-      "sha256": "43153402d6df28ee6ee82dd7b5b95b57ed68d1beed41bcc4c3a6472c353b7ad3",
-      "backend": "vulkan",
-      "qualification": "New CPU SET_ROWS workspace and model-bounded cvec loader; actual CPU scratch/tensor/cvec/grammar regressions passed. GPU/device objects unchanged by byte proof; no new GPU or trained-model qualification, no speed claim.",
-      "trained_model_qualified": false,
-      "rx580_hardware_qualified": false,
-      "component_build_source_sha": "41cf05a06a25dd29103b7b27a2279a3f60c21876",
-      "reused_exact_checked_bytes": true
-    },
-    "poly": {
-      "path": "runtime/backends/poly/strata-poly.exe",
-      "sha256": "a0512e20205eacc1babfb1b4bda024ad272e095b11564f7d1dc7f49879335a7f",
-      "backend": "cuda",
-      "qualification": "compiled, capability/version and worker/guesses/conversation tests; trained model/GPU math pending",
-      "trained_model_qualified": false,
-      "rx580_hardware_qualified": false,
-      "component_build_source_sha": "41cf05a06a25dd29103b7b27a2279a3f60c21876",
-      "reused_exact_checked_bytes": true
-    }
-  }
+  "native_source_sha": "ffa80d73133ea5c548aefe57889a16e8085a938f",
+  "engines": {},
+  "scope": "Classic qualified E4 and CPU vision99E1 only. Additional backend and DeepSeek native source is experimental and no corresponding runtime is bundled."
 }

@@ -46,16 +46,29 @@ def portable_paths(state, cfg):
     if state.get('version') != active['id']:
         raise RuntimeError('Saved runtime version differs from active runtime')
     expected = {key: local_path(active.get(key), 'active.' + key) for key in ('source', 'engine', 'vision')}
-    if not expected['source'].is_dir() or any(not expected[key].is_file() for key in ('engine', 'vision')):
+    if cfg.get('engine_kind')=='mm3':
+        import runpy
+        resolver=runpy.run_path(str(Path(__file__).with_name('native-model-identity.py')),run_name='control_model_identity')
+        selected=resolver['resolve'](ROOT,cfg,active)
+        expected['engine']=Path(selected['engine']);expected['vision']=None
+    if not expected['source'].is_dir() or any(path is not None and not path.is_file() for key,path in expected.items() if key!='source'):
         raise RuntimeError('Active runtime source/engine/vision has an unexpected file type')
     for key, path in expected.items():
+        if path is None:
+            if state.get(key) not in (None,''):raise RuntimeError('Saved disabled vision path differs from model identity')
+            state[key]=None;continue
         saved = local_path(state.get(key), 'state.' + key)
         if norm(saved) != norm(path):
             raise RuntimeError('Saved path differs from active runtime: ' + key)
         state[key] = str(saved)
     if (norm(cfg['cwd']) != norm(expected['source']) or norm(cfg['exe']) != norm(expected['engine']) or
-            norm(cfg['vision']['exe']) != norm(expected['vision'])):
+            expected['vision'] is not None and norm(cfg['vision']['exe']) != norm(expected['vision'])):
         raise RuntimeError('Config source/engine/vision differs from active runtime')
+
+
+def configured_native_paths(cfg):
+    if cfg.get('engine_kind')=='mm3':return [cfg['exe']]
+    return [cfg['exe'],cfg['vision']['exe']]
 
 
 def arg(cmd, flag):
@@ -136,11 +149,11 @@ def verify(cfg):
         raise RuntimeError('Saved PID creation time differs; possible PID reuse')
     if owner.pid != wrapper.pid and wrapper.pid not in [p.pid for p in owner.parents()]:
         raise RuntimeError('Port owner is not in the saved wrapper parent tree')
-    expected_native = {Path(cfg['exe']).name.casefold(), Path(cfg['vision']['exe']).name.casefold()}
-    allowed_exe = {norm(cfg['exe']), norm(cfg['vision']['exe']), norm(state['python'])}
+    expected_native = {Path(path).name.casefold() for path in configured_native_paths(cfg)}
+    allowed_exe = {norm(path) for path in configured_native_paths(cfg)} | {norm(state['python'])}
     rows = [wr] + [identity(p, expected_native) for p in wrapper.children(recursive=True)]
     ids = {r['pid'] for r in rows}
-    native_exes={norm(cfg['exe']),norm(cfg['vision']['exe'])}
+    native_exes={norm(path) for path in configured_native_paths(cfg)}
     for row in rows:
         if row['pid'] != wrapper.pid and row['ppid'] not in ids:
             raise RuntimeError('Child parent is outside the captured tree')
@@ -189,7 +202,7 @@ def controlled_stop(tree,cfg,timeout=600):
     temporary.write_text(json.dumps({'action':'drain_stop','nonce':nonce,'pid':tree['wrapper']['pid']}),encoding='utf-8')
     os.replace(temporary,path)
     captured={(r['pid'],r['created']):r for r in fresh['rows']}
-    expected={Path(cfg['exe']).name.casefold(),Path(cfg['vision']['exe']).name.casefold()}
+    expected={Path(path).name.casefold() for path in configured_native_paths(cfg)}
     deadline=time.monotonic()+timeout
     while time.monotonic()<deadline:
         if same_process(tree['wrapper']):
@@ -222,6 +235,15 @@ def http(cfg, path, body=None):
                                  headers=headers, method='POST' if body is not None else 'GET')
     with urllib.request.urlopen(req, timeout=60 if body is not None else 10) as response:
         return json.load(response)
+
+
+def expected_api_model_id(cfg):
+    # Use the same immutable source identity rule as the serving API.
+    import runpy
+    active = json.loads((ROOT / 'runtime/active.json').read_text(encoding='utf-8-sig'))
+    source = local_path(active['source'], 'active.source')
+    identity = runpy.run_path(str(source / 'serve/model_identity.py'), run_name='control_API_identity')
+    return identity['configured_model_id'](cfg, 'qwen3.8-flash-next')
 
 
 def idle(cfg):
@@ -266,7 +288,9 @@ def main():
                     return broker['dispatch']('--stop' if args.stop else '--verify')
         cfg = json.loads(CONFIG.read_text(encoding='utf-8-sig'))
         # Canonical portable config may keep paths relative to its project root.
-        for container, key in ((cfg, 'exe'), (cfg, 'cwd'), (cfg['vision'], 'exe')):
+        path_fields=[(cfg,'exe'),(cfg,'cwd')]
+        if cfg.get('engine_kind')!='mm3':path_fields.append((cfg['vision'],'exe'))
+        for container, key in path_fields:
             container[key] = str(local_path(container.get(key), 'config.' + key))
         if cfg.get('host') != '127.0.0.1' or type(cfg.get('port')) is not int or not 1024 <= cfg['port'] <= 65535:
             raise RuntimeError('Only a valid localhost profile is allowed')
@@ -274,7 +298,7 @@ def main():
         tree = verify(cfg)
         result.update(public_tree(tree))
         health = http(cfg, '/health')  # API unavailable => fail closed, even with a live saved PID.
-        if health.get('service') != 'strata' or health.get('model') != cfg['model_name']:
+        if health.get('service') != 'strata' or health.get('model') != expected_api_model_id(cfg):
             raise RuntimeError('Live API identity mismatch')
         result['loaded'] = health.get('loaded')
         if not idle(cfg):

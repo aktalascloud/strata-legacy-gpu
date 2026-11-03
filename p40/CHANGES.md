@@ -1,8 +1,13 @@
-# Package revision r2
+# Current build
 
-- Documentation/results package revision r2; same native0.1.55 and exact runtime/helper bytes as r1.
-- Source-pinned short Russian and cached4K/code medians; +15.2705% equal-workload harmonic gain versus pooled no-MTP baseline.
-- Short-workload decode only; no filled262K, quality or universal speed claim. Background traffic and unchanged sampling acknowledged.
-- Allowlisted docs and structured results contain no private config, sampler values, host identifiers, raw payloads or logs.
+Official source `ffa80d73133ea5c548aefe57889a16e8085a938f`.
 
-Native source `c62d5e3a15b40ea51c96aae9e8d36928965f53ab`; engine SHA-256 `3B0486521742B5B2A40C5DD8B13014B63FA3090EAF4EF28BD4D305562A342BD7`. Original numerical/install receipts are reused by exact bytes, not relabelled as new runs.
+- Merged official Strata FFA with the reviewed C5 aggregate948A while preserving the portable public subtree and real Git ancestry.
+- Classic E4 native/CUDA bytes retain their original exact 27 numerical/Graph qualifications including DenseF32 5201; no repeated GPU/model benchmark.
+- CPU-only vision99E1 locks every mmproj weight-buffer page in RAM using only the process working-set quota; strict mode fails closed instead of disk fallback or elastic reload.
+- New native installations enable strict CPUvisionRAM and author-derived sampling defaults. Existing profiles are preserved. The published base Q2 MTP catalog now has the qualified425196-byte vocabulary.
+- Qualified serving/API/loader/no-affinity/security fixes remain in the reviewed aggregate; lookup-chain stays disabled in the reference native preset.
+- DeepSeek AVX1/Pascal full-RAM/Engram/CPUvision/DSpark source is experimental: fifteen small used-form GPU checks completed, remaining commands/full model/RAM/CPUimage answer qualification are incomplete; no DeepSeek runtime or weights are shipped.
+- MiniMax software and required attribution remain; no MiniMax model assets or unqualified runtime are included.
+
+Measured performance is independently source-pinned in BENCHMARKS.md.

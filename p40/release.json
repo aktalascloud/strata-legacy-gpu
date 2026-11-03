@@ -1,14 +1,14 @@
 {
-  "tag": "v0.1.55-legacy-gpu-c62d5e3-3b048652-r2",
-  "source_sha": "c62d5e3a15b40ea51c96aae9e8d36928965f53ab",
-  "engine_sha256": "3B0486521742B5B2A40C5DD8B13014B63FA3090EAF4EF28BD4D305562A342BD7",
-  "zip_name": "Strata-Legacy-GPU-v0.1.55-legacy-gpu-c62d5e3-3b048652-r2-win-x64.zip",
-  "zip_bytes": 710079894,
-  "zip_sha256": "e8ca26b0647869f07e5e3d68ea13c9cce9f4cd49459d4dbdc1daad593312ef5c",
-  "download_url": "https://github.com/aktalascloud/strata-legacy-gpu/releases/download/v0.1.55-legacy-gpu-c62d5e3-3b048652-r2/Strata-Legacy-GPU-v0.1.55-legacy-gpu-c62d5e3-3b048652-r2-win-x64.zip",
+  "tag": "v0.1.56-legacy-gpu-ffa80d73-948ac64c",
+  "source_sha": "ffa80d73133ea5c548aefe57889a16e8085a938f",
+  "engine_sha256": "E4F6A9843E434CC6484A3647614CC4F235B402EBC7BE27A0134CBDFE09B628D7",
+  "zip_name": "Strata-Legacy-GPU-v0.1.56-legacy-gpu-ffa80d73-948ac64c-win-x64.zip",
+  "zip_bytes": 645108824,
+  "zip_sha256": "13baae4ecd6a8cc3383b1ba183901c34866082c9dda82ce12e8962e5c669fac0",
+  "download_url": "https://github.com/aktalascloud/strata-legacy-gpu/releases/download/v0.1.56-legacy-gpu-ffa80d73-948ac64c/Strata-Legacy-GPU-v0.1.56-legacy-gpu-ffa80d73-948ac64c-win-x64.zip",
   "weights_included": false,
   "logs_included": false,
   "caches_included": false,
   "credentials_included": false,
-  "qualification": "Documentation/results package revision; native, vision, helpers and runtime payloads are unchanged from r1. Original native numerical and offline helper qualifications are reused by exact SHA-256; no new GPU tests, model requests, build, restart, Windows installation or S4U task registration occurred during publication. New source-pinned short-workload decode results were measured separately before packaging; see BENCHMARKS.md."
+  "qualification": "The classic native E4/CUDA bytes retain exact original CPU/ISA/private-DLL checks and 27 reused numerical/graph GPU runs, including the full 5,201-case DenseF32 sweep, BF16 bit parity, checkpoint/MMQ and GDN checks. CPU vision99E1 has separate actual CPU locked-weight and image-encode proof. Offline installer/task/import/package checks passed. Portable launchers passed fresh offline and fake-HTTP bootstrap/identity/nonce/hash/graceful-drain checks. No fresh Windows installation, S4U task registration or OS reboot is claimed; private-host startup/drain evidence is separate. Throughput remains tied to the separately identified measured source; this build is not a fresh throughput measurement. Native mathematical qualification is reused by exact SHA-256. Source, vision and helper evidence remains scoped to its separately recorded bytes."
 }

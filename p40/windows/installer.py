@@ -1,7 +1,7 @@
 """Install this public, weights-free distribution. No credentials, global environment edits or server start."""
 from __future__ import annotations
 import argparse, re, stat, contextlib, datetime, hashlib, json, os, pathlib, shutil, subprocess, sys, time
-import http.client, importlib.util, urllib.error, urllib.request
+import http.client, importlib.util, urllib.error, urllib.request, tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
@@ -17,6 +17,36 @@ def atomic(path, value):
     with tmp.open('w', encoding='utf8') as f:
         json.dump(value, f, indent=2); f.write('\n'); f.flush(); os.fsync(f.fileno())
     os.replace(tmp, path)
+
+
+def atomic_create(path, value):
+    """Complete JSON first; atomically create the name without replacing any existing file."""
+    path = pathlib.Path(path); path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=path.name + '.new-', dir=path.parent)
+    temporary = pathlib.Path(temporary)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf8') as f:
+            json.dump(value, f, indent=2); f.write('\n'); f.flush(); os.fsync(f.fileno())
+        if os.name == 'nt':
+            os.rename(temporary, path)  # Windows rename fails if the destination exists.
+        else:
+            os.link(temporary, path)    # POSIX rename would overwrite; a hard link does not.
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def commit_initial_profile(root, config, active):
+    """Called under install_lock. Never overwrite either user's profile or runtime state."""
+    target = root/'strata.json'; state = root/'runtime/active.json'
+    if target.exists() or target.is_symlink() or state.exists() or state.is_symlink():
+        raise RuntimeError('Existing configuration/runtime state retained; inspect it or use another folder.')
+    try:
+        atomic_create(target, config)
+        atomic_create(state, active)
+    except FileExistsError as error:
+        # A late creator wins. Do not attempt a racy rollback/unlink of either destination.
+        raise RuntimeError('Configuration/runtime state appeared during setup; existing files were preserved. '
+                           'Inspect both files before START.cmd; setup did not finish.') from error
 
 @contextlib.contextmanager
 def install_lock(root):
@@ -162,15 +192,17 @@ def make_config(root, models, manifest, workers, numa, port=8093):
               '--suffix-draft','0','--lookup-chain','0','--ple-io','ram','--adapt-async','1','--pool-tasks','0'],
         model_id=preset['model_id'], model_name=preset['model_name'], api_model_id=preset['model_name'], display_name=preset['display_name'],host='127.0.0.1',port=port,
         log=str(root/'logs/engine.log'),mtp=True,open_browser=False,env=env,
-        reasoning_effort=preset['reasoning_effort'],reason_modes=preset['reason_modes'],reason_mode=preset['reason_mode'],sampling=dict(temperature=1.0,top_p=0.95,top_k=64,min_p=0.05,repetition_penalty=1.0),
+        reasoning_effort=preset['reasoning_effort'],reason_modes=preset['reason_modes'],reason_mode=preset['reason_mode'],sampling=dict(top_k=20,min_p=0.0,repetition_penalty=1.0,frequency_penalty=0.0),
         vision=dict(exe=str(root/'runtime/vision/strata-vision.exe'),model=str(weights[0]),mmproj=str(projector),
-                    gpu=False,threads=8,max_tokens=300))
+                    gpu=False,threads=8,max_tokens=300,require_ram=True))
 
 def install(args):
     root = ROOT; bundle = check_bundle(root)
     if (root/'strata.json').exists():
         print('Existing profile retained. No weights downloaded. Run START.cmd, or extract another folder for another model/backend.')
         return
+    if (root/'runtime/active.json').exists() or (root/'runtime/active.json').is_symlink():
+        raise RuntimeError('Existing runtime state retained; restore its configuration or use another folder.')
     if getattr(args,'backend','native')!='native':
         return install_local(args,root,bundle)
     manifest = json.loads((root/'p40/model-downloads.json').read_text(encoding='utf8'))
@@ -215,8 +247,8 @@ def install(args):
             if not all((pack/n).is_file() and (pack/n).stat().st_size for n in names): raise RuntimeError('Incomplete pack')
             atomic(ready, {'downloads_sha256':fingerprint,'files':{n:sha(pack/n) for n in names}})
         path = root/'strata.json'
-        if not path.exists(): atomic(path, make_config(root,models,manifest,args.workers,args.numa_node,args.port))
-        atomic(root/'runtime/active.json',dict(id=bundle['release_tag'],source='app',engine='runtime/engine/strata.exe',vision='runtime/vision/strata-vision.exe',source_sha=bundle['source_sha']))
+        commit_initial_profile(root, make_config(root,models,manifest,args.workers,args.numa_node,args.port),
+            dict(id=bundle['release_tag'],source='app',engine='runtime/engine/strata.exe',vision='runtime/vision/strata-vision.exe',source_sha=bundle['source_sha']))
     port=json.loads(path.read_text(encoding='utf8'))['port']
     print(f'Ready. Run START.cmd. API: http://127.0.0.1:{port}/v1. No API key is shipped or required for this localhost preset.')
     print('NUMA preference:',args.numa_node,'; choose node0 only after confirming your GPU is local to it.')
@@ -270,8 +302,7 @@ def _install_local(args,root,bundle):
             context=context,port=args.port,mtp=args.mtp,workers=args.workers,device=device,allow_native_api_port=True)
         value=json.loads((output/'profile.json').read_text(encoding='utf8'));value['cwd']=str(root/'app')
         value['log']=str(root/'logs/engine.log');value['open_browser']=False
-        atomic(config,value)
-        atomic(root/'runtime/active.json',dict(id=bundle['release_tag'],source='app',engine=row['path'],vision=None,
+        commit_initial_profile(root, value, dict(id=bundle['release_tag'],source='app',engine=row['path'],vision=None,
             source_sha=bundle['source_sha'],backend=backend,engine_sha256=row['sha256']))
         (root/'logs').mkdir(exist_ok=True)
     print(f'Ready: {backend}, {report["architecture"]}, MTP {args.mtp}. Run START.cmd; API http://127.0.0.1:{args.port}/v1')
@@ -280,6 +311,11 @@ def _install_local(args,root,bundle):
 def interactive_choices(args):
     if args.backend is not None:return
     if not sys.stdin.isatty():args.backend='native';return
+    registry=ROOT/'p40/backends.json'
+    if registry.is_file() and not json.loads(registry.read_text(encoding='utf8')).get('engines'):
+        print('This package contains the qualified native CUDA/P40 engine and CPU vision. Additional backend source is experimental; no other runtime is bundled.')
+        args.backend='native'
+        return
     print('Choose engine / Р вЂ™РЎвЂ№Р В±Р ВµРЎР‚Р С‘РЎвЂљР Вµ Р Т‘Р Р†Р С‘Р В¶Р С•Р С”:')
     print('1. Prepared native model РІР‚вЂќ CUDA/P40, resumable download / Р В·Р В°Р С–РЎР‚РЎС“Р В·Р С”Р В° РЎРѓ Р Т‘Р С•Р С”Р В°РЎвЂЎР С”Р С•Р в„–')
     print('2. Local GGUF РІР‚вЂќ CUDA NVIDIA; 3. Vulkan AMD Polaris/RX580; 4. CPU AVX1; 5. Poly CUDA')

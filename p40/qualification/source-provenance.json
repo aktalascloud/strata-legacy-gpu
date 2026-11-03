@@ -1,0 +1,49 @@
+{
+  "schema": 2,
+  "source_sha": "ffa80d73133ea5c548aefe57889a16e8085a938f",
+  "source_tree": "c8b9f4b756c46c9cbead9b1969ea054abc1beef3",
+  "source_aggregate_sha256": "948ac64cdc7fc016bf389f834be79354fbf15142419b96a9661b10116eb35f56",
+  "components": {
+    "classic_native": {
+      "sha256": "e4f6a9843e434cc6484a3647614cc4f235b402ebc7be27a0134cbdfe09b628d7",
+      "base_GPU_source_tree": "aba468becd43d61cfbb89684efd0bf3905cc8f9e",
+      "base_GPU_source_patch_sha256": "0b21c67e958ea37ae36b942d37c98ec57e2fdd948fbd9b1ec51ca28fad83a1ad",
+      "last_host_compilation_source_tree": "7b90e3c21bd38ab648b836f913cf1b8e18a5de78",
+      "last_host_compilation_patch_sha256": "8b39c03cd816bb535fc12134b39213aa2ed5d457a4071c9a6796007758b1c68e",
+      "compiled_source_aggregate_sha256": "8b39c03cd816bb535fc12134b39213aa2ed5d457a4071c9a6796007758b1c68e",
+      "new_C5_native_rebuild": false,
+      "new_C5_GPU_math_runs": 0,
+      "original_GPU_numerical_cases_reused": 27,
+      "DenseF32_full_shape_cases": 5201,
+      "scope": "E4 original exact bytes. C5 aggregate948 includes later serving/DeepSeek/CPUvision source; it is not relabeled as the classic native compilation input."
+    },
+    "CPUvision": {
+      "sha256": "99e1cac7fba532854defbbc99baa7adc2d3a57b8aae9329fd3f3930e5da28e6f",
+      "CPU_only": true,
+      "new_component_build": true,
+      "baseline": "O3 fixed IvyBridge AVX1; no AVX2/FMA/F16C/BMI2 or GPU backends",
+      "actual_Qwen_weight_bytes": 907523008,
+      "actual_Qwen_locked_pages": 221564,
+      "actual_DeepSeek_weight_bytes": 972189696,
+      "actual_DeepSeek_locked_pages": 237352,
+      "Qwen_threads": 8,
+      "Qwen_image_budget": 300,
+      "Qwen_mode": "existing auto, unchanged",
+      "DeepSeek_mode": "flash-attn off only",
+      "source_overlay": "third_party/llama-cpu-vision/manifest.json",
+      "used_source_inputs": "third_party/llama-cpu-vision/used-inputs.json",
+      "post_startup_CPUimage_answer": true,
+      "scope": "Real CPU pin/ENC and one live classic image answer. Not arbitrary-image quality or a whole-model speed measurement."
+    },
+    "DeepSeek": {
+      "source_experimental": true,
+      "native_binary_bundled": false,
+      "full_model_GPU_RAM_qualified": false,
+      "actual_small_GPU_cases_completed": 15,
+      "unexecuted_remaining_commands": 9,
+      "scope": "A runner parser failed to classify a multiword RESULT label; fifteen actual numerical cases passed. This does not qualify the complete model."
+    }
+  },
+  "private_settings_or_host_identifiers_included": false,
+  "publication_GPU_or_model_requests": 0
+}
