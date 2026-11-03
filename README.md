@@ -17,3 +17,5 @@ Source build: VS2022 x64 Developer PowerShell, Clang23.1.4, CUDA12.9, CMake/Ninj
 [Measurements and scope](p40/BENCHMARKS.md): +15.2705% equal-workload harmonic gain on two short workloads; r1 native bytes unchanged. This is not filled262K throughput.
 
 [Changes](p40/CHANGES.md) · [Recipe](p40/build-profile.json) · [Validation](p40/INSTALLATION-VERIFICATION.md) · [Licenses](THIRD_PARTY_NOTICES.md) · [Upstream](https://github.com/Niko1221/Strata)
+
+[Changes compared with stock 1.56 (Russian)](docs/STOCK-COMPARISON.ru.md). The document distinguishes the verified local integration from published source and ZIP availability; older performance measurements do not automatically apply to newer native bytes.
