@@ -17,3 +17,5 @@ API: `/v1/models`, `/v1/chat/completions`, `/v1/responses`, `/v1/messages`. Ад
 [Замеры и ограничения](p40/BENCHMARKS.md): +15.2705% по гармоническому среднему двух коротких нагрузок; native-байты версии r1 сохранены. Это не скорость заполненного262K контекста.
 
 [Изменения](p40/CHANGES.md) · [Рецепт](p40/build-profile.json) · [Проверки](p40/INSTALLATION-VERIFICATION.md) · [Лицензии](THIRD_PARTY_NOTICES.md) · [Оригинальный проект](https://github.com/Niko1221/Strata)
+
+[Кратко: отличия проверенной локальной интеграции от stock 1.56](docs/STOCK-COMPARISON.ru.md). Доступность этих изменений в исходниках и ZIP указана в документе отдельно; старые измерения не относятся автоматически к новым native-байтам.
