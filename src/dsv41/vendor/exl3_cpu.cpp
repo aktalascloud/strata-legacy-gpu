@@ -52,7 +52,8 @@ constexpr int kGemmK = 256;
 namespace strata::dsv41k::cpu {
 // Strata's cpu_avx2_ok lives in strata_kernels_cpu, which this path does not link: AVX2 + FMA here
 static bool cpu_avx2_ok() {
-#if defined(__x86_64__) && (defined(__GNUC__) || defined(__clang__))
+// clang-cl has no GCC CPU-dispatch runtime; Windows keeps the scalar fallback.
+#if defined(__x86_64__) && !defined(_WIN32) && (defined(__GNUC__) || defined(__clang__))
     __builtin_cpu_init();
     return __builtin_cpu_supports("avx2") && __builtin_cpu_supports("fma");
 #else

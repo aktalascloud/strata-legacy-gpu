@@ -55,10 +55,9 @@ class NativeTools(unittest.TestCase):
                         events += parser.finish()
                         self.assertFalse(any(event.kind.startswith("tool") for event in events))
                         self.assertEqual("".join(event.text for event in events if event.kind == "content"), text)
-                    # an unpadded name nobody declared: text where tools are declared (the 0.2.2 rule, #3075); the Responses
-                    # route of a request with no tools (Codex compaction, declared_only off) keeps it as a native call
+                    # No request may authorize a tool from model output or prompt text alone.
                     text = "<tool_call><function=missing></function></tool_call>"
-                    for tools, declared_only, expected in ((TOOLS, False, []), (TOOLS, True, []), (None, False, ["missing"])):
+                    for tools, declared_only, expected in ((TOOLS, False, []), (TOOLS, True, []), (None, False, []), ([], False, [])):
                         parser = OutputParser(thinking=False, tools=tools, stream_tools=streaming, recover=recover,
                                               declared_only=declared_only)
                         events = []

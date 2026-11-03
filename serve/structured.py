@@ -210,6 +210,38 @@ def extract_json(text: str) -> str:
     start = s.find("{")
     if start == -1:
         return s
+    # Locate the bracket/space-only suffix once; slicing it for every '[' is quadratic on long prose.
+    brackets = start
+    while brackets > 0 and (s[brackets - 1] == "[" or s[brackets - 1].isspace()):
+        brackets -= 1
+    decoder = json.JSONDecoder()
+    for i in range(start):
+        if s[i] != "[":
+            continue
+        if i >= brackets:
+            return s[i:]
+        try:
+            value, end = decoder.raw_decode(s, i)
+        except RecursionError:
+            return s[i:]                              # don't retry each inner bracket of an over-deep array
+        except json.JSONDecodeError as e:
+            if e.pos > start:
+                # An array that parsed through its object but has a broken tail is not that object's answer.
+                # An unfinished prose quote may contain '{'; retain the pre-existing prose extraction there.
+                first = i + 1
+                while first < start and s[first].isspace():
+                    first += 1
+                if s[first] == '"':
+                    try:
+                        _, quoted_end = decoder.raw_decode(s, first)
+                    except (ValueError, RecursionError):
+                        continue
+                    if quoted_end > start:
+                        continue
+                return s[i:]
+            continue
+        if isinstance(value, list) and end > start:
+            return s[i:end]
     depth = 0
     in_str = False
     esc = False
@@ -251,7 +283,7 @@ def validated_json(text, validator, finish):
     try:
         value = json.loads(extract_json(text), object_pairs_hook=pairs, parse_constant=constant)
         canonical = json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
-    except (ValueError, TypeError) as exc:
+    except (ValueError, TypeError, RecursionError) as exc:
         value = None
         if getattr(validator, "repair_escapes", False):      # opt-in (#2893); only after the strict parse failed
             try:
@@ -259,7 +291,7 @@ def validated_json(text, validator, finish):
                                    parse_constant=constant)
                 canonical = json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
                 print("[strata] structured output: repaired backslashes that were not valid JSON escapes", flush=True)
-            except (ValueError, TypeError):
+            except (ValueError, TypeError, RecursionError):
                 value = None
         if value is None:
             raise StructuredOutputError(f"model did not return valid JSON: {exc}") from exc

@@ -9,7 +9,7 @@ from serve import frontend
 
 class ReferenceParser(frontend.OutputParser):
     def _wrapped_call_end(self):
-        return frontend.call_end(self.buf)
+        return frontend.call_end(self.buf, self._final)
 
 
 def events_without_ids(events):
@@ -43,17 +43,25 @@ class CallScanTests(unittest.TestCase):
                 self.assertEqual(events_without_ids(a.finish()), events_without_ids(b.finish()))
 
     def test_no_structural_rescans_until_closer_and_reset_for_next_call(self):
-        parser = frontend.OutputParser(thinking=False)
+        parser = frontend.OutputParser(thinking=False, tools=[{"name":"write","parameters":{"properties":{"text":{"type":"string"}}}}])
         with patch.object(frontend, "call_end", wraps=frontend.call_end) as walk:
-            for _ in range(2):
-                parser.feed("<tool_call><function=write><parameter=text>")
+            parser.feed("<tool_call>")
+            for turn_call in range(2):
+                parser.feed("<function=write><parameter=text>")
                 before = walk.call_count
                 for _ in range(100):
                     parser.feed("abcdefgh")
                 self.assertEqual(walk.call_count, before)
                 for char in "</parameter></function></tool_call>":
                     parser.feed(char)
-                self.assertEqual(walk.call_count, before + 1)
+                self.assertLessEqual(walk.call_count, before + 2)  # function closer, then complete wrapper/hold verdict
+                self.assertGreater(walk.call_count, before)
+                if turn_call == 0:
+                    # A new opener settles the held call and starts the next one in this same generation.
+                    # finish() means end of generation, not a parser reset for another turn.
+                    parser.feed("<tool_call>")
+                else:
+                    parser.finish()
                 self.assertEqual(parser._call_end_checked, 0)
 
 

@@ -23,6 +23,8 @@ import threading
 import time
 
 HISTORY = 60
+# Reported GP100 spikes are near 200 GiB/s; this ceiling is above PCIe 6.0 x16.
+PCIE_KB_S_MAX = 150 << 20
 
 
 # ------------------------------------------------------------------------------------------------ NVML
@@ -101,11 +103,15 @@ class _Nvml:
         out["pcie_gen"] = self._uint("nvmlDeviceGetCurrPcieLinkGeneration")        # drops at idle (power saving)
         out["pcie_gen_max"] = self._uint("nvmlDeviceGetMaxPcieLinkGeneration")
         out["pcie_width"] = self._uint("nvmlDeviceGetCurrPcieLinkWidth")
-        rx = self._uint("nvmlDeviceGetPcieThroughput", ctypes.c_uint(1))                 # NVML_PCIE_UTIL_RX_BYTES, KB/s
-        tx = self._uint("nvmlDeviceGetPcieThroughput", ctypes.c_uint(0))
-        out["pcie_rx_mb"] = rx / 1024.0 if rx is not None else None
-        out["pcie_tx_mb"] = tx / 1024.0 if tx is not None else None
+        out["pcie_rx_mb"] = self._pcie_mb(1)             # NVML_PCIE_UTIL_RX_BYTES, KB/s
+        out["pcie_tx_mb"] = self._pcie_mb(0)
         return out
+
+    def _pcie_mb(self, counter):
+        kb = self._uint('nvmlDeviceGetPcieThroughput', ctypes.c_uint(counter))
+        if kb is not None and kb > PCIE_KB_S_MAX:
+            kb = self._uint('nvmlDeviceGetPcieThroughput', ctypes.c_uint(counter))
+        return kb / 1024.0 if kb is not None and kb <= PCIE_KB_S_MAX else None
 
 
 # ------------------------------------------------------------------------------------------------ AMD (Linux sysfs)
@@ -455,7 +461,8 @@ def _cpu_topology(root: str = "/sys/devices/system"):
         packages = set()
         for f in glob.glob(os.path.join(root, "cpu", "cpu[0-9]*", "topology", "physical_package_id")):
             try:
-                packages.add(open(f, encoding="utf-8").read().strip())
+                with open(f, encoding="utf-8") as fh:
+                    packages.add(fh.read().strip())
             except OSError:
                 continue
         nodes = len(glob.glob(os.path.join(root, "node", "node[0-9]*")))
@@ -473,9 +480,10 @@ def _cpu_name():
         except OSError:
             pass
     elif os.path.exists("/proc/cpuinfo"):
-        for line in open("/proc/cpuinfo", encoding="utf-8", errors="replace"):
-            if line.startswith("model name"):
-                return line.split(":", 1)[1].strip()
+        with open("/proc/cpuinfo", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                if line.startswith("model name"):
+                    return line.split(":", 1)[1].strip()
     return platform.processor() or None
 
 
@@ -492,7 +500,8 @@ class _CpuRamFallback:
                 return idle.value, kern.value + user.value           # kernel time includes idle
             return None
         try:
-            f = [int(x) for x in open("/proc/stat").readline().split()[1:]]
+            with open("/proc/stat") as fh:
+                f = [int(x) for x in fh.readline().split()[1:]]
             return f[3] + f[4], sum(f)
         except (OSError, ValueError):
             return None
@@ -519,7 +528,8 @@ class _CpuRamFallback:
                 return m.ullTotalPhys - m.ullAvailPhys, m.ullTotalPhys
             return None, None
         try:
-            info = dict(line.split(":", 1) for line in open("/proc/meminfo"))
+            with open("/proc/meminfo") as fh:
+                info = dict(line.split(":", 1) for line in fh)
             total = int(info["MemTotal"].split()[0]) * 1024
             avail = int(info["MemAvailable"].split()[0]) * 1024
             return total - avail, total

@@ -116,9 +116,9 @@ class OnlyDeclaredTools(unittest.TestCase):
         self.assertEqual((calls(evs), text(evs)), ([], raw))
         evs, p = run(raw, 3, tools=[], declared_only=True)
         self.assertEqual((calls(evs), text(evs)), ([], raw))
-        # without the flag (the Responses route: a Codex compaction request keeps its tools in the prompt only)
+        # Prompt text alone never declares a tool, including on the Responses route.
         evs, p = run(raw, 3, tools=None)
-        self.assertEqual(calls(evs), [("search", {"q": "2+2"})])
+        self.assertEqual((calls(evs), text(evs)), ([], raw))
 
     def test_the_reasoning_state_is_as_before(self):
         p = frontend.OutputParser(thinking=True, tools=TOOLS, stream_tools=True)

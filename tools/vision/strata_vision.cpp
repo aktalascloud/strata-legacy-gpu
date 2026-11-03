@@ -5,7 +5,7 @@
 // rows at the image's pad tokens and gives them their 2-D M-RoPE positions (see --serve GENI in generate.cpp).
 //
 //   strata-vision --mmproj <mmproj.gguf> --model <text model .gguf, first split> [--gpu] [--threads N]
-//                 [--max-tokens N] [--min-tokens N] [--flash-attn on|off|auto]
+//                 [--max-tokens N] [--min-tokens N] [--flash-attn on|off|auto] [--require-weight-ram]
 // Flash attention defaults to auto, and to off on the CPU when ggml is built with AVX-512 (see main).
 //
 // Resident: prints "READY <n_embd>", then per stdin line
@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
     }
 #endif
     std::string mmproj, model;
-    bool gpu = false;
+    bool gpu = false, require_weight_ram = false;
     int threads = 0, max_tokens = 0, min_tokens = 0;
     llama_flash_attn_type fa = LLAMA_FLASH_ATTN_TYPE_AUTO;
     bool fa_given = false;
@@ -99,6 +99,7 @@ int main(int argc, char** argv) {
         if (a == "--mmproj") mmproj = next();
         else if (a == "--model") model = next();
         else if (a == "--gpu") gpu = true;
+        else if (a == "--require-weight-ram") require_weight_ram = true;
         else if (a == "--version") {
 #ifdef STRATA_VISION_HIP
             std::printf("strata-vision hip (GPU architectures: %s)\n", STRATA_VISION_HIP_ARCHS);
@@ -124,8 +125,11 @@ int main(int argc, char** argv) {
     }
     if (mmproj.empty() || model.empty()) {
         std::fprintf(stderr, "usage: strata-vision --mmproj <mmproj.gguf> --model <model.gguf> [--gpu] [--threads N] "
-                             "[--max-tokens N] [--min-tokens N] [--flash-attn on|off|auto]\n");
+                             "[--max-tokens N] [--min-tokens N] [--flash-attn on|off|auto] [--require-weight-ram]\n");
         return 2;
+    }
+    if (require_weight_ram && gpu) {
+        std::fprintf(stderr, "--require-weight-ram requires CPU-only vision\n"); return 2;
     }
     // On the CPU the GPU stays unseen: a CUDA build otherwise opens a context there (measured: 0.4-0.7 GB of VRAM,
     // 150-260 expert slots less for the engine beside it).  Before anything reaches the CUDA runtime.
@@ -213,6 +217,7 @@ int main(int argc, char** argv) {
 
     mtmd_context_params cp = mtmd_context_params_default();
     cp.use_gpu = gpu;
+    cp.require_weight_ram = require_weight_ram;
     cp.print_timings = false;
     cp.warmup = false;
     // On the CPU "auto" turns flash attention on.  ggml's fast (tiled) CPU kernel for it needs the head size, 72 in this
@@ -311,7 +316,9 @@ int main(int argc, char** argv) {
             const int n = (int) mtmd_input_chunk_get_n_tokens(ichunk);
             // the grid from the decoder positions (nx/ny getters are deprecated): x and y of the last token
             const mtmd_decoder_pos last = mtmd_image_tokens_get_decoder_pos(it, 0, (size_t) n - 1);
-            const int nx = (int) last.x + 1, ny = (int) last.y + 1;
+            // Normal-position projectors emit a linear block, including learned marker rows.
+            const int nx = mtmd_decode_use_mrope(ctx) ? (int) last.x + 1 : n;
+            const int ny = mtmd_decode_use_mrope(ctx) ? (int) last.y + 1 : 1;
             if (nx * ny != n) err = "the image grid is not rectangular (" + std::to_string(n) + " tokens)";
             // never silently produce many times the budget (I7, #3690): over the limit (a rounding margin of an eighth) the picture is refused
             if (err.empty() && max_tokens > 0 && n > max_tokens + max_tokens / 8)

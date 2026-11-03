@@ -197,3 +197,59 @@ class DsPictures:
                 pass
             raise
         return out, path
+
+
+class DsEmbeddings(DsPictures):
+    """DeepSeek-4.1 CPU mtmd output; keeps the existing DeepSeek prompt/caching rules."""
+    def __init__(self, reader, image_token: int):
+        super().__init__(image_token, tmp_dir=reader.dir)
+        self.reader = reader
+        for key in ("elastic", "elastic_mib", "elastic_idle_s", "gpu", "on_cpu"):
+            setattr(self, key, getattr(reader, key, False))
+
+    def alive(self): return self.reader.alive()
+    def restart(self): return self.reader.restart()
+    def unload(self): return self.reader.unload()
+    def stop(self): return self.reader.close()
+    def shutdown(self): return self.reader.shutdown()
+
+    def encode(self, source):
+        # Tool-result precheck has no final insertion position yet; only decode here.
+        if not isinstance(source, bytes):
+            from serve.server import Vision
+            source = Vision.load(source)
+        self.decode(source)
+
+    def build(self, ids: list[int], pictures: list[bytes]) -> tuple[list[int], str]:
+        marks = [i for i, token in enumerate(ids) if token == self.image_token]
+        if len(marks) != len(pictures):
+            raise ValueError("the prompt and its images do not match")
+        out, entries, held = [], [], []
+        last = 0
+        for pos, image in zip(marks, pictures):
+            path, count = self.reader.encode(image, keep=held)
+            held.append(path)
+            block = Path(path).read_bytes()
+            if len(block) < 20:
+                raise ValueError("short DeepSeek CPU image block")
+            magic, n, nx, ny, dim = struct.unpack_from("<4siiii", block)
+            if magic != b"SVE1" or n != count or n <= 0 or n > 65536 or nx != n or ny != 1 or dim <= 0 or \
+                    len(block) != 20 + n * dim * 4:
+                raise ValueError("invalid DeepSeek CPU linear image block")
+            out += ids[last:pos]
+            # Each learned START/NEWLINE/END row takes the model's own image_token_id.
+            entries.append((len(out), n, dim, block[20:]))
+            out += [self.image_token] * n
+            last = pos + 1
+        out += ids[last:]
+        self.dir.mkdir(parents=True, exist_ok=True)
+        fd, path = tempfile.mkstemp(prefix="strata-ds-cpu-", suffix=".dse", dir=str(self.dir))
+        try:
+            with os.fdopen(fd, "wb") as f:
+                f.write(b"DSE1" + struct.pack("<i", len(entries)))
+                for start, n, dim, rows in entries:
+                    f.write(struct.pack("<qii", start, n, dim) + rows)
+        except Exception:
+            Path(path).unlink(missing_ok=True)
+            raise
+        return out, path

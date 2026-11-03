@@ -1,0 +1,139 @@
+{
+  "schema": 1,
+  "upstream_repository": "https://github.com/ggml-org/llama.cpp",
+  "declared_upstream_ref": "3cf03257f219afbe7334045ff7c6a06ac68c627d",
+  "origin_scope": "Ref retained from the original dependency receipt. Extracted local sources have no Git metadata; this is not a newly verified Git HEAD or a clean-tree claim. Exact input hashes are authoritative.",
+  "helper_sha256": "99e1cac7fba532854defbbc99baa7adc2d3a57b8aae9329fd3f3930e5da28e6f",
+  "helper_source_files": [
+    {
+      "logical_path": "tools/vision/gguf_meta.h",
+      "cohort_path": "tools/vision/gguf_meta.h",
+      "sha256": "372687e36b5157b4bc9c33d7e81edcbd1da112feb4df716bb2fcb03885cd200a"
+    },
+    {
+      "logical_path": "tools/vision/strata_vision.cpp",
+      "cohort_path": "tools/vision/strata_vision.cpp",
+      "sha256": "f69172674e534261b468a908057d4562937bb5bf914d4df2506f54014f3e6a89"
+    },
+    {
+      "logical_path": "deps/llama.cpp/tools/mtmd/clip-impl.h",
+      "cohort_path": "third_party/llama-cpu-vision/overlay-files/tools/mtmd/clip-impl.h",
+      "sha256": "08e0bbf8480f581c98d2c58f8783f4b44307721a93afc0d7c5c5a3e71a6c89cc"
+    },
+    {
+      "logical_path": "deps/llama.cpp/tools/mtmd/clip.cpp",
+      "cohort_path": "third_party/llama-cpu-vision/overlay-files/tools/mtmd/clip.cpp",
+      "sha256": "4fdc99c10fb85386d35e72aeb6f7c030c41a580fd79e3b7a0cde41469de84ed7"
+    },
+    {
+      "logical_path": "deps/llama.cpp/tools/mtmd/models/deepseek4v.cpp",
+      "cohort_path": "third_party/llama-cpu-vision/overlay-files/tools/mtmd/models/deepseek4v.cpp",
+      "sha256": "cde05eea4eb8ff674573995618e91790a0989aca80b5b7879773d49c8e3ba4ba"
+    },
+    {
+      "logical_path": "deps/llama.cpp/tools/mtmd/mtmd.cpp",
+      "cohort_path": "third_party/llama-cpu-vision/overlay-files/tools/mtmd/mtmd.cpp",
+      "sha256": "455e35c5c2e77ab862b5f0b0564d5a8e78c7191f8d742426c4dec26a1122f779"
+    },
+    {
+      "logical_path": "deps/llama.cpp/tools/mtmd/mtmd-image.h",
+      "cohort_path": "third_party/llama-cpu-vision/overlay-files/tools/mtmd/mtmd-image.h",
+      "sha256": "0f8a981785efaf73c672ec12e1b4dc5906ab105babe238ea8d175e65ec489b1f"
+    },
+    {
+      "logical_path": "deps/llama.cpp/tools/mtmd/mtmd-image.cpp",
+      "cohort_path": "third_party/llama-cpu-vision/overlay-files/tools/mtmd/mtmd-image.cpp",
+      "sha256": "ab780d7a0c4d28b7e156d368b09912eb72d4f324ca449484b231b3b528ca64ef"
+    },
+    {
+      "logical_path": "deps/llama.cpp/tools/mtmd/mtmd.h",
+      "cohort_path": "third_party/llama-cpu-vision/overlay-files/tools/mtmd/mtmd.h",
+      "sha256": "94f00856150bb89380fc4f2f870eabf5eaf15273b48899ad2ccadb4cac48f871"
+    },
+    {
+      "logical_path": "deps/llama.cpp/tools/mtmd/clip.h",
+      "cohort_path": "third_party/llama-cpu-vision/overlay-files/tools/mtmd/clip.h",
+      "sha256": "265419181daf769b52cfda463e55136a021b82e35d2593e285ae64bb98f04035"
+    },
+    {
+      "logical_path": "deps/llama.cpp/tools/mtmd/clip-weight-ram.hpp",
+      "cohort_path": "third_party/llama-cpu-vision/overlay-files/tools/mtmd/clip-weight-ram.hpp",
+      "sha256": "e7762fd82e80340e35c4e890c5fa7d5d3fef9e6f75f6fa52bcec091ecf3616a0"
+    }
+  ],
+  "overlay_files": [
+    {
+      "path": "tools/mtmd/clip-impl.h",
+      "cohort_path": "third_party/llama-cpu-vision/overlay-files/tools/mtmd/clip-impl.h",
+      "base_sha256": "5946bc4c9a575fdfb2b9858b8762edd10d3630fda90c306568b807acb2eed109",
+      "sha256": "08e0bbf8480f581c98d2c58f8783f4b44307721a93afc0d7c5c5a3e71a6c89cc",
+      "bytes": 45153
+    },
+    {
+      "path": "tools/mtmd/clip.cpp",
+      "cohort_path": "third_party/llama-cpu-vision/overlay-files/tools/mtmd/clip.cpp",
+      "base_sha256": "f50b204fa1bd4138c53d041663bbaf1472bab3af3407b95a8023429eb14e51ce",
+      "sha256": "4fdc99c10fb85386d35e72aeb6f7c030c41a580fd79e3b7a0cde41469de84ed7",
+      "bytes": 320865
+    },
+    {
+      "path": "tools/mtmd/models/deepseek4v.cpp",
+      "cohort_path": "third_party/llama-cpu-vision/overlay-files/tools/mtmd/models/deepseek4v.cpp",
+      "base_sha256": "0c1b286778737f2e26fdd9438c3281e5a25061d7a2141e9bd05317979e72c4c9",
+      "sha256": "cde05eea4eb8ff674573995618e91790a0989aca80b5b7879773d49c8e3ba4ba",
+      "bytes": 4262
+    },
+    {
+      "path": "tools/mtmd/mtmd.cpp",
+      "cohort_path": "third_party/llama-cpu-vision/overlay-files/tools/mtmd/mtmd.cpp",
+      "base_sha256": "b5f5660650d5abd1b8e23b6e4246f33eedc73b79fc904c2ff521796060bd56bb",
+      "sha256": "455e35c5c2e77ab862b5f0b0564d5a8e78c7191f8d742426c4dec26a1122f779",
+      "bytes": 107222
+    },
+    {
+      "path": "tools/mtmd/mtmd-image.h",
+      "cohort_path": "third_party/llama-cpu-vision/overlay-files/tools/mtmd/mtmd-image.h",
+      "base_sha256": "7605fb3c8f43e1ce9a31c6ff71a56ccc9ef57e3030eef16394f8ae3561734c08",
+      "sha256": "0f8a981785efaf73c672ec12e1b4dc5906ab105babe238ea8d175e65ec489b1f",
+      "bytes": 12163
+    },
+    {
+      "path": "tools/mtmd/mtmd-image.cpp",
+      "cohort_path": "third_party/llama-cpu-vision/overlay-files/tools/mtmd/mtmd-image.cpp",
+      "base_sha256": "7dc760e4f85e38e11d11268ae412c3b6c0a32389c6c584ca34dd7b4a679f950b",
+      "sha256": "ab780d7a0c4d28b7e156d368b09912eb72d4f324ca449484b231b3b528ca64ef",
+      "bytes": 73992
+    },
+    {
+      "path": "tools/mtmd/mtmd.h",
+      "cohort_path": "third_party/llama-cpu-vision/overlay-files/tools/mtmd/mtmd.h",
+      "base_sha256": "b0f1ba884e8688980789f0547147d2b7330d65772ebac8f36c0dbb8ece7cf7d0",
+      "sha256": "94f00856150bb89380fc4f2f870eabf5eaf15273b48899ad2ccadb4cac48f871",
+      "bytes": 22506
+    },
+    {
+      "path": "tools/mtmd/clip.h",
+      "cohort_path": "third_party/llama-cpu-vision/overlay-files/tools/mtmd/clip.h",
+      "base_sha256": "07b67b04559cd203e389efa9a0399e61abf2a134d8ba14b194b12adaf3aba21a",
+      "sha256": "265419181daf769b52cfda463e55136a021b82e35d2593e285ae64bb98f04035",
+      "bytes": 4975
+    },
+    {
+      "path": "tools/mtmd/clip-weight-ram.hpp",
+      "cohort_path": "third_party/llama-cpu-vision/overlay-files/tools/mtmd/clip-weight-ram.hpp",
+      "base_sha256": null,
+      "sha256": "e7762fd82e80340e35c4e890c5fa7d5d3fef9e6f75f6fa52bcec091ecf3616a0",
+      "bytes": 4397
+    }
+  ],
+  "used_input_manifest": "third_party/llama-cpu-vision/used-inputs.json",
+  "used_input_manifest_sha256": "623aab3ddc12e25066dabe86622160c671d7b0d3d9a42dc61eb4cb628ebc7746",
+  "dependency_patch": "third_party/llama-cpu-vision/overlay.patch",
+  "dependency_patch_sha256": "e28068adefc368ae416abbc4fcac7f5c13f3f3cf60115c33d7b44929833c0fc6",
+  "features": [
+    "DeepSeek4.1 deepseek41v projector with three learned markers and row-major layout",
+    "Explicit CPU weights-only VirtualLock with own-process quota and all-page verification",
+    "Default flags unchanged; strict pin is explicit Windows CPU capability"
+  ],
+  "profile_sha256": "63b041d81603fd770447f17dd1fc1c7f12eb03fc5fb0ac761745eca2fc1625a9"
+}

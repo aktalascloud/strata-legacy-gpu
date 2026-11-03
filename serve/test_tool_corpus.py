@@ -105,6 +105,15 @@ add("4078-heredoc", qwen("bash", command=HEREDOC), [("bash", {"command": HEREDOC
 add("4078-call-format-in-a-file", qwen("write_file", path="DOC.md", content="Close a call with </function> and then </tool_call>.\nlike this."),
     [("write_file", {"path": "DOC.md", "content": "Close a call with </function> and then </tool_call>.\nlike this."})],
     source="#210: a file that documents the format")
+CLOSE_DOC = ("# Tool calls\n\nThe closing tags, in order:\n\n</parameter>\n</function>\n</tool_call>\n\nNothing may follow the last one.")
+add("4701-closing-tags-in-a-file", "I will save the doc.\n\n" + qwen("write_file", path="TOOLS.md", content=CLOSE_DOC),
+    [("write_file", {"path": "TOOLS.md", "content": CLOSE_DOC})], content="I will save the doc.", source="#4701")
+add("4701-closing-tags-in-a-file-recover", qwen("write_file", path="TOOLS.md", content=CLOSE_DOC),
+    [("write_file", {"path": "TOOLS.md", "content": CLOSE_DOC})], recover=True, source="#4701, recover on")
+add("4701-text-after-a-whole-call", qwen("read", path="a.txt") + "\n\nThat is the read.", [("read", {"path": "a.txt"})],
+    content="That is the read.", source="#4701: with no later close, the first one is the end")
+add("4701-two-calls-with-text-between", qwen("read", path="a.txt") + "\n\nAnd the next:\n" + qwen("read", path="b.txt"),
+    [("read", {"path": "a.txt"}), ("read", {"path": "b.txt"})], content="And the next:", source="#4701: a later call is not a later close")
 add("4077-stray-think-line", "The user wants a file with a literal.\n" + STRAY_VALUE + "\nSo I write it.\n</think>\n\n" +
     qwen("write_file", path="out.txt", content=STRAY_VALUE),
     [("write_file", {"path": "out.txt", "content": STRAY_VALUE})], thinking=True,
@@ -241,7 +250,7 @@ class ToolCorpus(unittest.TestCase):
         if stream_tools:
             for e in (x for x in evs if x.kind == "tool_call"):
                 streamed = "".join(x.text for x in evs if x.kind == "tool_args" and x.call is not None and x.call.id == e.call.id)
-                if streamed:
+                if streamed or name.startswith("4701-"):
                     self.assertEqual(json.loads(streamed), e.call.arguments, where)
         return evs
 

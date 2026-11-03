@@ -86,6 +86,9 @@ inline bool copy_meta(const std::string& src, const std::string& dst, std::strin
         if (type == GGUF_TYPE_STRING) {
             std::string v;
             if (!r.str(v)) { err = r.err; return false; }
+            // Only the temporary zero-tensor tokenizer view uses the known tokenizer architecture.
+            // This does not add DeepSeek-4.1 LLM support or alter the source GGUF/model identity.
+            if (key == "general.architecture" && v == "deepseek41") v = "deepseek4";
             if (keep) gguf_set_val_str(out, key.c_str(), v.c_str());
         } else if (type == GGUF_TYPE_ARRAY) {
             uint32_t et = 0;

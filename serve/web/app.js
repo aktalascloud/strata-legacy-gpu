@@ -482,13 +482,18 @@ function renderMonitor(live, hw, st, eng, h, last, requests, totals, kept) {
   $("state-bar").style.width = `${pct}%`;
 
   // the eight cards
-  const speed = live.state === "generating" ? live.tok_s : last ? last.decode_tok_s : null;
+  // Idle: not the last request's speed (one request is noisy) but the run's average from the server's totals
+  // (token-weighted, the same figure the engine's DONE lines and Prometheus report). Live stays live.
+  const avgDecode = totals && totals.decode_ms > 0 && totals.output_tokens > 0 ? totals.output_tokens / (totals.decode_ms / 1000) : null;
+  const readTokens = totals ? totals.prompt_tokens - (totals.reused || 0) : 0;
+  const avgPrefill = totals && totals.prompt_ms > 0 && readTokens > 0 ? readTokens / (totals.prompt_ms / 1000) : null;
+  const speed = live.state === "generating" ? live.tok_s : avgDecode != null ? avgDecode : last ? last.decode_tok_s : null;
   setMetric("speed", speed == null ? null : fmt(speed, 1), "t/s",
-            live.state === "generating" ? "Decode now" : last ? "Decode last request" : "Decode");
+            live.state === "generating" ? "Decode now" : avgDecode != null ? "Decode · run average" : last ? "Decode last request" : "Decode");
   const prefill = live.state !== "idle" ? live.prefill_tok_s_mean
-                : last && last.prompt_ms > 0 ? Math.max(0, last.prompt_tokens - (last.reused || 0)) / (last.prompt_ms / 1000) : null;
+                : avgPrefill != null ? avgPrefill : last && last.prompt_ms > 0 ? Math.max(0, last.prompt_tokens - (last.reused || 0)) / (last.prompt_ms / 1000) : null;
   setMetric("prefill", prefill == null ? null : fmt(prefill), "t/s",
-            live.state === "reading" ? "Prefill now" : live.state === "generating" ? "Prefill this request" : last ? "Prefill last request" : "Prefill");
+            live.state === "reading" ? "Prefill now" : live.state === "generating" ? "Prefill this request" : avgPrefill != null ? "Prefill · run average" : last ? "Prefill last request" : "Prefill");
   spark("sp-speed", h.tok_s);
   spark("sp-prefill", h.prefill_tok_s_mean);
   // a model split across several cards (issue #112): the cards show their total / mean / hottest, and each card's own
@@ -533,7 +538,7 @@ function renderMonitor(live, hw, st, eng, h, last, requests, totals, kept) {
   $("ctx-pct").textContent = `${Math.round(frac * 100)}%`;
   $("ctx-sub").textContent = ctx ? `${kfmt(used)} / ${ctxfmt(ctx)}` : "–";
   const cacheBytes = (eng.expert_cache_mib || 0) * 1048576;
-  $("slots-text").textContent = eng.expert_slots ? `${fmt(eng.expert_slots)} · ${gb(cacheBytes)} GB` : "–";
+  $("slots-text").textContent = eng.expert_slots ? `${fmt(eng.expert_slots)} · ${eng.expert_cache_mib == null ? "size not reported" : `${gb(cacheBytes)} GB`}` : "–";
   $("slots-bar").style.width = hw.gpu_mem_total ? `${Math.min(100, (100 * cacheBytes) / hw.gpu_mem_total)}%` : "0%";
   $("ram-text").textContent = hw.ram_total ? `${gb(hw.ram_used)} / ${gb(hw.ram_total, 0)} GB` : "–";
   const ramPct = hw.ram_total ? (100 * hw.ram_used) / hw.ram_total : 0;
@@ -593,7 +598,7 @@ function renderAbout(eng, hw, st) {
     ["Engine", eng.version ? `v${eng.version}` : "built from source"],
     ["Context", eng.max_context ? `${fmt(eng.max_context)} tokens` : null],
     ["KV cache", kv ? `${kv}${eng.kv_resident ? `, streamed: ${fmt(eng.kv_resident)} positions per layer in VRAM, the rest in RAM` : ", all in VRAM"}` : null],
-    ["Experts in VRAM", eng.expert_slots ? `${fmt(eng.expert_slots)} (${gb((eng.expert_cache_mib || 0) * 1048576)} GB)` : null],
+    ["Experts in VRAM", eng.expert_slots ? `${fmt(eng.expert_slots)} (${eng.expert_cache_mib == null ? "size not reported" : `${gb(eng.expert_cache_mib * 1048576)} GB`})` : null],
     ["Speculation", eng.spec ? `MTP drafts up to ${Math.max(0, (eng.mtp_max || eng.spec) - 1)} tokens${eng.lookup ? ", prompt lookup on" : ""}` : null],
     ["Images", eng.images ? "on" : "off"],
     ["Experimental speed projection", projectionText(eng.cvec)],
@@ -1574,7 +1579,7 @@ function showLanguage() {
   renderEmptyChat();
   setSidebar(sidebarOpen, false);
   outputs();
-  renderChat();
+  if (!busy && !panel) renderChat();  // keep the streaming target and open editor attached
   setBusy(!!busy);
   if (lastMetrics) render(lastMetrics);
 }

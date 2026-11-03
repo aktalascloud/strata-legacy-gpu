@@ -270,7 +270,7 @@ def _own_group(then=None):
     return run
 
 
-def popen(args, role: str = "engine", **kw) -> subprocess.Popen:
+def popen(args, role: str = "engine", *, graceful_only: bool = False, **kw) -> subprocess.Popen:
     """``subprocess.Popen(args, **kw)`` for a process that must not outlive us.
 
     An engine or image encoder is also taken out of the terminal's reach (its own process group on POSIX, a new
@@ -280,7 +280,8 @@ def popen(args, role: str = "engine", **kw) -> subprocess.Popen:
 
     It also leaves a record (strata_control/procs.py) so that, if everything here dies anyway, the next start can
     find this process by PID, start time and command line and end it."""
-    how = mechanism()
+    # Managed engine owners may outlive a failed wrapper; only their protocol may request an exit.
+    how = 'graceful' if graceful_only else mechanism()
     isolate = role in ISOLATED_ROLES
     if isolate and os.name == "nt":
         kw["creationflags"] = kw.get("creationflags", 0) | subprocess.CREATE_NEW_PROCESS_GROUP
@@ -294,9 +295,9 @@ def popen(args, role: str = "engine", **kw) -> subprocess.Popen:
         child = subprocess.Popen(args, **kw)
         if how == "job":
             winjob.contain(child)
-        else:
+        elif how != 'graceful':
             _watch(child)
-    if isinstance(child, _REAL_POPEN):
+    if isinstance(child, _REAL_POPEN) and not graceful_only:
         with _children_lock:
             _children.add(child)
     try:

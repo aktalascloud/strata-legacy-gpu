@@ -11,6 +11,7 @@
 #pragma once
 
 #include "ds4_os.hpp"
+#include "ds4_resident_ram.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -132,10 +133,36 @@ public:
     ~EgReader() { stop(); }
     /// direct[i]: file i read unbuffered (Windows, a file nothing maps: os::open_unbuffered), else buffered
     void start(const std::vector<std::string>& paths, int threads, std::vector<char> direct = {}) {
+        quit_ = false;
         paths_ = paths;
         direct_ = std::move(direct);
         for (int i = 0; i < threads; ++i) th_.emplace_back([this] { loop(); });
     }
+    bool start_ram(const std::vector<std::string>& paths, int threads, const std::vector<EgRamSpan>& ranges,
+                   uint64_t keep, std::string& error) {
+        if (!th_.empty() || threads <= 0) { error = "Engram reader already running or invalid thread count"; return false; }
+        std::vector<os::fd_t> files(paths.size(), os::kBadFd);
+        auto close = [&] { for (os::fd_t file : files) os::close_fd(file); };
+        for (const auto& range : ranges) {
+            if (range.file < 0 || static_cast<size_t>(range.file) >= paths.size()) {
+                error = "Engram RAM range names an invalid file"; close(); return false;
+            }
+            auto& file = files[static_cast<size_t>(range.file)];
+            if (file == os::kBadFd) file = os::open_ro(paths[static_cast<size_t>(range.file)]);
+            const uint64_t size = file == os::kBadFd ? 0 : os::file_size(file);
+            if (range.off > size || range.bytes > size-range.off) {
+                error = "Engram RAM range outside its file"; close(); return false;
+            }
+        }
+        const bool ok = ram_.load(ranges, os::ram_avail(), keep,
+            [&](int file, uint64_t off, size_t n, void* dst) { return os::pread_full(files[static_cast<size_t>(file)], dst, n, off); }, error);
+        close();
+        if (!ok) return false;
+        ram_only_ = true;
+        start(paths, threads);
+        return true;
+    }
+    uint64_t ram_bytes() const { return ram_.bytes(); }
     void stop() {
         {
             std::lock_guard<std::mutex> lk(mu_);
@@ -144,6 +171,8 @@ public:
         cv_.notify_all();
         for (auto& t : th_) t.join();
         th_.clear();
+        ram_.clear();
+        ram_only_ = false;
         if (check_n_.load() > 0)
             std::fprintf(stderr, "ds4 Engram check (DS4_EG_CHECK): %lld rows read unbuffered, %lld differed from a buffered read\n",
                          (long long) check_n_.load(), (long long) check_bad_.load());
@@ -206,6 +235,23 @@ private:
     }
     bool read(std::vector<os::fd_t>& fds, std::vector<os::fd_t>& ufds, uint8_t* al, const EgRead& r,
               std::vector<uint8_t>& buf) {
+        if (ram_only_) {
+            const uint8_t* src = ram_.view(r.file, r.off, r.n);
+            if (!src || !r.dst || r.n == 0) return false;
+            if (r.mx8) {
+                if (!r.scales || r.n % 33 || r.n2) return false;
+                for (uint32_t k = 0; k < r.n / 33; ++k) {
+                    r.scales[k] = src[static_cast<size_t>(k) * 33];
+                    std::memcpy(r.dst + static_cast<size_t>(k) * 32, src + static_cast<size_t>(k) * 33 + 1, 32);
+                }
+                return true;
+            }
+            const uint8_t* scales = r.n2 ? ram_.view(r.file2, r.off2, r.n2) : nullptr;
+            if (r.n2 && (!scales || !r.scales)) return false;
+            std::memcpy(r.dst, src, r.n);
+            if (r.n2) std::memcpy(r.scales, scales, r.n2);
+            return true; // No file fallback in RAM-only mode, including an invalid/missing range.
+        }
         if ((r.mx8 || r.n2 == 0) && r.file >= 0 && (size_t) r.file < direct_.size() && direct_[(size_t) r.file] &&
             os::direct_span(r.off, r.n) <= 2 * os::kDirectAlign) {
             os::fd_t& u = ufds[(size_t) r.file];
@@ -254,6 +300,8 @@ private:
         return true;
     }
 
+    EgResidentRam ram_;
+    bool ram_only_ = false;
     std::vector<std::string> paths_;
     std::vector<char> direct_;
 
