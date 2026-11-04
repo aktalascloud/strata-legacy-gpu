@@ -16,6 +16,7 @@
 #include "ds4_ring_link.hpp"
 #include "ds4_launch.h"   // strata_ds4_launch: <<<>>> on CUDA and HIP, a dispatch on Metal
 #include "ds4_model.hpp"
+#include "ds4_cache_sub_config.hpp"
 #include "ds4_pick_rule.hpp"
 #include "ds4_experts_rule.hpp"
 #include "ds4_engram_io.hpp"
@@ -887,7 +888,7 @@ struct Layer {
     x3::ExpertLayout lay;
     size_t blob = 0;                            // bytes of one expert's blob
     int n_vram = 0;
-    bool cpu_only = false;   // a role's type has no device kernel: every expert of this layer is the CPU lane's
+    bool cpu_only = false;   // unsupported device type or explicit CPU expert placement
     uint8_t* vram_base = nullptr;
     std::vector<int> slot;                      // expert -> VRAM slot or -1
     std::vector<int> ram;                       // expert -> RAM-tier slot or -1 (a GGUF's in-place experts; empty: none)
@@ -1039,6 +1040,7 @@ constexpr int kMaxL = 64;   // layers (the trunk's and the drafter's) a window p
 // blocks as each layer sees them, the window's hand-off seq
 struct WinPlan {
     bool par = false, async = false;
+    float sub_ratio = 0.0f; // generation only; prefill and drafter keep native selection
     unsigned win = 0;
     int k = 0;              // (a run of chunks) the chunk's index: its hand-off slot k % 2
     // (a run of chunks) the chunk's rows whose states before them the layers keep: row snap_t[i] into the layers'
@@ -1254,6 +1256,7 @@ struct Model::Impl {
     // an Engram layer: asked for when the window's tokens are known, collected right before that layer)
     EgReader eg_io;
     bool engram_disk_allowed = false; // explicit exception; all other strict-RAM guards remain
+    bool mtp_experts_cpu = false;     // opt-in CPU expert math; draft dense/attention/head remain GPU
     EgRowCache eg_cache;
     std::mutex eg_cache_mu;
     std::vector<std::unique_ptr<EgBatch>> eg_win;
@@ -1315,6 +1318,10 @@ struct Model::Impl {
     // the decode path (windows of one): the device publishes each layer's routing into reqs, the service thread
     // answers in resps with the CPU lane's part, and the device waits for the answer only before the expert sum
     Req* reqs = nullptr;
+    cache_sub::Config substitution;
+    SubRoute* sub_routes = nullptr;
+    std::atomic<bool> sub_active[kRing]{};
+
     Resp* resps = nullptr;
     unsigned seq_issued = 0;
     std::atomic<int> layer_of[kRing];
@@ -2663,6 +2670,27 @@ struct Model::Impl {
     // ---- loading
     bool load(const Options& opt, std::string& err) {
         o = opt;
+        if (!cache_sub::parse(std::getenv("DS4_CACHE_SUB_RATIO"), std::getenv("DS4_CACHE_SUB_N"),
+                              std::getenv("DS4_CACHE_SUB_NORM"), std::getenv("DS4_CACHE_SUB_RISK_BUDGET"),
+                              substitution, err)) return false;
+        if (substitution.ratio > 0) {
+#if !defined(__CUDACC__) || defined(STRATA_USE_HIP) || defined(STRATA_METAL)
+            err = "cache substitution is qualified only for the single-device CUDA path";
+            return false;
+#endif
+            if (sync_decode || disk_skip_w > 0 || ram_skip_w > 0 ||
+                    std::getenv("DS4_HELPER") != nullptr || !o.require_ram) {
+                err = "cache substitution requires async strict RAM without helper or expert skipping";
+                return false;
+            }
+            std::fprintf(stderr, "ds4: APPROXIMATE cache substitution ratio %.3g top %d mass budget %.3g; changes answers\n",
+                         substitution.ratio, substitution.candidates, substitution.budget);
+        }
+        if (!mtp_expert_cpu_flag(std::getenv("STRATA_DS4_MTP_EXPERTS_CPU"), mtp_experts_cpu) ||
+                (mtp_experts_cpu && (!o.require_ram || !o.dspark))) {
+            err = "STRATA_DS4_MTP_EXPERTS_CPU must be 0 or 1; CPU MTP experts require --require-ram and a loaded drafter";
+            return false;
+        }
         if (!engram_disk_flag(std::getenv("DS4_ENGRAM_DISK"), engram_disk_allowed) ||
                 (engram_disk_allowed && !o.require_ram)) {
             err = "DS4_ENGRAM_DISK must be 0 or 1; its Engram-only exception requires --require-ram";
@@ -2681,6 +2709,10 @@ struct Model::Impl {
         if (!pk.load(o.pack, err)) return false;
         if (o.require_ram && !pk.gguf) { err = "strict full RAM profile currently requires the reviewed GGUF path"; return false; }
         g.from(pk);
+        if (mtp_experts_cpu && g.n_mtp == 0) {
+            err = "CPU MTP expert placement requested, but the pack has no draft layers";
+            return false;
+        }
         if (g.dim == 0 || g.nl == 0 || (int) g.ratios.size() < g.nl) {
             err = o.pack + "/ds4.txt: incomplete geometry";
             return false;
@@ -2702,6 +2734,10 @@ struct Model::Impl {
         std::vector<int> ids = o.gpus;
         if (ids.empty())
             for (int i = 0; i < ndev; ++i) ids.push_back(i);
+        if (substitution.ratio > 0 && ids.size() != 1) {
+            err = "cache substitution is qualified only with one CUDA device";
+            return false;
+        }
         devs.resize(ids.size());
         if (prof_on) prof_pool.resize((size_t) ndev);
         for (size_t i = 0; i < ids.size(); ++i) {
@@ -2896,6 +2932,7 @@ struct Model::Impl {
             Layer& l = L[(size_t) il];
             l.il = il;
             l.mtp = il >= g.nl;
+            l.cpu_only = l.mtp && mtp_experts_cpu;
             l.name = l.mtp ? "mtp." + std::to_string(il - g.nl) + "." : "layers." + std::to_string(il) + ".";
             l.n_exp = l.mtp ? g.d_n_exp : g.n_exp;
             if (l.mtp && l.n_exp > g.n_exp) {   // the profile keeps one row width (g.n_exp) for every block: a drafter with more experts than the model would write past it
@@ -3805,6 +3842,7 @@ struct Model::Impl {
             }
             host_allocs.push_back(m);
             resps = (Resp*) m;
+            if (substitution.ratio > 0 && !hmap(sub_routes, (size_t) kRing, err)) return false;
             std::memset((void*) reqs, 0, sizeof(Req) * kRing);
             std::memset((void*) resps, 0, sizeof(Resp) * kRing);
             for (auto& x : layer_of) x.store(-1);
@@ -5545,7 +5583,7 @@ struct Model::Impl {
             double budget_t = budget;   // the drafter's experts first, all of them (every draft uses its blocks)
             for (Layer& l : L)
                 if (l.grp == (int) gi && l.mtp) {
-                    l.n_vram = std::min(l.n_exp, (int) std::floor(budget_t / (double) ucount(l)));
+                    l.n_vram = mtp_expert_vram_count(l.cpu_only, l.n_exp, budget_t, (uint64_t) ucount(l));
                     budget_t -= (double) l.n_vram * ucount(l);
                 }
             double want = 0;
@@ -5554,7 +5592,7 @@ struct Model::Impl {
             const double frac = want > 0 ? std::min(1.0, std::max(0.0, budget_t) / want) : 0.0;
             for (Layer& l : L) {
                 if (l.grp != (int) gi || l.mtp) continue;
-                if (l.cpu_only) {   // (its type has no device kernel: the CPU lane reads every expert of it)
+                if (l.cpu_only) {   // explicit CPU placement, or a type without a device kernel
                     l.n_vram = 0;
                     continue;
                 }
@@ -9571,6 +9609,31 @@ struct Model::Impl {
                         }
                     }
                 }
+                const bool csu = sub_routes != nullptr && !l.mtp &&
+                    sub_active[next % kRing].load(std::memory_order_acquire);
+                if (csu) {
+                    const SubRoute& original = sub_routes[next % kRing];
+                    st.sub_rows += T;
+                    for (int t = 0; t < T; ++t) {
+                        double mass = 0, removed = 0, added = 0;
+                        for (int i = 0; i < l.k_exp; ++i) {
+                            const int e = original.ids[t][i], actual = r.ids[t][i];
+                            if (e < 0 || e >= l.n_exp || actual < 0 || actual >= l.n_exp) continue;
+                            ++pr[e]; l.heat[(size_t) e] += 1.0f;
+                            ++st.sub_picks;
+                            const bool resident = l.slot[(size_t) e] >= 0;
+                            st.sub_demand_gpu += resident;
+                            st.sub_executed_gpu += l.slot[(size_t) actual] >= 0;
+                            if (!resident) l.cpu_hits.push_back(e);
+                            mass += original.weights[t][i];
+                            if (e != actual) {
+                                ++st.cache_substituted;
+                                removed += original.weights[t][i]; added += r.w[t][i];
+                            }
+                        }
+                        if (mass > 0) { st.sub_removed_mass += removed/mass; st.sub_executed_mass += added/mass; }
+                    }
+                }
                 const bool dsk_rule = disk_skip_w > 0.0f && !l.mtp && li >= disk_skip_from && li < g.nl;
                 // (DISK_SKIP_AUTO: skipping now; its counts only then - the routed experts computed either way, of them
                 //  on the CPU lane and not in RAM, of them on the CPU lane)
@@ -9586,8 +9649,7 @@ struct Model::Impl {
                     for (int i = 0; i < l.k_exp; ++i) {
                         const int e = r.ids[t][i];
                         if (e < 0 || e >= l.n_exp) continue;
-                        ++pr[e];
-                        l.heat[(size_t) e] += 1.0f;
+                        if (!csu) { ++pr[e]; l.heat[(size_t) e] += 1.0f; }
                         if (fl != nullptr) {
                             ++st.ahead_picks;
                             st.ahead_hit_k += fl[e] & 1;
@@ -9599,7 +9661,7 @@ struct Model::Impl {
                         if (l.rc_n > 0 && l.slot[(size_t) e] >= l.rc_base && l.slot[(size_t) e] < l.rc_base + l.rc_n)
                             l.rc_stamp[(size_t) (l.slot[(size_t) e] - l.rc_base)] = rc_clock.load(std::memory_order_relaxed);
                         if (l.slot[(size_t) e] < 0) {
-                            l.cpu_hits.push_back(e);
+                            if (!csu) l.cpu_hits.push_back(e);
                             if (T == 1 && !l.zc.empty() && l.zc[(size_t) e]) {   // the device computed it from the store's slot
                                 store->touch(li, e);
                                 ++st.store_zc;
@@ -10974,6 +11036,7 @@ struct Model::Impl {
         for (int i = 0; i < g.n_mtp && dp.async; ++i) {
             const int il = g.nl + i;
             dp.seq[il] = ++seq_issued;
+            if (sub_routes != nullptr) sub_active[dp.seq[il] % kRing].store(false, std::memory_order_release);
             layer_of[dp.seq[il] % kRing].store(il, std::memory_order_release);
         }
         const size_t hs = (size_t) T * H * D, rs = (size_t) g.win * g.hd;
@@ -11167,6 +11230,7 @@ struct Model::Impl {
         for (int i = 0; i < g.n_mtp && dp.async; ++i) {
             const int il = g.nl + i;
             dp.seq[il] = ++seq_issued;
+            if (sub_routes != nullptr) sub_active[dp.seq[il] % kRing].store(false, std::memory_order_release);
             layer_of[dp.seq[il] % kRing].store(il, std::memory_order_release);
         }
         int cur = d_dev;   // the device the blocks' rows are on
@@ -11368,7 +11432,7 @@ struct Model::Impl {
         for (int i = 0; i < n; ++i) tk[i + 1] = drafts[(size_t) i];
         spec_win = true;
         const double tv = now_ms();
-        const bool ok = forward(tk, T, T, err, 0);   // (a window streams nothing - the lane is a decoded token's)
+        const bool ok = forward(tk, T, T, err, 0, true);   // (a window streams nothing - the lane is a decoded token's)
         st.verify_ms += now_ms() - tv;
         spec_win = false;
         if (!ok) return false;
@@ -11488,7 +11552,7 @@ struct Model::Impl {
     // ---- a window: T tokens at positions pos .. pos + T - 1 through every layer; the logits of its last `logits` rows
     bool step(int token, bool want_logits, std::string& err) {
         tok_ab_begin();
-        const bool ok = forward(&token, 1, want_logits ? 1 : 0, err);
+        const bool ok = forward(&token, 1, want_logits ? 1 : 0, err, -1, true);
         tok_ab_end(1, ok);
         return ok;
     }
@@ -13341,11 +13405,12 @@ struct Model::Impl {
 
     // the window's plan, in window order (the indexer's and the candidate source's sizes carry from window to window)
     // (wp.nrow > 0: a multi step's rows, row t at wp.rpos[t] - decoded tokens, never a picture's)
-    void plan_window(int64_t p0, int T, WinPlan& wp) {
+    void plan_window(int64_t p0, int T, WinPlan& wp, bool generation = false) {
+        wp.sub_ratio = generation ? substitution.ratio : 0.0f;
         wp.par = par;
         // (a multi step's rows always on the async path, whatever their count: its verify windows reach 16 rows, and the
         //  host-routed path's sums for them were not its own decode's; Project Maya #611)
-        wp.async = par || (!sync_decode && (T <= async_max_t || wp.nrow > 0));
+        wp.async = par || (!sync_decode && (T <= async_max_t || wp.nrow > 0 || wp.sub_ratio > 0));
         wp.vl = 0;
         for (int t = 0; t < T && !imgs.empty() && wp.nrow == 0; ++t)
             if (in_image(p0 + t)) wp.vl |= 1u << t;
@@ -13369,6 +13434,7 @@ struct Model::Impl {
             }
             if (wp.async) {
                 wp.seq[il] = ++seq_issued;
+                if (sub_routes != nullptr) sub_active[wp.seq[il] % kRing].store(wp.sub_ratio > 0, std::memory_order_release);
                 layer_of[wp.seq[il] % kRing].store(il, std::memory_order_release);
             }
         }
@@ -13470,7 +13536,7 @@ struct Model::Impl {
         return true;
     }
 
-    bool forward(const int* tk, int T, int logits_rows, std::string& err, int seed_rows = -1) {
+    bool forward(const int* tk, int T, int logits_rows, std::string& err, int seed_rows = -1, bool generation = false) {
 #if defined(STRATA_METAL)
         struct BusyAll {   // DS4_BUSY_ALL: the GPU is held busy for the whole step (the host gaps between its bursts too)
             bool on;
@@ -13511,7 +13577,7 @@ struct Model::Impl {
         for (int t = 0; t < T; ++t)   // (h_emb is written again by the next window, after this one's last sync)
             std::memcpy(h_emb + (size_t) t * D, emb_row(p0 + t, tk[t]), (size_t) D * 2);
         wplan.nrow = 0;
-        plan_window(p0, T, wplan);
+        plan_window(p0, T, wplan, generation);
         prof_window = prof_on && T == 1;
         n_logits = std::min(logits_rows, T);
         const double tl = now_ms();
@@ -14252,9 +14318,13 @@ struct Model::Impl {
                 route_ahead(gl, nx->gate_bias, nx->n_exp, m, T, reqs + slot, (a - 1) * kAhead1, s);
                 na[a - 1] = m;
             }
+            CacheSub sub;
+            sub.ratio = !l.mtp ? wp.sub_ratio : 0.0f;
+            sub.budget = substitution.budget; sub.candidates = substitution.candidates;
+            sub.original = lead && sub.ratio > 0 ? sub_routes + slot : nullptr;
             route_publish(d.glog, l.gate_bias, l.n_exp, l.k_exp, T, g.route_scale, l.vram_tab, d.x, D, d.ridx, d.rw,
                           d.plan_ptr, lead ? reqs + slot : nullptr, sq, s, l.gate_bias_vl, l.mtp ? 0u : wp.vl, na[0],
-                          na[1]);
+                          na[1], sub.ratio > 0 ? &sub : nullptr);
             if (!mv(d, {job(l.s1, d.x, d.sg, T, D, FF), job(l.s3, d.x, d.su, T, D, FF)}, err)) return false;
             swiglu(d.sg, d.su, T * FF, g.lim, d.sh, s);
             if (!mv(d, {job(l.s2, d.sh, d.sh_out, T, FF, D)}, err)) return false;
@@ -14683,7 +14753,7 @@ struct Model::Impl {
         const int D = g.dim;
         for (int t = 0; t < T; ++t)
             std::memcpy(h_emb + (size_t) t * D, embed_pinned + (size_t) tk[t] * D, (size_t) D * 2);
-        plan_window(0, T, wp);
+        plan_window(0, T, wp, true);
         prof_window = false;
         n_logits = T;
         logits_all = false;
@@ -14934,6 +15004,22 @@ struct Model::Impl {
         std::snprintf(b, sizeof b, "INFO context=%lld kv=fp4 kv_resident=%lld expert_slots=%d engine_kind=ds4 "
                                    "cpu_experts=%d ram_experts=%d engine=ds4-0.1",
                       (long long) o.max_context, (long long) o.max_context, nv, nh, ram_held);
+        v.push_back(b);
+        uint64_t expert_bytes = 0, mtp_vram_bytes = 0, mtp_ram_bytes = 0;
+        int mtp_vram = 0, mtp_ram = 0;
+        for (const Dev& d : devs) expert_bytes += d.experts;
+        for (const Layer& l : L) if (l.mtp) {
+            mtp_vram += l.n_vram;
+            mtp_ram += l.n_exp - l.n_vram;
+            mtp_vram_bytes += (uint64_t) l.blob * l.n_vram;
+            mtp_ram_bytes += (uint64_t) l.blob * (l.n_exp - l.n_vram);
+        }
+        std::snprintf(b, sizeof b, "INFO expert_cache_mib=%llu expert_cache_bytes=%llu mtp_experts_vram=%d "
+                                  "mtp_experts_ram=%d mtp_expert_bytes_vram=%llu mtp_expert_bytes_ram=%llu "
+                                  "mtp_experts_cpu_forced=%d mtp_dense_gpu=%d",
+                      (unsigned long long) (expert_bytes >> 20), (unsigned long long) expert_bytes,
+                      mtp_vram, mtp_ram, (unsigned long long) mtp_vram_bytes, (unsigned long long) mtp_ram_bytes,
+                      mtp_experts_cpu ? 1 : 0, g.n_mtp > 0 ? 1 : 0);
         v.push_back(b);
         if (o.require_ram) {
             std::snprintf(b, sizeof b, "INFO require_ram=1 expert_ram_complete=1 embedding_ram=1 engram_ram_bytes=%llu "
