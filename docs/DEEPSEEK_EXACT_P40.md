@@ -18,8 +18,28 @@ The selected pack has 40 main BF16 routers: avoiding their load-time F32 expansi
 
 The router fixture takes three existing shard paths and absolute byte offsets from a matching pack's tensor index. It reads only those three BF16 tensors into memory. It does not download, modify or dump weights.
 
-## Local parameter trial
+## Selected exact local profile
 
-The pending combined trial keeps context262144, CPU12, Q2 MTP experts on CPU/RAM, CPU-only locked projector, full Engram and other weights resident, and author T1/topP1/high75. It tests reserve384 MiB, with a guarded512 fallback only after proven failed-owner closure. Swift's reserve150 and other saved models are unchanged. Exact native expert selection is the primary quality-preserving control; the earlier PR821 substitution remains a separate approximation experiment.
+Context262144, CPU12, reserve384MiB, prefill-chunk0, Q2 MTP experts on CPU/RAM, confidence0.5, CPU-only locked vision, HC1 and compact-router1. DS4_CACHE_SUB_RATIO=0 explicitly preserves native expert selection. Author T1/topP1/high75 remains unchanged. Swift/DavidAU settings remain unchanged.
 
-Native INFO now reports HC mode, router storage/count/saved bytes and the actual substitution ratio. Whole-model residency, expert count, confidence0.3/0.5/0.7 screening and final selection are pending. Existing unchanged CPU/expert/router proofs are reused rather than rerun. No absolute generation maximum, universal quality equivalence or portable clean-install result is claimed.
+Actual readback reports 2,010 main experts in VRAM, versus1,975 previously:35 additional experts. Expert pool17618411520bytes;40 BF16 routers save157286400bytes. All13,734 CPU experts, full110595290400-byte Engram table, embeddings and the CPU projector remain resident. Compressed four-bit KV remains on GPU; no host-KV support is implied. Reserve384 loaded and generated successfully; the512 fallback was not needed. About120MiB GPU space remained after the bounded acceptance probe. Lower reserve values are not qualified.
+
+After an initial nonstationary screen, a balanced confirmation used one fixed prompt,128 API tokens per request,T1/topP1,request effort-none and measured other CPU load:
+
+| MTP confidence | Two decode samples, tok/s | Median |
+| --- | --- | ---: |
+| 0.3 | 12.28 / 13.39 | 12.84 |
+| 0.5 | 14.05 / 13.44 | 13.74 |
+| 0.7 | 13.30 / 14.14 | 13.72 |
+
+Confidence0.3 was slower;0.7 had mixed pairs and no stable gain.0.5 is retained. The earlier separate exact-series best was13.65tok/s, nearly the same. Neither a stable overall throughput gain nor an absolute maximum is established; operator latency reductions must not be added or presented as whole-model percentages. Warmup/cache placement and shared-PC variation remain material. The earlier16–18tok/s approximate trial is not a quality-equivalent comparison.
+
+One synthetic1024x1024red image exercised the lower reserve and unchanged CPU-only projector. The final answer correctly named red, with671 prompt tokens and positive MTP acceptance. This is headroom/functional evidence, not a vision-speed benchmark or a full1024-image-token/262K-context test. All actual INFO mode values, including zero substitution ratio, were read back. The new router's FMA/reduction order and coefficients are unchanged; moving experts between CPU/GPU retains the native framework's rounding behavior. Broad semantic quality and full-length-context throughput are not newly measured.
+
+## Native component release scope
+
+The separately staged native ZIP contains the tested engine/CPU vision binaries and allowed CUDA/LLVM libraries, with licenses and per-file hashes. It excludes weights, private configuration, Python/server, toolchains and Microsoft runtime DLLs. A compatible installed Microsoft x64 runtime and CUDA driver are prerequisites; on this host the system Microsoft DLLs matched the qualified inputs by SHA. Staged version/import resolution and privacy checks passed; ZIP CRC/member SHA are independently checked. It is a native-component prerelease, not a fresh Windows installation or a complete portable application acceptance.
+
+## Remaining work
+
+CPU worker10 versus selected12 is not yet measured on this exact profile; earlier worker14 screening does not prove a universal optimum. Windows/full-RAM/DSpark adaptation of loader4367, wider applicable recent1017source review, broad quality/full-context workloads and complete portable desktop switching remain separate work. PR3957/3288 remain excluded. No system NUMA, affinity, clock, power, driver or unrelated-service setting was changed.
