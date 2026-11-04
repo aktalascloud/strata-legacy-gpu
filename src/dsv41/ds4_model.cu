@@ -877,6 +877,7 @@ struct Layer {
           *hcf_fn = nullptr, *hcf_scale = nullptr, *hcf_base = nullptr, *gate_bias = nullptr, *eg_w = nullptr,
           *gate_bias_vl = nullptr;   // (the image tokens' routing bias, with the vision tower)
     uint16_t* i_wproj = nullptr;
+    uint16_t* gate_bf16 = nullptr; // original bits; F32 accumulation is unchanged
     float* gate_w = nullptr;   // the router's weights, F32 (DeepSeek's inference computes the gate in F32)
     uint8_t* win = nullptr;                     // [win] rows of kKvFp8 (kv_row_bytes)
     float *c_kv = nullptr, *c_score = nullptr;  // the compressor's partial group (ratio > 1)
@@ -1256,6 +1257,10 @@ struct Model::Impl {
     // an Engram layer: asked for when the window's tokens are known, collected right before that layer)
     EgReader eg_io;
     bool engram_disk_allowed = false; // explicit exception; all other strict-RAM guards remain
+    bool router_bf16 = false;
+    int router_bf16_layers = 0;
+    int64_t router_storage_saved = 0;
+    bool hc_split_parallel = false; // opt-in exact CUDA scheduling; original path retained
     bool mtp_experts_cpu = false;     // opt-in CPU expert math; draft dense/attention/head remain GPU
     EgRowCache eg_cache;
     std::mutex eg_cache_mu;
@@ -2267,6 +2272,24 @@ struct Model::Impl {
         return true;
     }
     // a float tensor (F32 / F16 / BF16) as F32 on the device
+    bool router_weights(Dev& d, const std::string& name, Layer& l, std::string& err, size_t* acct) {
+        const Tensor* t = pk.get(name);
+        const size_t want = (size_t) l.n_exp * g.dim;
+        if (!router_bf16 || t == nullptr || t->dtype != "BF16")
+            return f32(d, name, l.gate_w, err, acct, want);
+        if (t->bytes != want * sizeof(uint16_t)) { err = name + ": BF16 router extent mismatch"; return false; }
+        std::vector<uint16_t> raw(want);
+        if (!pk.read(*t, raw.data())) { err = name + ": read failed"; return false; }
+        if (!dalloc(d, l.gate_bf16, want, err, acct)) return false;
+        cudaSetDevice(d.id);
+        CK(cudaMemcpy(l.gate_bf16, raw.data(), want * sizeof(uint16_t), cudaMemcpyHostToDevice));
+        ++router_bf16_layers; router_storage_saved += (int64_t) want * 2;
+        return true;
+    }
+    void router_mv(const Layer& l, const float* x, int T, float* y, int ldy, cudaStream_t s) {
+        if (l.gate_bf16 != nullptr) gemv_bf16_f32(l.gate_bf16, x, l.n_exp, g.dim, T, y, ldy, s);
+        else gemv_f32(l.gate_w, x, l.n_exp, g.dim, T, y, ldy, s);
+    }
     bool f32(Dev& d, const std::string& name, float*& p, std::string& err, size_t* acct, size_t want = 0) {
         const Tensor* t = pk.get(name);
         if (t == nullptr) {
@@ -2670,6 +2693,24 @@ struct Model::Impl {
     // ---- loading
     bool load(const Options& opt, std::string& err) {
         o = opt;
+        const char* router_flag = std::getenv("STRATA_DS4_ROUTER_BF16");
+        if (router_flag != nullptr && std::strcmp(router_flag, "0") != 0 && std::strcmp(router_flag, "1") != 0) {
+            err = "STRATA_DS4_ROUTER_BF16 must be 0 or 1"; return false;
+        }
+        router_bf16 = router_flag != nullptr && std::strcmp(router_flag, "1") == 0;
+        router_bf16_layers = 0; router_storage_saved = 0;
+#if !defined(__CUDACC__) || defined(STRATA_USE_HIP) || defined(STRATA_METAL)
+        if (router_bf16) { err = "BF16 router storage is qualified only for CUDA"; return false; }
+#endif
+        const char* hc_flag = std::getenv("STRATA_DS4_HC_SPLIT_PARALLEL");
+        if (hc_flag != nullptr && std::strcmp(hc_flag, "0") != 0 && std::strcmp(hc_flag, "1") != 0) {
+            err = "STRATA_DS4_HC_SPLIT_PARALLEL must be 0 or 1";
+            return false;
+        }
+        hc_split_parallel = hc_flag != nullptr && std::strcmp(hc_flag, "1") == 0;
+#if !defined(__CUDACC__) || defined(STRATA_USE_HIP) || defined(STRATA_METAL)
+        if (hc_split_parallel) { err = "parallel HC split is qualified only for CUDA"; return false; }
+#endif
         if (!cache_sub::parse(std::getenv("DS4_CACHE_SUB_RATIO"), std::getenv("DS4_CACHE_SUB_N"),
                               std::getenv("DS4_CACHE_SUB_NORM"), std::getenv("DS4_CACHE_SUB_RISK_BUDGET"),
                               substitution, err)) return false;
@@ -2737,6 +2778,9 @@ struct Model::Impl {
         if (substitution.ratio > 0 && ids.size() != 1) {
             err = "cache substitution is qualified only with one CUDA device";
             return false;
+        }
+        if (router_bf16 && (ids.size() != 1 || g.dim % 4 != 0)) {
+            err = "BF16 router storage requires one CUDA device and dimension divisible by four"; return false;
         }
         devs.resize(ids.size());
         if (prof_on) prof_pool.resize((size_t) ndev);
@@ -5231,7 +5275,7 @@ struct Model::Impl {
                       f32(d, P + "hc_attn_base", l.hca_base, err, acct) && f32(d, P + "hc_ffn_fn", l.hcf_fn, err, acct) &&
                       f32(d, P + "hc_ffn_scale", l.hcf_scale, err, acct) &&
                       f32(d, P + "hc_ffn_base", l.hcf_base, err, acct) &&
-                      f32(d, P + "ffn.gate.weight", l.gate_w, err, acct, (size_t) l.n_exp * g.dim) &&
+                      router_weights(d, P + "ffn.gate.weight", l, err, acct) &&
                       f32(d, P + "ffn.gate.bias", l.gate_bias, err, acct, (size_t) l.n_exp) &&
                       (l.mtp || img_tok < 0 || (!o.vision_external && pk.get(P + "ffn.gate.bias_vl") == nullptr) ||
                        f32(d, P + "ffn.gate.bias_vl", l.gate_bias_vl, err, acct, (size_t) l.n_exp)) &&
@@ -9486,7 +9530,7 @@ struct Model::Impl {
         const int j = l0.il + a, end = l0.mtp ? g.nl + g.n_mtp : g.nl;
         if (j >= end || j >= (int) L.size()) return nullptr;
         const Layer& n = L[(size_t) j];
-        if (n.dev != l0.dev || n.mtp != l0.mtp || n.lay.fmt != gg::kFmtMXFP4 || n.gate_w == nullptr || n.n_exp > 1024 ||
+        if (n.dev != l0.dev || n.mtp != l0.mtp || n.lay.fmt != gg::kFmtMXFP4 || (n.gate_w == nullptr && n.gate_bf16 == nullptr) || n.n_exp > 1024 ||
             (int) n.slot.size() < n.n_exp)
             return nullptr;
         for (int e = 0; e < n.n_exp; ++e)
@@ -11840,7 +11884,7 @@ struct Model::Impl {
 #endif
         hc_pre_norm(c.h, c.a_pre, l.ffn_norm, D, H, T, g.eps, c.x, s);
         x3::rows_f16(c.x, D, nullptr, T, D, c.x16, s);
-        gemv_f32(l.gate_w, c.x, l.n_exp, D, T, c.glog, 1024, s);   // (F32 x: the token path's bits)
+        router_mv(l, c.x, T, c.glog, 1024, s);   // (F32 x: the token path's bits)
         for (int r0 = 0; r0 < T; r0 += kVlRows) {   // (route()'s image bits cover kVlRows rows a call)
             const int nr = std::min(kVlRows, T - r0);
             VlBits vb;
@@ -14218,14 +14262,25 @@ struct Model::Impl {
         hc_mix_split(d.h, l.hca_fn, H * D, (2 + H) * H, T, g.eps, d.mix, l.hca_scale, l.hca_base, H,
                      g.sinkhorn, g.hc_eps, d.a_pre, d.a_post, d.a_comb, s);
 #else
+        if (hc_split_parallel) {
+            hc_mix(d.h, l.hca_fn, H * D, (2 + H) * H, T, g.eps, d.mix, s);
+            hc_pre_norm_split(d.h, d.pre, l.attn_norm, D, H, T, g.eps, d.x, d.mix, l.hca_scale, l.hca_base,
+                              g.sinkhorn, g.hc_eps, d.a_pre, d.a_post, d.a_comb, s);
+        } else {
         hc_mix_split(d.h, l.hca_fn, H * D, (2 + H) * H, T, g.eps, d.mix, d.hccnt, l.hca_scale, l.hca_base, H, g.sinkhorn, g.hc_eps,
                      d.a_pre, d.a_post, d.a_comb, s);
+        }
 #endif
         dump_sub(d, "a_mix", l.il, p0, T, d.mix, (size_t) T * 32 * 4);
         dump_sub(d, "a_pre", l.il, p0, T, d.a_pre, (size_t) T * 8 * 4);
         dump_sub(d, "a_post", l.il, p0, T, d.a_post, (size_t) T * 8 * 4);
         dump_sub(d, "a_comb", l.il, p0, T, d.a_comb, (size_t) T * 64 * 4);
+#if defined(STRATA_METAL)
         hc_pre_norm(d.h, d.pre, l.attn_norm, D, H, T, g.eps, d.x, s);
+#else
+        if (!hc_split_parallel)
+            hc_pre_norm(d.h, d.pre, l.attn_norm, D, H, T, g.eps, d.x, s);
+#endif
         dump_sub(d, "pre_in", l.il, p0, T, d.pre, (size_t) T * 8 * 4);
         dump_sub(d, "attn_x", l.il, p0, T, d.x, (size_t) T * D * 4);
         {
@@ -14291,10 +14346,21 @@ struct Model::Impl {
         hc_mix_split(d.h, l.hcf_fn, H * D, (2 + H) * H, T, g.eps, d.mix, l.hcf_scale, l.hcf_base, H,
                      g.sinkhorn, g.hc_eps, d.f_pre, d.f_post, d.f_comb, s);
 #else
+        if (hc_split_parallel) {
+            hc_mix(d.h, l.hcf_fn, H * D, (2 + H) * H, T, g.eps, d.mix, s);
+            hc_pre_norm_split(d.h, d.a_pre, l.ffn_norm, D, H, T, g.eps, d.x, d.mix, l.hcf_scale, l.hcf_base,
+                              g.sinkhorn, g.hc_eps, d.f_pre, d.f_post, d.f_comb, s);
+        } else {
         hc_mix_split(d.h, l.hcf_fn, H * D, (2 + H) * H, T, g.eps, d.mix, d.hccnt, l.hcf_scale, l.hcf_base, H, g.sinkhorn, g.hc_eps,
                      d.f_pre, d.f_post, d.f_comb, s);
+        }
 #endif
+#if defined(STRATA_METAL)
         hc_pre_norm(d.h, d.a_pre, l.ffn_norm, D, H, T, g.eps, d.x, s);
+#else
+        if (!hc_split_parallel)
+            hc_pre_norm(d.h, d.a_pre, l.ffn_norm, D, H, T, g.eps, d.x, s);
+#endif
         dump_sub(d, "f_pre", l.il, p0, T, d.f_pre, (size_t) T * 8 * 4);
         dump_sub(d, "f_post", l.il, p0, T, d.f_post, (size_t) T * 8 * 4);
         dump_sub(d, "f_comb", l.il, p0, T, d.f_comb, (size_t) T * 64 * 4);
@@ -14303,7 +14369,7 @@ struct Model::Impl {
             // the routing goes to the service thread through the mailbox (a group's lead publishes it, the members
             // make the same plan) while the device runs the shared expert and the VRAM experts (from the plan the
             // router made), and waits for the answer only before the experts' sum
-            gemv_f32(l.gate_w, d.x, l.n_exp, D, T, d.glog, 1024, s);
+            router_mv(l, d.x, T, d.glog, 1024, s);
             const unsigned sq = wp.seq[l.il];
             const int slot = (int) (sq % kRing);
             const bool lead = mi == 0;
@@ -14313,7 +14379,7 @@ struct Model::Impl {
                 if (nx == nullptr) break;
                 const int m = a == 1 ? std::max(1, std::min(kAhead1, nx->k_exp + ahead_extra)) : std::min(kPicks, nx->k_exp);
                 float* gl = d.glog_a + (size_t) (a - 1) * kWin * 1024;
-                gemv_f32(nx->gate_w, d.x, nx->n_exp, D, T, gl, 1024, s);   // (normed with the next layer's FFN
+                router_mv(*nx, d.x, T, gl, 1024, s);   // (normed with the next layer's FFN
                                                                          // weights instead: the same hit rate)
                 route_ahead(gl, nx->gate_bias, nx->n_exp, m, T, reqs + slot, (a - 1) * kAhead1, s);
                 na[a - 1] = m;
@@ -14443,7 +14509,7 @@ struct Model::Impl {
         static const bool phases = ds4_dbg("DS4_PHASES");   // debugging: where a decode layer's host time goes
         static double ph[8] = {0}, ph_prev = 0; static long ph_n = 0;
         const double ph0 = phases ? now_ms() : 0.0;
-        gemv_f32(l.gate_w, d.x, l.n_exp, D, T, d.glog, 1024, s);
+        router_mv(l, d.x, T, d.glog, 1024, s);
         VlBits vb = {};
         vb.w[0] = l.mtp ? 0u : wp.vl;
         route(d.glog, l.gate_bias, l.n_exp, l.k_exp, T, g.route_scale, d.ridx, d.rw, s, l.gate_bias_vl,
@@ -14461,8 +14527,8 @@ struct Model::Impl {
                 const int il = l.il + a;
                 if (il >= g.nl) break;
                 const Layer& nx = L[(size_t) il];
-                if (nx.nm != 1 || nx.lay.fmt != gg::kFmtMXFP4 || nx.gate_bias == nullptr || nx.gate_w == nullptr) break;
-                gemv_f32(nx.gate_w, d.x, nx.n_exp, D, 1, d.glog_a + (size_t) (a - 1) * kWin * 1024, 1024, s);
+                if (nx.nm != 1 || nx.lay.fmt != gg::kFmtMXFP4 || nx.gate_bias == nullptr || (nx.gate_w == nullptr && nx.gate_bf16 == nullptr)) break;
+                router_mv(nx, d.x, 1, d.glog_a + (size_t) (a - 1) * kWin * 1024, 1024, s);
                 route(d.glog_a + (size_t) (a - 1) * kWin * 1024, nx.gate_bias, nx.n_exp, nx.k_exp, 1, g.route_scale, d.ridx_a + (a - 1) * kPicks,
                       d.rw_a + (a - 1) * kPicks, s, nullptr, nullptr);
                 CK(cudaMemcpyAsync(h_idx_a + (a - 1) * kPicks, d.ridx_a + (a - 1) * kPicks, (size_t) kPicks * 4, cudaMemcpyDeviceToHost, s));
@@ -15061,6 +15127,11 @@ struct Model::Impl {
             v.push_back("NOTE images: OFF - the model's vision tower did not load (" + why + ")");
             v.push_back("INFO vision=off");
         }
+        v.push_back(std::string("INFO hc_split_parallel=") + (hc_split_parallel ? "1" : "0"));
+        v.push_back(std::string("INFO router_bf16=") + (router_bf16 ? "1" : "0") +
+                    " router_bf16_layers=" + std::to_string(router_bf16_layers) +
+                    " router_storage_saved_bytes=" + std::to_string(router_storage_saved) +
+                    " cache_sub_ratio=" + std::to_string(substitution.ratio));
         return v;
     }
 };
