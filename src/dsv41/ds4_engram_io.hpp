@@ -31,6 +31,12 @@
 
 namespace strata::ds4 {
 
+// The disk exception is explicit and applies only to the Engram reader.
+inline bool engram_disk_flag(const char* value, bool& allowed) {
+    allowed = value && std::strcmp(value, "1") == 0;
+    return !value || std::strcmp(value, "0") == 0 || allowed;
+}
+
 inline int64_t now_ns() {
     return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch())
         .count();

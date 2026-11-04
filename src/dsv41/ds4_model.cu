@@ -1253,6 +1253,7 @@ struct Model::Impl {
     // the Engram rows' reader (its own threads and file handles), the rows already fetched, the window's batches (one
     // an Engram layer: asked for when the window's tokens are known, collected right before that layer)
     EgReader eg_io;
+    bool engram_disk_allowed = false; // explicit exception; all other strict-RAM guards remain
     EgRowCache eg_cache;
     std::mutex eg_cache_mu;
     std::vector<std::unique_ptr<EgBatch>> eg_win;
@@ -2662,6 +2663,11 @@ struct Model::Impl {
     // ---- loading
     bool load(const Options& opt, std::string& err) {
         o = opt;
+        if (!engram_disk_flag(std::getenv("DS4_ENGRAM_DISK"), engram_disk_allowed) ||
+                (engram_disk_allowed && !o.require_ram)) {
+            err = "DS4_ENGRAM_DISK must be 0 or 1; its Engram-only exception requires --require-ram";
+            return false;
+        }
         if (o.require_ram) {
             if (o.mmap_experts > 0 || o.ssd_cache_gb > 0 || (o.vision && !o.vision_external) || disk_skip_w > 0 || ram_skip_w > 0 ||
                     (std::getenv("DS4_COPY_PIN") && std::atoi(std::getenv("DS4_COPY_PIN")) == 0)) {
@@ -3437,6 +3443,7 @@ struct Model::Impl {
             !halloc(h_eg, (size_t) std::max(1, pk.eg_layers) * eg_cap * cols * (pk.eg_hd + pk.eg_hd / 32) + 64, err))
             return false;
         if (pk.eg_layers > 0) {
+            const bool resident_engram = o.require_ram && !engram_disk_allowed;
             // the Engram rows' reader: threads enough to keep an SSD's queue busy (reads from the page cache need few);
             // the row cache a small share of the RAM free (DS4_ENGRAM_CACHE_MB: its size, 0 off; DS4_ENGRAM_THREADS)
             const size_t row = (size_t) pk.eg_hd + pk.eg_hd / 32;
@@ -3484,7 +3491,7 @@ struct Model::Impl {
             }
 #endif
             std::vector<EgRamSpan> eg_ranges;
-            if (!o.require_ram) eg_io.start(paths, nth, eg_direct);
+            if (!resident_engram) eg_io.start(paths, nth, eg_direct);
             for (int li = 0; li < pk.eg_layers; ++li) {
                 eg_win.emplace_back(new EgBatch());
                 const std::string id = std::to_string(g.eg_layers[(size_t) li]);
@@ -3521,14 +3528,14 @@ struct Model::Impl {
                           " values (not whole blocks of 32)";
                     return false;
                 }
-                if (o.require_ram) {
+                if (resident_engram) {
                     eg_ranges.push_back({tw->file, tw->off, tw->bytes});
                     if (const Tensor* scale = pk.get("layers." + id + ".engram.embed.scale"))
                         eg_ranges.push_back({scale->file, scale->off, scale->bytes});
                 }
                 eg_fmt.push_back((uint8_t) fmt);
             }
-            if (o.require_ram) {
+            if (resident_engram) {
                 eg_cache.init(0, row); // the whole table is resident; no duplicate row cache
                 if (!eg_io.start_ram(paths, nth, eg_ranges, 16ull << 30, err)) return false;
             }
@@ -8001,8 +8008,8 @@ struct Model::Impl {
             }
         }
         eg_rows_n += hits + (int64_t) b.reads.size() + (int64_t) b.dups.size();
-        eg_hits_n += hits + (int64_t) b.dups.size() + (o.require_ram ? (int64_t) b.reads.size() : 0);
-        eg_reads_n += o.require_ram ? 0 : (int64_t) b.reads.size();
+        eg_hits_n += hits + (int64_t) b.dups.size() + (o.require_ram && !engram_disk_allowed ? (int64_t) b.reads.size() : 0);
+        eg_reads_n += o.require_ram && !engram_disk_allowed ? 0 : (int64_t) b.reads.size();
         eg_io.submit(b);
     }
     // b's rows all in place (any thread; a group's members may ask at once: one finishes, the others wait for it)
@@ -14929,8 +14936,12 @@ struct Model::Impl {
                       (long long) o.max_context, (long long) o.max_context, nv, nh, ram_held);
         v.push_back(b);
         if (o.require_ram) {
-            std::snprintf(b, sizeof b, "INFO require_ram=1 expert_ram_complete=1 embedding_ram=1 engram_ram_bytes=%llu model_file_reads_forbidden=1 dspark=%d",
-                          (unsigned long long) eg_io.ram_bytes(), g.n_mtp > 0 ? 1 : 0);
+            std::snprintf(b, sizeof b, "INFO require_ram=1 expert_ram_complete=1 embedding_ram=1 engram_ram_bytes=%llu "
+                                      "model_file_reads_forbidden=%d non_engram_file_reads_forbidden=1 "
+                                      "engram_disk_allowed=%d engram_cache_rows_capacity=%llu engram_disk_read_rows=%lld dspark=%d",
+                          (unsigned long long) eg_io.ram_bytes(), engram_disk_allowed ? 0 : 1,
+                          engram_disk_allowed ? 1 : 0, (unsigned long long) eg_cache.capacity(),
+                          (long long) eg_reads_n.load(), g.n_mtp > 0 ? 1 : 0);
             v.push_back(b);
         }
         if (commit_kept > 0) {   // (Windows, an integrated GPU: the commit kept experts off the GPU - the server says so)

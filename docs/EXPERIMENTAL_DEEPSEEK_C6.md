@@ -1,23 +1,23 @@
-# DeepSeek C6/C7: EXPERIMENTAL_SOURCE_ONLY
+# Experimental DeepSeek C10 source
 
-This draft contains four source changes. It does not ship a newly qualified engine, change model defaults, or claim an end-to-end speed improvement.
+This draft contains source changes for AVX1/Pascal. The published classic C8 runtime remains a separately qualified release. No DeepSeek binary, model weights, private configuration or downloader is included here.
 
-| Change | Result |
-| --- | --- |
-| External CPU vision with RAM-only loading | The native load guard accepts external CPU vision while retaining rejection of the native vision tower and disk-tier options in RAM-only mode. Actual complete-model residency remains to be verified. |
-| Profiler sample bounds ([upstream #5127](https://github.com/Niko1221/Strata/pull/5127)) | The sample buffer follows the profiler stage table, stage indices are checked, and chunk accumulation uses the matching stage count. |
-| Per-request DeepSeek speculation control | `strata_tune.spec` accepts booleans or integer `0`/`1` for the existing native request switch. Missing or invalid values preserve existing behavior; other engine families are unchanged. |
-| AVX1 CPU activation quantization | The CPU fallback uses the existing AVX1 Q8_K quantizer on AVX1 CPUs without AVX2. Other activation formats keep their previous path; the existing presence-based `STRATA_NO_Q8K_AVX1` opt-out is honored. |
+## Changes relative to current public main
 
-For example, `{"strata_tune":{"spec":0}}` suppresses speculation for that request. Draft weights, memory allocations, taps and seeding remain loaded. This is **not** a comparison with an engine started without a drafter. The switch also suppresses optional lookup speculation when that feature is enabled.
+- The strict-RAM loader accepts the external CPU vision bridge. Image-specific routing biases remain genuine learned weights; an incomplete pack is refused rather than filled with zeros or ordinary text-routing aliases.
+- Optional profiler stage storage uses the full bounded stage table instead of writing past its old six-element array. This path stays opt-in.
+- A request may use `strata_tune.spec=0|1` to compare DSpark compute. Spec0 retains the loaded draft/head/tap memory. It does not free VRAM for more main-model experts.
+- The existing Q8_K activation quantizer is selected on AVX1-only CPUs, preserving the opt-out and the other CPU/format paths. Isolated quantization measured 2.18x at K5120 and 2.09x at K2304; neither number is an end-to-end generation-speed claim.
+- `DS4_ENGRAM_DISK=1` explicitly permits the bounded Engram reader/cache tier. Absent/off retains full Engram RAM. Main/draft weights, embeddings and CPU vision remain subject to their strict residency policy; this adds no automatic general HDD fallback.
 
-Validation so far:
+The C8 Windows inherited-log append fix is preserved through the real public-main merge. All four code files match the reviewed C10 source after CRLF-to-LF conversion only. Their native compilation provenance is retained rather than described as a new rebuild.
 
-- The exact request-method candidate reuses 68 passing CPU cases; the external-vision guard has eight truth-table cases and source reachability checks. The profiler collector has an instrumented CPU canary/bounds check using simulated CUDA events. These are separate from actual model or GPU validation.
-- An inactive C6 AVX1/CUDA 12.9/sm61 candidate compiled and linked the changed native unit while reusing existing components. It was not a complete rebuild. Comparison of its device image found only 12 anonymous-symbol-prefix substitutions; other device-image bytes matched. This is reuse evidence, not a new numerical GPU run.
-- C7 recompiled one CPU host unit and reused the other C6 components. Its GPU device image is byte-identical to C6. Eight activation-byte checks and eight integrated CPU fallback checks passed, with all written outputs finite and selected output rows checked against a CPU reference. This is not a full-matrix numerical sweep or a GPU/model result.
-- Isolated warm-cache **quantization-only** measurements were **2.18x at K=5120** and **2.09x at K=2304** versus the previous quantization path. These are not token-generation rates or end-to-end expert/model speedups.
-- A plan for **148 actual-shape GPU reports is prepared, not executed**. Its CPU numerical reference samples explicit rows and columns; planned GPU scans cover all written outputs and canaries. Earlier bounded tests do not become full-shape passes.
+## Evidence and limits
 
-Complete DeepSeek payload verification, actual RAM residency, MTP behavior and image-response checks remain pending. Existing qualified releases and their validation scope are unchanged.
-HIP, SYCL and other backend builds were not run for this draft; compatibility is not claimed for them.
+The original 28 GPU processes produced 148 passing reports for the selected dense/expert matrix paths, including the real shapes/strides. CPU references cover selected rows/columns; all generated GPU outputs receive finiteness/canary scans. These are the original results, not repeated runs or full-model qualification. AVX1 quantizer/fallback and Engram host/cache paths have separate CPU evidence. Decoded CUDA payload comparison permits only the explicitly reviewed literal anonymous-symbol prefixes; raw compressed fatbins are not claimed byte-identical across those host compilations.
+
+Full-model loading, actual complete residency/weight IO, real image handling, MTP acceptance and end-to-end generation speed remain pending. Foreign accelerator results do not qualify Pascal. No hardware-wide maximum or fresh whole-model speed gain is claimed.
+
+A GGUF that omits the forty main-layer image-routing biases needs separately prepared genuine F32[384] vectors from the matching official DeepSeek-V4.1-Flash-1017 checkpoint for external CPU vision. They total 61,440 bytes. The native loader supports such a separately pinned model-data companion; this PR neither redistributes those weights nor supplies a qualified public downloader/launcher. A projector's CPU encoding test alone does not qualify the LLM image-routing path.
+
+Original MIT and vendored dependency licenses are unchanged. Please keep this source draft unmerged until its remaining model/runtime evidence is reviewed.
