@@ -94,6 +94,30 @@ IM_END = "<|im_end|>"
 IMAGE_PAD = "<|image_pad|>"
 
 
+def log_opener(path, flags):
+    """Inherited child handles must append too; Windows' CRT O_APPEND alone does not ensure that (#5175)."""
+    if os.name != "nt":
+        return os.open(path, flags, 0o666)
+    import msvcrt
+    from ctypes import wintypes
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    create = kernel.CreateFileW
+    create.argtypes = (wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
+                       wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE)
+    create.restype = wintypes.HANDLE
+    close = kernel.CloseHandle
+    close.argtypes, close.restype = (wintypes.HANDLE,), wintypes.BOOL
+    # FILE_APPEND_DATA | FILE_READ_ATTRIBUTES | SYNCHRONIZE; no FILE_WRITE_DATA, existing read/write sharing.
+    handle = create(os.fsdecode(path), 0x0004 | 0x0080 | 0x00100000, 0x1 | 0x2, None, 4, 0x80, None)
+    if handle == ctypes.c_void_p(-1).value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        return msvcrt.open_osfhandle(handle, os.O_WRONLY | os.O_APPEND | os.O_BINARY | os.O_NOINHERIT)
+    except BaseException:
+        close(handle)
+        raise
+
+
 def popen(what: str, args: list, role: str = "engine", **kw):
     """#735: subprocess.Popen, but Windows' refusal to start a program (WinError 4551, or 1260 when a policy blocks it:
     Smart App Control on a clean Windows 11 blocks an exe that is not signed) is said in words instead of a bare
@@ -1162,7 +1186,7 @@ class StrataEngine:
             return
         end_leftover_engines(exe)                       # refuse before opening logs or starting narrator threads
         self.unloaded = False            # `ended` stays True until READY (below): not alive while starting (#344)
-        self.log = open(log, "a", encoding="utf-8") if log else subprocess.DEVNULL
+        self.log = open(log, "a", encoding="utf-8", opener=log_opener) if log else subprocess.DEVNULL
         process_log = self.log                         # this start's handle; concurrent close/restart may replace it
         loading = threading.Event()                     # set once READY: the narrator below stops
         log_start = os.path.getsize(log) if log else 0  # where this start's lines begin (start_failure_hint)
@@ -10174,7 +10198,7 @@ def main(argv=None, *, lifecycle_event=None, interrupt_exit_code: int = 0) -> in
                 print('[strata] images: on a layer split the expert cache cannot make room for the image encoder (the '
                       'engine turns --vram-elastic off); keep its VRAM free with "--vram-reserve-mib" on the '
                       "encoder's GPU, or the first picture may not get it", flush=True)
-            vision = Vision(vcfg, log=open(cfg["log"], "a", encoding="utf-8") if cfg.get("log") else None,
+            vision = Vision(vcfg, log=open(cfg["log"], "a", encoding="utf-8", opener=log_opener) if cfg.get("log") else None,
                             env=vision_env(cfg, env), lazy=lazy)
         if cfg.get("arch") == "deepseek41" and "--vision-external" in (cfg.get("args") or []):
             if vision is None:
@@ -10301,7 +10325,7 @@ def main(argv=None, *, lifecycle_event=None, interrupt_exit_code: int = 0) -> in
                     and not os.path.isabs(v) else v)
                 for k, v in cfg["images"].items()}
         try:
-            svc.images = images_api.ImageGen(icfg, log=open(cfg["log"], "a", encoding="utf-8") if cfg.get("log") else None)
+            svc.images = images_api.ImageGen(icfg, log=open(cfg["log"], "a", encoding="utf-8", opener=log_opener) if cfg.get("log") else None)
         except ValueError as e:
             raise SystemExit(f"[strata] config: {e}")
         gone = svc.images.missing()

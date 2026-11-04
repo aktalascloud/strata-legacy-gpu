@@ -5,7 +5,7 @@
   "patches": [
     {
       "path": "p40/patches/native-ivybridge-p40.patch",
-      "sha256": "948ac64cdc7fc016bf389f834be79354fbf15142419b96a9661b10116eb35f56"
+      "sha256": "170e86120643e48e3ab25f8f71235c16aad605db67bc99e64b6245e778af14ac"
     },
     {
       "path": "p40/patches/pascallama-sm61.patch",
