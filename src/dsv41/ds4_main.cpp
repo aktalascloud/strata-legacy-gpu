@@ -1114,12 +1114,23 @@ int serve(strata::ds4::Model& m, const std::string& eos_list, bool spec, float c
         const double ex = (double) (s.experts - s_dec.experts), cx = (double) (s.cpu_experts - s_dec.cpu_experts),
                      sx = (double) (s.stream_experts - s_dec.stream_experts);
         std::string out = "STAT";
-        char b[160];
+        char b[320];
         std::snprintf(b, sizeof b, " tok_s=%.2f ms_tok=%.2f vram_hit=%.4f cpu=%.3f ram=%.3f promo=%.3f engram_ms=%.3f",
                       ms > 0 ? 1000.0 * (double) produced / ms : 0.0, produced > 0 ? ms / (double) produced : 0.0,
                       ex > 0 ? 1.0 - (cx + sx) / ex : 1.0, cx / fed, (double) (s.ram_experts - s_dec.ram_experts) / fed,
                       (double) (s.swaps - s_dec.swaps) / fed, (s.engram_ms - s_dec.engram_ms) / fed);
         out += b;
+        const int64_t sub_picks = s.sub_picks - s_dec.sub_picks;
+        if (sub_picks > 0) {
+            const double rows = (double) std::max<int64_t>(1, s.sub_rows - s_dec.sub_rows);
+            std::snprintf(b, sizeof b, " sub_picks=%lld cache_substituted=%lld sub_demand_gpu=%.6f sub_executed_gpu=%.6f sub_removed_mass=%.6f sub_executed_mass=%.6f",
+                          (long long) sub_picks, (long long) (s.cache_substituted - s_dec.cache_substituted),
+                          (double) (s.sub_demand_gpu - s_dec.sub_demand_gpu) / sub_picks,
+                          (double) (s.sub_executed_gpu - s_dec.sub_executed_gpu) / sub_picks,
+                          (s.sub_removed_mass - s_dec.sub_removed_mass) / rows,
+                          (s.sub_executed_mass - s_dec.sub_executed_mass) / rows);
+            out += b;
+        }
         if (sx > 0) {   // (the PCIe lane: experts a token streamed to the GPU)
             std::snprintf(b, sizeof b, " pcie=%.3f", sx / fed);
             out += b;

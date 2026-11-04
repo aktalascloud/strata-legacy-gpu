@@ -13,6 +13,20 @@
 
 namespace strata::ds4 {
 
+// Explicit expert placement only: draft attention/projections/head stay on the GPU.
+inline bool mtp_expert_cpu_flag(const char* value, bool& cpu) {
+    cpu = false;
+    if (value == nullptr || std::strcmp(value, "0") == 0) return true;
+    if (std::strcmp(value, "1") == 0) { cpu = true; return true; }
+    return false;
+}
+
+inline int mtp_expert_vram_count(bool cpu_only, int count, double budget, uint64_t unit_bytes) {
+    if (cpu_only || count <= 0 || unit_bytes == 0 || !(budget > 0.0)) return 0;
+    if (budget >= (double) unit_bytes * count) return count;
+    return (int) (budget / (double) unit_bytes);
+}
+
 // DS4_DEFAULTS=026: the master switch.  Every default the DeepSeek engine changed since v0.2.6 goes back to what v0.2.6 did, so "off" in the app's
 // "DeepSeek speed-ups" really is version 0.2.6.  Each rule below takes `v026` (the engine passes defaults_026()); an explicit per-feature variable or
 // flag (DS4_ATTN_SLAB=N, DS4_COPY_PIN=1, DS4_FAST_ATTN=1, --experts N, --prefill-chunk N, ...) still wins over it.  The list, from

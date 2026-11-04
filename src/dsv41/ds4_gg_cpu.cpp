@@ -13,6 +13,7 @@
 #include "ggml-cpu.h"
 #include "ggml.h"
 #include "strata/kernels/cpu/expert_layout.hpp"
+#include "strata/kernels/cpu/iq_avx1.hpp"
 #include "strata/kernels/cpu/iq_avx2.hpp"
 #include "strata/kernels/cpu/iq_avx512.hpp"
 
@@ -73,6 +74,14 @@ bool gg_cpu_fmt(int tg, int td, int n_embd, int n_ff, IqCpu& f, std::string& err
 // x (k values) -> the activation type (Q8_K, Q8_0 ..) ggml-cpu's dot takes
 void gg_cpu_quant(int act, const float* x, int k, void* dst) {
     init_once();
+    // Same Q8_K bytes as ggml-cpu, using the retained AVX1 quantizer on older x86 CPUs.
+    // Honor the existing presence-based opt-out; other formats/ISAs keep their own path.
+    static const bool avx1 = strata::kernels::cpu::cpu_avx1_ok() && !strata::kernels::cpu::cpu_avx2_ok() &&
+                             std::getenv("STRATA_NO_Q8K_AVX1") == nullptr;
+    if (avx1 && act == GGML_TYPE_Q8_K && k % 256 == 0) {
+        strata::kernels::cpu::q8k_quant_avx1(x, dst, k);
+        return;
+    }
     if (dbg()) std::fprintf(stderr, "gg_cpu_quant act %d k %d\n", act, k);
     const ggml_type_traits_cpu* tc = ggml_get_type_traits_cpu((ggml_type) act);
     if (tc != nullptr && tc->from_float != nullptr) {
