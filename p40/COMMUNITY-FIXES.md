@@ -6,6 +6,7 @@
 | --- | --- |
 | O3, AVX1, CUDA 12.9/sm61, строгая FP; Pascal J96/unroll и ограничение MMQ ID | Совместимость со старым CPU/P40 и проверенные специализированные пути без AVX2/Tensor Cores. |
 | Независимое извлечение байтов регистров; перенос повторных Q2 activation scales | Убрать лишнюю работу, сохранив порядок FP-вычислений и численную квалификацию. |
+| Windows inherited log handles: issue #5175 | Engine/CPU vision stderr/stdout append atomically through FILE_APPEND_DATA handles; prevents overwriting earlier log lines. No generation speed claim. |
 | PR #5040: потоковые tool-аргументы с буквальными закрывающими тегами | Не обрывать содержимое файлов внутри tool-call; 1553 ранее проверенных расписания разбивки потока. Уже входит в C5. |
 | Проверка прав инструментов по текущему запросу; API ID отдельно от названия | Исключить устаревший каталог tools и ошибки идентификации модели/управления owner. |
 | Structured output вместе с tools, обработка disconnect/ошибок и Retry-After | Корректнее выдавать ответы и ошибки API; это не ускорение генерации. |
