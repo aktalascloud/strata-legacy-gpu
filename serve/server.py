@@ -626,6 +626,25 @@ def start_log_text(log: str | None, offset: int, limit: int = 1 << 20) -> str:
         return ""
 
 
+def ds4_expert_cache_info(text: str, expert_slots: int | None) -> dict:
+    """Older DS4 INFO omits pool size; its current-start log reports rounded GB."""
+    if type(expert_slots) is not int or expert_slots <= 0 or len(text) > 1 << 20:
+        return {}
+    devices = {}
+    pattern = (r"^ds4: CUDA([0-9]{1,2}) layers \[[0-9]{1,4}, [0-9]{1,4}\][^\r\n]{0,80}: "
+               r"weights [0-9]{1,5}\.[0-9]{2} GB, experts ([0-9]{1,5}\.[0-9]{2}) GB "
+               r"\(([0-9]{1,7}) of ([0-9]{1,7}) in VRAM\), caches ")
+    for match in re.finditer(pattern, text, re.MULTILINE):
+        device, size, count, total = match.groups()
+        if int(count) > int(total) or float(size) <= 0:
+            return {}
+        devices[int(device)] = (float(size), int(count))
+    if not devices or sum(row[1] for row in devices.values()) != expert_slots:
+        return {}
+    return {"expert_cache_mib": sum(row[0] for row in devices.values()) * 1e9 / 1048576,
+            "expert_cache_approximate": True, "expert_cache_source": "ds4_startup_log"}
+
+
 def start_log_tail(log: str | None, offset: int, n: int = 20) -> str:
     """#496: the last n lines this start wrote to the engine log, for the error when the engine ended before READY -
     whatever the failure, the engine's own reason is in them (people posted the traceback without the log).  "" when
@@ -1323,6 +1342,8 @@ class StrataEngine:
         # report their own version (INFO engine=, 0.1.8+) win, the manifest stays the fallback for older ones
         if self.info.get("engine"):
             self.info["version"] = str(self.info["engine"])
+        if self.info.get("engine_kind") == "ds4" and self.info.get("expert_cache_mib") is None:
+            self.info.update(ds4_expert_cache_info(start_log_text(log, log_start), self.info.get("expert_slots")))
         self.terminal_stages = read_engine_stage_log(log, log_start) if log else []
         try:                                            # which drafter runs, and in plain words why not the one that was asked for
             self.info.update(drafting.engine_info(args, start_log_text(log, log_start), drafting.take_note()))
