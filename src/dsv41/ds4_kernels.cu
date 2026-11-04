@@ -407,6 +407,36 @@ __global__ void __launch_bounds__(1024) hc_pre_norm_kernel(const float* __restri
     for (int e = threadIdx.x; e < dim; e += blockDim.x, ++n) x[e] = w != nullptr ? r[n] * inv * w[e] : r[n];
 }
 
+// Opt-in #4382: split uses the new mixes; normalization reads the preceding sublayer pre.
+__global__ void __launch_bounds__(1024) hc_pre_norm_split_kernel(const float* __restrict__ h, const float* __restrict__ mix,
+                                                           const float* __restrict__ w, int dim, int hc, float eps,
+                                                           float* __restrict__ x, int T, const float* __restrict__ mixes,
+                                                           const float* __restrict__ scale, const float* __restrict__ base,
+                                                           int iters, float hc_eps, float* pre, float* post, float* comb) {
+    if (blockIdx.x >= T) {
+        const int t = blockIdx.x - T;
+        if (threadIdx.x < 32)
+            hc_split_body(mixes + (size_t) t * 32, t, threadIdx.x, scale, base, hc, iters, hc_eps, pre, post, comb);
+        return;
+    }
+    const int t = blockIdx.x;
+    h += (size_t) t * hc * dim;
+    mix += (size_t) t * 8;
+    x += (size_t) t * dim;
+    float r[8];
+    float ss = 0.0f;
+    int n = 0;
+    for (int e = threadIdx.x; e < dim; e += blockDim.x, ++n) {
+        float a = 0.0f;
+        for (int s = 0; s < hc; ++s) a += mix[s] * h[(size_t) s * dim + e];
+        r[n] = a;
+        ss += a * a;
+    }
+    const float inv = rsqrtf(block_sum(ss) / (float) dim + eps);
+    n = 0;
+    for (int e = threadIdx.x; e < dim; e += blockDim.x, ++n) x[e] = w != nullptr ? r[n] * inv * w[e] : r[n];
+}
+
 __global__ void hc_post_kernel(const float* __restrict__ y, const float* __restrict__ res,
                                const float* __restrict__ post, const float* __restrict__ comb, int dim, int hc,
                                float* __restrict__ out) {
@@ -496,6 +526,31 @@ __global__ void __launch_bounds__(kThreads) gemv_f32_kernel(const float* __restr
     float acc = 0.0f;
     for (int c = lane; c < k / 4; c += 32) {
         const float4 a = w[c], b = xv[c];
+        acc = fmaf(a.x, b.x, acc);
+        acc = fmaf(a.y, b.y, acc);
+        acc = fmaf(a.z, b.z, acc);
+        acc = fmaf(a.w, b.w, acc);
+    }
+    acc = warp_sum(acc);
+    if (lane == 0) y[(size_t) t * ldy + row] = acc;
+}
+
+// Original BF16 coefficients, exact FP32 expansion at load, same four FMAs and warp reduction.
+__global__ void __launch_bounds__(kThreads) gemv_bf16_f32_kernel(const uint16_t* __restrict__ W, const float* __restrict__ x,
+                                                            int n, int k, float* __restrict__ y, int ldy) {
+    const int row = blockIdx.x * (kThreads / 32) + (threadIdx.x >> 5);
+    const int lane = threadIdx.x & 31, t = blockIdx.y;
+    if (row >= n) return;
+    const ushort4* w = (const ushort4*) (W + (size_t) row * k);
+    const float4* xv = (const float4*) (x + (size_t) t * k);
+    float acc = 0.0f;
+    for (int c = lane; c < k / 4; c += 32) {
+        const ushort4 packed = w[c];
+        const float4 a = make_float4(__uint_as_float((unsigned) packed.x << 16),
+                                    __uint_as_float((unsigned) packed.y << 16),
+                                    __uint_as_float((unsigned) packed.z << 16),
+                                    __uint_as_float((unsigned) packed.w << 16));
+        const float4 b = xv[c];
         acc = fmaf(a.x, b.x, acc);
         acc = fmaf(a.y, b.y, acc);
         acc = fmaf(a.z, b.z, acc);
@@ -2408,6 +2463,12 @@ void hc_pre_norm(const float* h, const float* mix, const float* w, int dim, int 
 #endif
     strata_ds4_launch(hc_pre_norm_kernel, T, 1024, 0, s, h, mix, w, dim, hc, eps, x);
 }
+void hc_pre_norm_split(const float* h, const float* mix, const float* w, int dim, int hc, int T, float eps, float* x,
+                       const float* mixes, const float* scale, const float* base, int iters, float hc_eps, float* pre,
+                       float* post, float* comb, cudaStream_t s) {
+    strata_ds4_launch(hc_pre_norm_split_kernel, 2 * T, 1024, 0, s, h, mix, w, dim, hc, eps, x, T, mixes, scale, base,
+                     iters, hc_eps, pre, post, comb);
+}
 void hc_post(const float* y, const float* res, const float* post, const float* comb, int dim, int hc, int T,
              float* out, cudaStream_t s) {
 #if defined(STRATA_METAL)
@@ -2474,6 +2535,11 @@ void gemv_f32(const float* W, const float* x, int n, int k, int T, float* y, int
 #endif
     if (T > 0) strata_ds4_launch(gemv_f32_kernel, dim3(cdiv(n, kThreads / 32), T), kThreads, 0, s, W, x, n, k, y, ldy);
 }
+void gemv_bf16_f32(const uint16_t* W, const float* x, int n, int k, int T, float* y, int ldy, cudaStream_t s) {
+    if (T > 0) strata_ds4_launch(gemv_bf16_f32_kernel, dim3(cdiv(n, kThreads / 32), T), kThreads, 0, s,
+                               W, x, n, k, y, ldy);
+}
+
 
 void route(const float* logits, const float* bias, int n, int k, int T, float route_scale, int* idx, float* w,
            cudaStream_t s, const float* bias_vl, const VlBits* vl) {

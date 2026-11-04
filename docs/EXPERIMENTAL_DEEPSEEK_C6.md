@@ -1,4 +1,6 @@
-# DeepSeek AVX1/Pascal source and local results
+# Earlier DeepSeek AVX1/Pascal source and approximation trials
+
+The current primary profile preserves native expert selection: see [exact P40 results](DEEPSEEK_EXACT_P40.md). PR821 below is a separate approximation experiment, disabled in that profile. Earlier numerical records remain historical.
 
 Based on official Strata main `ffa80d73133ea5c548aefe57889a16e8085a938f`, fetched again on 4 November. The local engine is built for Ivy Bridge AVX1 and P40/sm61 with CUDA 12.9 and strict floating-point settings. The classic C8 release assets are unchanged. Portable DeepSeek binary packaging remains unqualified; model weights and private configuration are not included.
 
@@ -25,7 +27,7 @@ All three local arms passed five short synthetic quality checks: arithmetic, log
 | Earlier same-binary CPU-MTP placement series | 13.65 tok/s |
 | Same-day exact C13 baseline before routing trial | 12.93 tok/s |
 | Approximate budget 0.15, rejected | 12.41 tok/s |
-| Approximate budget 0.3, locally selected | 13.71 tok/s |
+| Approximate budget 0.3, earlier approximate selection | 13.71 tok/s |
 
 Each arm uses one fixed prompt, two clean 128-token T1/topP1/effort-none samples and an excluded warmup; other CPU work was measured. Budget 0.15 regressed 4.02%. Budget 0.3 led the same-day baseline by 5.98%, but exceeded the earlier separate-series best by only 0.42%. Independent starts, cache placement and shared-PC variability limit causality. Neither a stable overall gain nor an absolute maximum is established. The earlier CPU/GPU placement comparison is separate; percentages must not be added.
 
