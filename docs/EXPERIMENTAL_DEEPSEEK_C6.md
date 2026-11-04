@@ -1,28 +1,38 @@
-# DeepSeek AVX1/Pascal source and local experiments
+# DeepSeek AVX1/Pascal source and local results
 
-This draft extends official Strata main `ffa80d73133ea5c548aefe57889a16e8085a938f`. The published classic C8 ZIP is unchanged and contains no portable DeepSeek runtime or weights. Local model acceptance is separate from portable release qualification.
+Based on official Strata main `ffa80d73133ea5c548aefe57889a16e8085a938f`, fetched again on 4 November. The local engine is built for Ivy Bridge AVX1 and P40/sm61 with CUDA 12.9 and strict floating-point settings. The classic C8 release assets are unchanged. Portable DeepSeek binary packaging remains unqualified; model weights and private configuration are not included.
 
-## Useful changes
+## Changes relative to official Strata
 
-- Strict RAM loading, embeddings/read-ban guards, an Engram-only disk exception, CPU-only locked vision and genuine image-routing biases preserve the selected residency contract.
-- The bounded profiler table prevents a host stage-array overwrite. The AVX1 Q8_K activation bridge reuses qualified expert arithmetic; its isolated operator speed factors are not model speedups.
-- The Monitor has a RAM card and reports expert-pool size, using exact native bytes when available and a labelled rounded-log estimate otherwise.
-- `STRATA_DS4_MTP_EXPERTS_CPU=1` places only Q2 draft experts in RAM/CPU. Draft dense, attention and head remain on GPU. Default0 preserves GPU placement. A matched two-sample 128-token T1/topP1/effort-none comparison measured 13.65 tok/s CPU-MTP versus11.01 GPU-MTP (+23.97%). This is one prompt on a shared Ivy Bridge/P40 PC, not a universal gain. CPU-MTP retained1975 main experts in VRAM versus1457 main plus384 draft experts in GPU mode. Confidence0.5 remained best stable tested setting;0.3 was slower and0.7 had mixed pairs.
+- Existing Pascal WMMA guards and `-dlcm=ca` cover the purposes of upstream #4300/#4301. No Tensor Core path is enabled on P40.
+- Strict residency and read-ban guards cover CPU experts, embeddings and the external CPU vision projector. Engram has an explicit disk exception, but the selected local profile holds the full table in RAM. Genuine image-routing weights remain mandatory.
+- The bounded profiler table fixes the #5127 host stage-array overwrite. The AVX1 Q8_K activation bridge preserves the qualified expert arithmetic; isolated operator gains are not model throughput gains.
+- The Monitor has a RAM card and reports exact native expert-pool bytes, with a labelled rounded estimate for older engines.
+- `STRATA_DS4_MTP_EXPERTS_CPU=1` places only Q2 MTP experts on CPU/RAM. Draft dense, attention and head stay on GPU. Default 0 preserves GPU placement. Locally this frees capacity for 1,975 main experts, versus 1,457 main plus 384 draft experts with GPU-MTP.
+- [Maya PR821](https://github.com/mw00/project-maya/pull/821), head `5fbf23398007eb2821aa4b554993928680a8bd4c`, is adapted as an **opt-in approximate router**, under the retained MIT license. It substitutes eligible lower-ranked resident experts, protects rank-one and the strongest unbiased choice, retains native top-k normalization and uses original demand for cache heat. Prefill and the MTP drafter retain native routing. The local nonfinite fallback is preserved; the submitted config include is corrected for CUDA.
 
-## Experimental cache-aware expert substitution
+The approximate path is publicly OFF by default (`DS4_CACHE_SUB_RATIO=0` or absent). The selected local experiment uses ratio 0.5, 12 candidates, reference normalization and mass budget 0.3. The budget limits source-plus-replacement coefficient mass; it does **not** bound answer-quality loss. Enabled use requires one CUDA device, asynchronous strict-RAM routing and no helper/skip combination. Other backends and wider workloads are not qualified for enabled use.
 
-Adapted from [Maya PR821](https://github.com/mw00/project-maya/pull/821), head `5fbf23398007eb2821aa4b554993928680a8bd4c`, under the retained Project Maya MIT license. This intentionally changes generated answers. It replaces eligible CPU-selected experts with lower-ranked resident experts. Rank-one and the strongest unbiased choice are protected; native top-k normalization is retained.
+## Actual local validation
 
-Public default is OFF (`DS4_CACHE_SUB_RATIO=0` or absent). The local trial starts with ratio0.5,12candidates and normalized source-plus-replacement mass budget0.15, stricter than the upstream0.1/0.6 experiment. Budget is not a probability or guarantee of answer quality. Prefill and the MTP drafter keep native routing. Original router demand drives cache heat, preventing replaced experts from disappearing from cache statistics. The local nonfinite-index fallback is preserved. The config header is included for CUDA, correcting the submitted HIP-only include location.
+CUDA 12.9/sm61 compilation passed. CPU configuration/protection tests and 20,000 randomized selector invariant cases passed. P40 execution passed 1,944 routing cases, including disabled-path bit parity, actual D5120/N384/T5 and boundary shapes. Existing unchanged numerical receipts were reused, not rerun or relabelled.
 
-This adaptation refuses enabled use outside one CUDA device, strict copied RAM and asynchronous routing, and refuses helper/skip combinations. CUDA 12.9/sm61 compilation and CPU selector/config tests including 20,000 randomized invariant cases passed. On the P40, 1,944 routing cases passed, including native/off bit parity, actual D5120/N384/T5 and boundary shapes. Other backends are not qualified for enabled use.
+All three local arms passed five short synthetic quality checks: arithmetic, logic, ordering, exact JSON instructions, and a restricted Python function tested on three inputs. This small sample does not establish broad quality equivalence or perplexity.
 
-The first local trial (ratio 0.5, mass budget 0.15) passed the same five short synthetic quality checks as the exact baseline: arithmetic, logic, ordering, exact JSON instructions and a restricted Python function with three inputs. This does not establish broad quality equivalence. Two clean matched T1/topP1/effort-none, 128-token samples measured 12.41 tok/s against the same-day exact C13 median 12.93 tok/s: a 4.02% regression. The 0.15 policy is rejected as the selected performance profile. A second conservative budget of 0.3 is being evaluated on the same binary; no gain is claimed. AMD results from the upstream PR are not P40 evidence.
+| Comparison | Median decode |
+| --- | ---: |
+| Earlier same-binary GPU-MTP placement series | 11.01 tok/s |
+| Earlier same-binary CPU-MTP placement series | 13.65 tok/s |
+| Same-day exact C13 baseline before routing trial | 12.93 tok/s |
+| Approximate budget 0.15, rejected | 12.41 tok/s |
+| Approximate budget 0.3, locally selected | 13.71 tok/s |
 
-The new headers/selectors retain Maya's policy. Other backends are not qualified for this opt-in path. Original MIT/dependency licenses remain unchanged.
+Each arm uses one fixed prompt, two clean 128-token T1/topP1/effort-none samples and an excluded warmup; other CPU work was measured. Budget 0.15 regressed 4.02%. Budget 0.3 led the same-day baseline by 5.98%, but exceeded the earlier separate-series best by only 0.42%. Independent starts, cache placement and shared-PC variability limit causality. Neither a stable overall gain nor an absolute maximum is established. The earlier CPU/GPU placement comparison is separate; percentages must not be added.
 
-## Current local profile
+## Selected local profile and limits
 
-Context262144, CPU12, reserve512MiB, prefill-chunk0, Q2 DSpark/block5/confidence0.5, CPU-only vision8/max1024. All Engram110595290400bytes, CPU experts, embeddings and projector weights are resident in RAM; routed experts use VRAM. The compressed four-bit KV cache remains on GPU (about0.22GiB); the native DeepSeek backend has no host-KV setting. The author default remains T1/topP1/high75; effort-none is a measurement override. Prefill-chunk0 sacrifices long-prompt ingestion speed for expert capacity. Other applications and system hardware policies remain untouched.
+Context 262144; CPU 12; reserve 512 MiB; prefill-chunk 0; Q2 DSpark, block 5, confidence 0.5; CPU-only vision with 8 threads and max 1024. All 110,595,290,400 Engram bytes, CPU experts, embeddings and projector weights are resident in RAM. Routed experts use VRAM. Compressed four-bit KV stays on GPU, about 0.22 GiB; this native DeepSeek backend has no host-KV setting. Author T1/topP1/high75 remains unchanged; effort-none is a measurement override. Prefill-chunk 0 trades slower long-prompt ingestion for more expert capacity. Residency/read bans are enforced; these tests are not a per-file physical IO trace.
 
-Not qualified here: portable DeepSeek packaging, broad quality/perplexity, every model/tool/image workload, all source repositories or an absolute generation maximum.
+## Further source review
+
+[Strata #4382](https://github.com/Niko1221/Strata/pull/4382) is an exact-arithmetic hyper-connection scheduling candidate, still awaiting P40 qualification. [#4367](https://github.com/Niko1221/Strata/pull/4367) is a sequential-load candidate; Windows and loaded-DSpark validation remain necessary. Maya #784 is Linux-only NUMA migration; #747 affects an unused prompt-flow path; #684 is draft-source telemetry, unnecessary while lookup is disabled. The fresh #4686 parser correction is covered by the retained canonical lookahead handling. Maya #827's poisoned-GPU recovery already exists locally. These are decisions for selected sources, not a completed review of all repositories. PR3957/3288 remain excluded; normal screening uses activity within 14 days.
