@@ -28,6 +28,7 @@
 #include "ds4_gguf.cuh"
 #include "ds4_iq.cuh"
 #include "ds4_gguf_cpu.hpp"
+#include "ds4_iq2_avx1_mode.hpp"
 #include "ds4_kernels.cuh"
 #include "ds4_os.hpp"
 #include "ds4_pcie.cuh"
@@ -2703,6 +2704,13 @@ struct Model::Impl {
     // ---- loading
     bool load(const Options& opt, std::string& err) {
         o = opt;
+        const char* iq2_flag = std::getenv("STRATA_DS4_IQ2_AVX1");
+        if (iq2_flag && std::strcmp(iq2_flag,"0") && std::strcmp(iq2_flag,"1")) {
+            err="STRATA_DS4_IQ2_AVX1 must be 0 or 1"; return false;
+        }
+        if (iq2_flag && std::strcmp(iq2_flag,"1")==0 && !gg::iq2_avx1_available()) {
+            err="IQ2 AVX1 requires the qualified AVX1 CPU build and a CPU without AVX2"; return false;
+        }
         const char* lock_flag = std::getenv("STRATA_DS4_CPU_RAM_LOCK");
         if (lock_flag && std::strcmp(lock_flag, "0") && std::strcmp(lock_flag, "1")) {
             err = "STRATA_DS4_CPU_RAM_LOCK must be 0 or 1"; return false;
@@ -15180,6 +15188,7 @@ struct Model::Impl {
                     " cpu_ram_locked_pages=" + std::to_string(cpu_locked_ranges.locked_pages()) +
                     " cpu_ram_cuda_registered=" + (ram_pinned ? "1" : "0"));
 #endif
+        v.push_back(std::string("INFO iq2_avx1=") + (gg::iq2_avx1_enabled()?"1":"0") + " iq2_avx1_min_nt=1 iq2_avx1_max_nt=8");
         return v;
     }
 };

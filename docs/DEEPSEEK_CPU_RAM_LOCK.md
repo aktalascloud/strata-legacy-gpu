@@ -1,5 +1,7 @@
 # CPU-only locked expert memory on Windows / P40
 
+The newer exact CPU row update is documented in [IQ2_XXS AVX1](DEEPSEEK_IQ2_AVX1.md). The memory placement and C17 measurements below remain their original evidence.
+
 `STRATA_DS4_CPU_RAM_LOCK=1` keeps the CPU expert arena resident with Windows VirtualLock, instead of registering the whole arena with CUDA. CUDA registration can consume GPU mapping resources even when only the CPU reads those allocations. Cache swaps continue through their existing, separately pinned staging buffers. This is a memory-placement change, not new quantization, a changed expert-selection rule, or an approximation.
 
 The public default is off. The qualified path requires Windows CUDA, one device, full private RAM copies, two ordinary NUMA parts, `--require-ram --mmap-experts off --prefill-chunk 0`, and no direct GPU streaming/zero-copy. Conflicting options fail closed. Every CPU arena page is checked as valid and locked; a failed lock prevents loading instead of falling back to the model files. Only this process's working-set quota is adjusted, following the existing Engram locking pattern. No privilege, system NUMA policy, affinity, power, driver, or unrelated service is changed. Readers are joined before unlock/free.

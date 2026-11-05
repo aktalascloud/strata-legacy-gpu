@@ -14,6 +14,11 @@
 #include "ggml.h"
 #include "strata/kernels/cpu/expert_layout.hpp"
 #include "strata/kernels/cpu/iq_avx1.hpp"
+#include "ds4_iq2_avx1_mode.hpp"
+#if defined(__AVX__) && !defined(__AVX2__) && !defined(__FMA__) && !defined(__F16C__)
+#define STRATA_IQ2_AVX1_COMPILED 1
+#include "ds4_iq2_avx1.hpp"
+#endif
 #include "strata/kernels/cpu/iq_avx2.hpp"
 #include "strata/kernels/cpu/iq_avx512.hpp"
 
@@ -42,6 +47,26 @@ bool gg_cpu_type(int type) {
         case 23: case 29: return true;
         default: return false;
     }
+}
+
+bool iq2_avx1_available() {
+#if defined(STRATA_IQ2_AVX1_COMPILED)
+    return strata::kernels::cpu::cpu_avx1_ok() && !strata::kernels::cpu::cpu_avx2_ok();
+#else
+    return false;
+#endif
+}
+bool iq2_avx1_enabled() {
+    static const bool on = [] { const char* v=std::getenv("STRATA_DS4_IQ2_AVX1");
+        return v && std::strcmp(v,"1")==0 && iq2_avx1_available(); }();
+    return on;
+}
+void iq2_avx1_rows(const uint8_t* w,size_t rb,int n,const void*const*act,int nt,float*const*out,int r0,int r1) {
+#if defined(STRATA_IQ2_AVX1_COMPILED)
+    detail::iq2_rows128(w,rb,n,act,nt,out,r0,r1);
+#else
+    std::abort(); // callers must first verify availability
+#endif
 }
 
 static bool dbg() { static const bool on = std::getenv("DS4_DBG_GG") != nullptr; return on; }
@@ -224,6 +249,11 @@ static int use_iq256(int type, int nt) {
 }
 
 static void dots(int type, const uint8_t* w, size_t rb, int n, const void* const* act, int nt, float* const* out, int r0, int r1) {
+    if (type == GGML_TYPE_IQ2_XXS && nt >= 1 && nt <= 8 && iq2_avx1_enabled()) {
+        static std::once_flag note;
+        std::call_once(note, [] { std::fprintf(stderr,"ds4: exact AVX1 IQ2_XXS CPU rows active for1..8tokens; original float lane order retained\n"); });
+        iq2_avx1_rows(w,rb,n,act,nt,out,r0,r1); return;
+    }
     if (nt > 0) {
         const int impl = use_iq256(type, nt);
         if (impl == 2) {
@@ -291,7 +321,11 @@ bool gg_row_to_bf16(int type, const uint8_t* row, int k, uint16_t* out) {
 }
 }  // namespace strata::ds4::gguf
 #else
+#include "ds4_iq2_avx1_mode.hpp"
 namespace strata::ds4::gguf {
+bool iq2_avx1_available(){return false;}
+bool iq2_avx1_enabled(){return false;}
+void iq2_avx1_rows(const uint8_t*,size_t,int,const void*const*,int,float*const*,int,int){std::abort();}
 bool gg_cpu_type(int) { return false; }
 bool gg_cpu_fmt(int, int, int, int, IqCpu&, std::string& err) {
     err = "this build has no ggml-cpu lane (STRATA_NATIVE_EXPERTS=OFF)";
