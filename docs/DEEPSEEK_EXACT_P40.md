@@ -1,5 +1,7 @@
 # Exact DeepSeek 1017 scheduling and router storage on P40
 
+The newer selected CPU-memory placement is documented in [CPU RAM lock](DEEPSEEK_CPU_RAM_LOCK.md). C16 measurements below remain historical and are not retagged as new tests.
+
 These optional paths keep original coefficients and native routing. They do not requantize weights or replace selected experts. Public defaults remain off; only the local CUDA 12.9/sm61/Ivy Bridge configuration is qualified. Other backends and multi-GPU execution are not newly validated.
 
 ## HC scheduling
@@ -18,7 +20,7 @@ The selected pack has 40 main BF16 routers: avoiding their load-time F32 expansi
 
 The router fixture takes three existing shard paths and absolute byte offsets from a matching pack's tensor index. It reads only those three BF16 tensors into memory. It does not download, modify or dump weights.
 
-## Selected exact local profile
+## Earlier C16 selected profile
 
 Context262144, CPU12, reserve384MiB, prefill-chunk0, Q2 MTP experts on CPU/RAM, confidence0.5, CPU-only locked vision, HC1 and compact-router1. DS4_CACHE_SUB_RATIO=0 explicitly preserves native expert selection. Author T1/topP1/high75 remains unchanged. Swift/DavidAU settings remain unchanged.
 
