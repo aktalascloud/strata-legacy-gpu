@@ -20,6 +20,9 @@
 #include "ds4_pick_rule.hpp"
 #include "ds4_experts_rule.hpp"
 #include "ds4_engram_io.hpp"
+#if defined(_WIN32) && !defined(STRATA_USE_HIP)
+#include "ds4_locked_ranges.hpp"
+#endif
 #include <stdexcept>
 
 #include "ds4_gguf.cuh"
@@ -1387,6 +1390,10 @@ struct Model::Impl {
     };
     std::vector<uint8_t*> ram_slots, ram_chunks;
     std::vector<size_t> ram_chunk_bytes;
+    bool cpu_ram_lock = false;
+#if defined(_WIN32) && !defined(STRATA_USE_HIP)
+    LockedCpuRanges cpu_locked_ranges;
+#endif
     bool ram_pinned = false;   // the slots are pinned memory (the prompt path DMAs them from where they lie)
     bool ln_zc = false;        // the stream lane pulls the CPU lane's copied experts in place (zc_pin)
     // the one-GPU decode path (one_gpu_path, at load): the copies pulled in place (DS4_STREAM_ZC), a verify window's
@@ -1954,6 +1961,9 @@ struct Model::Impl {
         for (std::thread& t : cache_ths)
             if (t.joinable()) t.join();
         if (ram_th.joinable()) ram_th.join();
+#if defined(_WIN32) && !defined(STRATA_USE_HIP)
+        cpu_locked_ranges.clear(); // after readers join, before freeing their allocations
+#endif
         for (size_t i = 0; i < ram_chunks.size(); ++i) {
             if (ram_pinned || (i < zc_chunk.size() && zc_chunk[i] == 1)) (void) cudaHostUnregister(ram_chunks[i]);
             os::anon_free(ram_chunks[i], ram_chunk_bytes[i]);
@@ -2693,6 +2703,25 @@ struct Model::Impl {
     // ---- loading
     bool load(const Options& opt, std::string& err) {
         o = opt;
+        const char* lock_flag = std::getenv("STRATA_DS4_CPU_RAM_LOCK");
+        if (lock_flag && std::strcmp(lock_flag, "0") && std::strcmp(lock_flag, "1")) {
+            err = "STRATA_DS4_CPU_RAM_LOCK must be 0 or 1"; return false;
+        }
+        cpu_ram_lock = lock_flag && std::strcmp(lock_flag, "1") == 0;
+        if (cpu_ram_lock) {
+#if !defined(_WIN32) || !defined(__CUDACC__) || defined(STRATA_USE_HIP) || defined(STRATA_METAL)
+            err = "CPU RAM lock is qualified only for Windows CUDA"; return false;
+#endif
+            if (!o.require_ram || o.mmap_experts != 0 || o.prefill_chunk != 0) {
+                err = "CPU RAM lock requires full RAM copies and explicit unchunked prefill"; return false;
+            }
+            // The CPU arena must never be a source for direct GPU DMA or zero-copy kernels.
+            for (const char* name : {"DS4_STREAM", "STRATA_DS4_STREAM", "DS4_STREAM_ZC", "DS4_STREAM_WIN", "DS4_LAND", "DS4_COPY_PIN", "DS4_COPY_HUGETLB"}) {
+                const char* value = std::getenv(name);
+                if (value && std::strcmp(value, "0")) { err = std::string(name) + " conflicts with CPU-only RAM lock"; return false; }
+            }
+            if (std::getenv("DS4_STREAM_FORCE")) { err = "forced GPU streaming conflicts with CPU-only RAM lock"; return false; }
+        }
         const char* router_flag = std::getenv("STRATA_DS4_ROUTER_BF16");
         if (router_flag != nullptr && std::strcmp(router_flag, "0") != 0 && std::strcmp(router_flag, "1") != 0) {
             err = "STRATA_DS4_ROUTER_BF16 must be 0 or 1"; return false;
@@ -2782,6 +2811,7 @@ struct Model::Impl {
         if (router_bf16 && (ids.size() != 1 || g.dim % 4 != 0)) {
             err = "BF16 router storage requires one CUDA device and dimension divisible by four"; return false;
         }
+        if (cpu_ram_lock && ids.size() != 1) { err = "CPU RAM lock requires one CUDA device"; return false; }
         devs.resize(ids.size());
         if (prof_on) prof_pool.resize((size_t) ndev);
         for (size_t i = 0; i < ids.size(); ++i) {
@@ -6081,6 +6111,9 @@ struct Model::Impl {
         if (const char* v = std::getenv("DS4_COPY_NUMA"))   // (0 / 1: one part; 2: two, even on one node - a test)
             nh = std::atoi(v) >= 2 ? 2 : 1;
         if (g.ff % nh != 0 || g.dim % nh != 0) nh = 1;
+        if (cpu_ram_lock && (nh != 2 || huge_arena)) {
+            err = "CPU RAM lock requires two ordinary CPU NUMA parts; zero-copy is prohibited"; return false;
+        }
         NH = nh;
         cp_lay.assign(L.size(), {0, 0, 0, 0});
         for (const Layer& l : L) {
@@ -6215,8 +6248,17 @@ struct Model::Impl {
         // THP arena registers 4 KB pages and the DMA rate was erratic on the 12 GB cell: 11.9 s one prompt, 30.4 s the next), or (b) the
         // cards hold at least half the routed experts on RDNA4 (4 x R9700: the pin was reliable in 4/4 runs there, see above).  =0 is the off
         // switch, =1 pins any arena.
-        const bool pin_copies = o.require_ram || strata::ds4::copy_pin_default(env_tri("DS4_COPY_PIN"), arena_all_huge, rdna4(), gpu_expert_share(),
-                                                              !ram_chunks.empty(), defaults_026());
+#if defined(_WIN32) && !defined(STRATA_USE_HIP)
+        if (cpu_ram_lock) {
+            std::vector<CpuRamRange> ranges;
+            for (size_t i = 0; i < ram_chunks.size(); ++i) ranges.push_back({ram_chunks[i], ram_chunk_bytes[i]});
+            if (!cpu_locked_ranges.lock(ranges, err)) return false;
+            std::fprintf(stderr, "ds4: CPU-only expert RAM verified locked: %llu bytes, %llu pages; CUDA registration=0\n",
+                         (unsigned long long) cpu_locked_ranges.locked_bytes(), (unsigned long long) cpu_locked_ranges.locked_pages());
+        }
+#endif
+        const bool pin_copies = !cpu_ram_lock && (o.require_ram || strata::ds4::copy_pin_default(env_tri("DS4_COPY_PIN"), arena_all_huge, rdna4(), gpu_expert_share(),
+                                                              !ram_chunks.empty(), defaults_026()));
         if (pin_copies) {
             const bool ro = std::getenv("DS4_COPY_PIN_RO") != nullptr && std::atoi(std::getenv("DS4_COPY_PIN_RO")) != 0;
             const double tr = now_ms();
@@ -6237,7 +6279,7 @@ struct Model::Impl {
                 std::fprintf(stderr, "ds4: pinning the copied experts failed: the prompt path stages them\n");
             }
         }
-        zc_pin();
+        if (!cpu_ram_lock) zc_pin();
         return true;
     }
 
@@ -15132,6 +15174,12 @@ struct Model::Impl {
                     " router_bf16_layers=" + std::to_string(router_bf16_layers) +
                     " router_storage_saved_bytes=" + std::to_string(router_storage_saved) +
                     " cache_sub_ratio=" + std::to_string(substitution.ratio));
+#if defined(_WIN32) && !defined(STRATA_USE_HIP)
+        v.push_back(std::string("INFO cpu_ram_lock=") + (cpu_ram_lock ? "1" : "0") +
+                    " cpu_ram_locked_bytes=" + std::to_string(cpu_locked_ranges.locked_bytes()) +
+                    " cpu_ram_locked_pages=" + std::to_string(cpu_locked_ranges.locked_pages()) +
+                    " cpu_ram_cuda_registered=" + (ram_pinned ? "1" : "0"));
+#endif
         return v;
     }
 };
