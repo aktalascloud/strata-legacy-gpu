@@ -1,0 +1,75 @@
+{
+  "native_rows": 262144,
+  "ggml_rows": 63488,
+  "bit_differences": 0,
+  "bounds": "pass",
+  "timings": {
+    "16": {
+      "old": [
+        164.639,
+        163.266,
+        160.415,
+        161.835,
+        162.988,
+        162.782
+      ],
+      "new": [
+        52.169,
+        49.403,
+        49.439,
+        51.821,
+        51.916,
+        51.798
+      ],
+      "median_old_ns": 162.885,
+      "median_new_ns": 51.8095,
+      "speedup": 3.1439214815815633
+    },
+    "16384": {
+      "old": [
+        185.149,
+        183.924,
+        187.788,
+        183.748,
+        187.497,
+        184.175
+      ],
+      "new": [
+        88.771,
+        86.226,
+        86.219,
+        86.287,
+        86.264,
+        84.005
+      ],
+      "median_old_ns": 184.662,
+      "median_new_ns": 86.245,
+      "speedup": 2.141132819293872
+    }
+  },
+  "model_tps_claim": false,
+  "patch_sha256": "c7089c8eaa180a0eafef5a3b7a16eb0b6a03ec7d365b1c6c62bf87d3ade0ecec",
+  "official_source": "54828c7efbcdf9474697e70922d851f6707f4b32",
+  "engine_sha256": "ef3d294498c5aa5295cbbe1427a83a3cfb549d6207bed96f0baf29a443adbd56",
+  "model_ab": {
+    "baseline": [
+      40.6,
+      51.8,
+      52.9
+    ],
+    "candidate": [
+      42.7,
+      43.7,
+      47.2
+    ],
+    "median_baseline": 51.8,
+    "median_candidate": 43.7,
+    "observed_percent": -15.637065637065628,
+    "same_work": false,
+    "mad_percent": 2.2883295194508007,
+    "whole_model_attribution": false
+  },
+  "new_gpu_math_runs": 0,
+  "settings_preserved": true,
+  "weights_or_private_data": false
+}

@@ -132,38 +132,46 @@ void rows(const uint8_t* w, size_t row_bytes, int nblocks, const ActQ* const* a,
     }
 }
 
-// ---- the bit-plane row kernel (STRATA_Q2_BITPLANE=1), 128-bit lanes: one 64-value block at a time instead of
-// a pair per 256-bit register.  The integer part is exact; the float summation order is this kernel's own (the
-// same statement as for the AVX-2 one), and every row reduces with the same tree alone or in a group (#152).
+// ---- the bit-plane row kernel (STRATA_Q2_BITPLANE=1): the integer part on 128-bit lanes, one 64-value block at a
+// time; the float part of a pair's two blocks in one 256-bit register (block 0 the low half, block 1 the high half:
+// the lanes of the 128-bit form side by side, so each lane takes the same operations in the same order and the
+// bytes are the 128-bit form's - q2_avx1_parity checks it).  The integer part is exact; the float summation order is
+// this kernel's own (the same statement as for the AVX-2 one), and every row reduces with the same tree alone or in a
+// group (#152).  Half the float instructions of the 128-bit form: on an i7-3770, 0.81 -> 0.66 ms per 3-token expert (0.60 with h2f_scale).
 template <int NT>
-inline void row_bp_acc(const uint8_t* row, const ActQ* const* a, int npairs, __m128* acc) {
-    for (int t = 0; t < NT; ++t) { acc[2 * t] = _mm_setzero_ps(); acc[2 * t + 1] = _mm_setzero_ps(); }
+inline void row_bp_acc(const uint8_t* row, const ActQ* const* a, int npairs, __m256* acc) {
+    for (int t = 0; t < NT; ++t) acc[t] = _mm256_setzero_ps();
     const __m128i m3 = _mm_set1_epi8(3);
     const __m128i ones = _mm_set1_epi16(1);
     for (int p = 0; p < npairs; ++p) {
         const uint8_t* blk = row + (size_t) p * 36;
+        uint16_t dh0, dh1;
+        std::memcpy(&dh0, blk, 2);                       // the blocks' fp16 scales: bytes 0..1 (block 1 at +18)
+        std::memcpy(&dh1, blk + 18, 2);
+        const __m256 d = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm_set1_ps(h2f(dh0))), _mm_set1_ps(h2f(dh1)), 1);
+        __m128i c[2][4];
         for (int h = 0; h < 2; ++h) {
-            uint16_t dh;
-            std::memcpy(&dh, blk + h * 18, 2);          // the block's fp16 scale: bytes 0..1 (block 1 at +18)
-            const __m128 d = _mm_set1_ps(h2f(dh));
-            const __m128i c = _mm_loadu_si128((const __m128i*) (blk + 2 + h * 18));   // its 16 code bytes
-            const __m128i c0 = _mm_and_si128(c, m3);
-            const __m128i c1 = _mm_and_si128(_mm_srli_epi16(c, 2), m3);
-            const __m128i c2 = _mm_and_si128(_mm_srli_epi16(c, 4), m3);
-            const __m128i c3 = _mm_and_si128(_mm_srli_epi16(c, 6), m3);
-            for (int t = 0; t < NT; ++t) {
+            const __m128i b = _mm_loadu_si128((const __m128i*) (blk + 2 + h * 18));   // its 16 code bytes
+            c[h][0] = _mm_and_si128(b, m3);
+            c[h][1] = _mm_and_si128(_mm_srli_epi16(b, 2), m3);
+            c[h][2] = _mm_and_si128(_mm_srli_epi16(b, 4), m3);
+            c[h][3] = _mm_and_si128(_mm_srli_epi16(b, 6), m3);
+        }
+        for (int t = 0; t < NT; ++t) {
+            __m128i i32[2];
+            for (int h = 0; h < 2; ++h) {
                 const int8_t* q = a[t]->qp + (size_t) p * 128 + h * 16;
-                __m128i s = _mm_maddubs_epi16(c0, _mm_load_si128((const __m128i*) q));
-                s = _mm_add_epi16(s, _mm_maddubs_epi16(c1, _mm_load_si128((const __m128i*) (q + 32))));
-                s = _mm_add_epi16(s, _mm_maddubs_epi16(c2, _mm_load_si128((const __m128i*) (q + 64))));
-                s = _mm_add_epi16(s, _mm_maddubs_epi16(c3, _mm_load_si128((const __m128i*) (q + 96))));
-                const __m128i i32 = _mm_sub_epi32(_mm_madd_epi16(s, ones),
-                                                  _mm_load_si128((const __m128i*) (a[t]->psum + p * 8 + h * 4)));
-                const __m128 v = _mm_mul_ps(_mm_cvtepi32_ps(i32),
-                                            _mm_load_ps(a[t]->pscale + p * 8 + h * 4));
-                __m128& x = acc[2 * t + h];
-                x = _mm_add_ps(x, _mm_mul_ps(d, v));
+                __m128i s = _mm_maddubs_epi16(c[h][0], _mm_load_si128((const __m128i*) q));
+                s = _mm_add_epi16(s, _mm_maddubs_epi16(c[h][1], _mm_load_si128((const __m128i*) (q + 32))));
+                s = _mm_add_epi16(s, _mm_maddubs_epi16(c[h][2], _mm_load_si128((const __m128i*) (q + 64))));
+                s = _mm_add_epi16(s, _mm_maddubs_epi16(c[h][3], _mm_load_si128((const __m128i*) (q + 96))));
+                i32[h] = _mm_sub_epi32(_mm_madd_epi16(s, ones),
+                                       _mm_load_si128((const __m128i*) (a[t]->psum + p * 8 + h * 4)));
             }
+            const __m256 v = _mm256_mul_ps(
+                _mm256_cvtepi32_ps(_mm256_insertf128_si256(_mm256_castsi128_si256(i32[0]), i32[1], 1)),
+                _mm256_load_ps(a[t]->pscale + p * 8));
+            acc[t] = _mm256_add_ps(acc[t], _mm256_mul_ps(d, v));
         }
     }
 }
@@ -179,9 +187,9 @@ inline float reduce1(__m128 a, __m128 b) {   // ((v0+v1)+(v2+v3)) + ((v4+v5)+(v6
 template <int NT>
 void rows_bp(const uint8_t* w, size_t row_bytes, int npairs, const ActQ* const* a, float* const* out, int r0, int r1) {
     for (int r = r0; r < r1; ++r) {
-        __m128 acc[2 * NT];
+        __m256 acc[NT];
         row_bp_acc<NT>(w + (size_t) r * row_bytes, a, npairs, acc);
-        for (int t = 0; t < NT; ++t) out[t][r] = reduce1(acc[2 * t], acc[2 * t + 1]);
+        for (int t = 0; t < NT; ++t) out[t][r] = reduce1(_mm256_castps256_ps128(acc[t]), _mm256_extractf128_ps(acc[t], 1));
     }
 }
 

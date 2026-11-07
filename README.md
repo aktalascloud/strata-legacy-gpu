@@ -4,7 +4,7 @@
 
 A local OpenAI-compatible server for Windows/Ivy Bridge/P40. One user configuration, `strata.json`; model selection belongs to prepared data and a compatible backend.
 
-**Engine 0.1.56**, source `ffa80d73133e` (`ffa80d73133ea5c548aefe57889a16e8085a938f`). The AVX1/Pascal sm61 profile is qualified; this ZIP contains the classic native E4 engine and the separately qualified CPU vision helper. DeepSeek/MiniMax and other backend source retain explicit experimental limits; no unqualified native runtime is bundled.
+**Engine 0.1.57**, official source `54828c7efbcd`, Windows AVX1/P40 update `ef3d2944`. Exact IQ4_NL PLE decoding is faster on AVX1; [changes, measurements and limits](docs/SWIFT_AVX1_PLE.md). This is an engine overlay with explicit dependency hashes, not a new complete installer.
 
 1. Extract the ZIP, check SHA256SUMS, run `INSTALL.cmd`.
 2. Install the prepared native model; optional generic backends are source-only in this ZIP. No weights or personal settings are bundled.
