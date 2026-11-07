@@ -1,6 +1,5 @@
 {
   "schema": 1,
-  "native_source_sha": "ffa80d73133ea5c548aefe57889a16e8085a938f",
-  "engines": {},
-  "scope": "Classic qualified E4 and CPU vision99E1 only. Additional backend and DeepSeek native source is experimental and no corresponding runtime is bundled."
+  "native_source_sha": "146df3c468739147f520ac3816de806f71232571",
+  "engines": {}
 }

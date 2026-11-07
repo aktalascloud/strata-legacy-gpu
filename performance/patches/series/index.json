@@ -239,6 +239,28 @@
       "sha256": "189229bd3be4dd6f9d5dd0d6e180cb7b0e3e6aa4d5ec8d552757293bfff04cba",
       "original_context_required": true,
       "apply_as_series": false
+    },
+    {
+      "id": 48,
+      "directory": "48-full-swift-setup",
+      "title": "Full Swift Windows Setup",
+      "status": "selected_source_or_dependency",
+      "scope": "Used qualification/installation workflow; see its README. No extra native speed claim.",
+      "patch": "48-full-swift-setup/change.patch",
+      "sha256": "5f78269c63f85863f769000ec4cfcd7fdc156ed57ee7c95a69d7eee27bc694d4",
+      "original_context_required": true,
+      "apply_as_series": false
+    },
+    {
+      "id": 49,
+      "directory": "49-publication-i64-case-gate",
+      "title": "Publication checks follow I64/I128",
+      "status": "workspace_recipe_reference",
+      "scope": "Used qualification/installation workflow; see its README. No extra native speed claim.",
+      "patch": null,
+      "sha256": "9b9569bdc64a2c1f80638ddd1a0b67ad3648aaf254aafd63aef67ca3cd15d5e8",
+      "original_context_required": true,
+      "apply_as_series": false
     }
   ],
   "selected_feature": {

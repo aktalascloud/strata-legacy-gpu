@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "status": "selected_installation_workflow",
+  "base_commit": "7b7f60cfd60ab55b0b02e37aa67f147bb4d83c3b",
+  "patch_sha256": "5f78269c63f85863f769000ec4cfcd7fdc156ed57ee7c95a69d7eee27bc694d4",
+  "setup_sha256": "585889240af26915289d1b9d7ebf03a4b1ca50047ea2f16f02ce242b83b2a7c7",
+  "fresh_Windows_install_tested": false,
+  "actual_native_sha256": "62b147b072b50e50832086ddd4f06103fdf24c1ac7e29449a743e49d977667d8"
+}

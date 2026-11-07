@@ -6,6 +6,7 @@ This is an independent community build, not endorsed by NVIDIA, Microsoft or ups
 | Component | License / distribution |
 |---|---|
 | Strata and local source modifications | MIT; upstream copyright preserved. |
+| NSIS installer bootstrap and plugins | NSIS distribution terms, including component notices, preserved in p40/licenses/NSIS-COPYING.txt. No NSIS build tools are bundled. |
 | Vendored KaTeX web assets and fonts | MIT; original license and source provenance retained under serve/web/vendor/katex and p40/licenses/KaTeX-MIT.txt. |
 | Stateless Adaptive author-mode routing | Strata-Mnemosyne, MIT; pinned source and notice in p40/REASONING-MODES.md and p40/licenses/Strata-Mnemosyne-MIT.txt. No memory/database/embedder component is bundled. |
 | GGML/llama.cpp and Pascal source overlay | MIT; upstream notices preserved. |

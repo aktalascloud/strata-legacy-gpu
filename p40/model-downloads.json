@@ -1,52 +1,15 @@
 {
   "schema": 1,
   "allowed_repositories": [
-    "DavidAU/Qwen3.8-Flash-Next-Abliterated-Uncensored-Turbo-Brilliance-50x-Reasoning-Instruct-GSQ-RCO-GGUF",
-    "SC117/Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF"
+    "SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF"
   ],
   "files": [
-    {
-      "kind": "model",
-      "name": "Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00001-of-00002.gguf",
-      "remote": "Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00001-of-00002.gguf",
-      "repo": "DavidAU/Qwen3.8-Flash-Next-Abliterated-Uncensored-Turbo-Brilliance-50x-Reasoning-Instruct-GSQ-RCO-GGUF",
-      "revision": "b7f9593a6e25d6b4db950f6d0a2cc08ced014cfa",
-      "size": 55063664928,
-      "sha256": "78706315c2fe912777c006b4ae18be1024c9f4353bd25d33b8a306c9c55f9e34"
-    },
-    {
-      "kind": "model",
-      "name": "Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00002-of-00002.gguf",
-      "remote": "Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00002-of-00002.gguf",
-      "repo": "DavidAU/Qwen3.8-Flash-Next-Abliterated-Uncensored-Turbo-Brilliance-50x-Reasoning-Instruct-GSQ-RCO-GGUF",
-      "revision": "b7f9593a6e25d6b4db950f6d0a2cc08ced014cfa",
-      "size": 28800138432,
-      "sha256": "316b46f3a2dbd68c900f43136ab9449f9dcc3725dfd8c794847c204bc161e113"
-    },
-    {
-      "kind": "vision",
-      "name": "mmproj-Qwen3.8-Flash-Next-BF16.gguf",
-      "remote": "mmproj-Qwen3.8-Flash-Next-BF16.gguf",
-      "repo": "DavidAU/Qwen3.8-Flash-Next-Abliterated-Uncensored-Turbo-Brilliance-50x-Reasoning-Instruct-GSQ-RCO-GGUF",
-      "revision": "b7f9593a6e25d6b4db950f6d0a2cc08ced014cfa",
-      "size": 907543008,
-      "sha256": "b1a82259702816a5330d7bd7607cd9676b11780e79ff7348c21103ff3ce49bd0"
-    },
-    {
-      "kind": "mtp",
-      "name": "dense.bin",
-      "remote": "strata/rt/dense.bin",
-      "repo": "SC117/Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF",
-      "revision": "90a3350cd800ec1fe0d1660a38414ad9e985782f",
-      "size": 116099072,
-      "sha256": "c724dc0b0822ada5d2977bf5bde821605feabaa64ea2e0045b67ca656329070a"
-    },
     {
       "kind": "mtp",
       "name": "dense.txt",
       "remote": "strata/rt/dense.txt",
-      "repo": "SC117/Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF",
-      "revision": "90a3350cd800ec1fe0d1660a38414ad9e985782f",
+      "repo": "SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF",
+      "revision": "3db919a964b1f0ae0d1000ba7be90b3e38b1f7a3",
       "size": 1880,
       "sha256": "8773c81ebb0986e37fe94a8a9933e87be48b1fabc6889a0106bcdab179d1c2ac"
     },
@@ -54,39 +17,70 @@
       "kind": "mtp",
       "name": "draft_vocab.bin",
       "remote": "strata/rt/draft_vocab.bin",
-      "repo": "SC117/Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF",
-      "revision": "90a3350cd800ec1fe0d1660a38414ad9e985782f",
+      "repo": "SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF",
+      "revision": "3db919a964b1f0ae0d1000ba7be90b3e38b1f7a3",
       "size": 425196,
       "sha256": "b1e1d3a7a9e4bf862dcd5923ce661fb59bbd07907e594df5cf86a62ac235cb91"
     },
     {
       "kind": "mtp",
+      "name": "dense.bin",
+      "remote": "strata/rt/dense.bin",
+      "repo": "SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF",
+      "revision": "3db919a964b1f0ae0d1000ba7be90b3e38b1f7a3",
+      "size": 116099072,
+      "sha256": "c724dc0b0822ada5d2977bf5bde821605feabaa64ea2e0045b67ca656329070a"
+    },
+    {
+      "kind": "mtp",
       "name": "experts.bin",
       "remote": "strata/rt/experts.bin",
-      "repo": "SC117/Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF",
-      "revision": "90a3350cd800ec1fe0d1660a38414ad9e985782f",
+      "repo": "SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF",
+      "revision": "3db919a964b1f0ae0d1000ba7be90b3e38b1f7a3",
       "size": 707788800,
       "sha256": "09398406be61f1f54c93861f449e48b8df0bfccbc9ec9b2b7636775a6ea9244f"
+    },
+    {
+      "kind": "vision",
+      "name": "mmproj-Qwen3.8-Flash-Next-BF16.gguf",
+      "remote": "mmproj-Qwen3.8-Flash-Next-BF16.gguf",
+      "repo": "SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF",
+      "revision": "3db919a964b1f0ae0d1000ba7be90b3e38b1f7a3",
+      "size": 907542944,
+      "sha256": "2e788f8c511d8093c7b43cb87b2fd7e14228340318057f8fb20c86df2efe2355"
+    },
+    {
+      "kind": "model",
+      "name": "Swift-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00001-of-00002.gguf",
+      "remote": "Swift-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00001-of-00002.gguf",
+      "repo": "SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF",
+      "revision": "3db919a964b1f0ae0d1000ba7be90b3e38b1f7a3",
+      "size": 44849330016,
+      "sha256": "638fbd42a01c7b39a9b7b21c5c8dc5eb1876222d8bd268d471304b647fcd6f94"
+    },
+    {
+      "kind": "model",
+      "name": "Swift-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00002-of-00002.gguf",
+      "remote": "Swift-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00002-of-00002.gguf",
+      "repo": "SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF",
+      "revision": "3db919a964b1f0ae0d1000ba7be90b3e38b1f7a3",
+      "size": 38699929024,
+      "sha256": "091a4f6a53697a12a2ea1e5e1d61414410d50c0d44e971304602bba6873fd23d"
     }
   ],
   "native_preset": {
-    "model_id": "Qwen",
-    "model_name": "davidau-qwen3.8-flash-next-iq3_s",
-    "display_name": "DavidAU Qwen3.8 IQ3_S",
-    "models_directory": "models/DavidAU-Qwen3.8-IQ3_S",
-    "pack_directory": "packs/davidau-iq3_s",
-    "mtp_directory": "mtp/rt",
-    "native_file": "Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00001-of-00002.gguf",
-    "ple_file": "Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00002-of-00002.gguf",
+    "model_id": "Swift",
+    "model_name": "swift-1.5-iq3-s",
+    "display_name": "Swift1.5 IQ3_S / Q2 MTP",
+    "models_directory": "models/swift-iq3_s",
+    "pack_directory": "packs/swift-iq3_s",
+    "mtp_directory": "mtp/swift-q2/rt",
+    "native_file": "Swift-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00001-of-00002.gguf",
+    "ple_file": "Swift-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00001-of-00002.gguf",
     "vision_file": "mmproj-Qwen3.8-Flash-Next-BF16.gguf",
-    "reason_modes": true,
-    "reason_mode": "auto",
-    "reasoning_effort": "high",
-    "author_identity": {
-      "repo": "DavidAU/Qwen3.8-Flash-Next-Abliterated-Uncensored-Turbo-Brilliance-50x-Reasoning-Instruct-GSQ-RCO-GGUF",
-      "revision": "b7f9593a6e25d6b4db950f6d0a2cc08ced014cfa",
-      "main_sha256": "78706315c2fe912777c006b4ae18be1024c9f4353bd25d33b8a306c9c55f9e34"
-    }
+    "reason_modes": false,
+    "reason_mode": "off",
+    "reasoning_effort": "xhigh"
   },
-  "MTP_scope": "Published original Qwen3.8 base Q2 runtime, SHA-identical to qualified RT used by DavidAU/Swift; not a Swift-trained draft."
+  "MTP_scope": "Compatible qualified base Q2 RT bytes supplied by the pinned Swift repository; not a newly trained Swift-specific head."
 }

@@ -1,0 +1,586 @@
+diff --git a/README.md b/README.md
+index 7aaae31cfe2d51a81690cd9787205397e3b6dec2..92ec160d3083d1db842bd7046af884c5d6a34989 100644
+--- a/README.md
++++ b/README.md
+@@ -4,16 +4,16 @@
+ 
+ A local OpenAI-compatible server for Windows/Ivy Bridge/P40. One user configuration, `strata.json`; model selection belongs to prepared data and a compatible backend.
+ 
+-**Engine 0.1.57**, official source `54828c7efbcd`, Windows AVX1/P40 update `ef3d2944`. Exact IQ4_NL PLE decoding is faster on AVX1; [changes, measurements and limits](docs/SWIFT_AVX1_PLE.md). This is an engine overlay with explicit dependency hashes, not a new complete installer.
++**Engine 0.1.58**, official source `146df3c46873`, native `62b147b0`. [Full Windows Setup.exe and portable ZIP](https://github.com/aktalascloud/strata-legacy-gpu/releases/tag/v0.1.58-swift-p40-62b147b0-setup-r3) include Python, the P40 engine, CPU vision and WebUI. Swift IQ3_S with compatible Q2 MTP is prepared on first setup; weights, private settings and SDKs are not bundled. [Exact-warp changes, measurements and review scope](docs/PASCAL_EXACT_WARP_20261107.md).
+ 
+-1. Extract the ZIP, check SHA256SUMS, run `INSTALL.cmd`.
+-2. Install the prepared native model; optional generic backends are source-only in this ZIP. No weights or personal settings are bundled.
++1. Check SHA256SUMS and run Setup.exe in a fresh folder, or extract the ZIP and run `INSTALL.cmd`.
++2. Select the Swift model folder. Missing pinned files download with resume; existing configuration/runtime state is never overwritten by Setup. Existing installations use their managed updater.
+ 3. `START.cmd` starts serving; `CHECK.cmd` checks the installation; `STOP.cmd` drains it. `AUTOSTART.cmd` enables independent startup.
+ 
+ APIs: `/v1/models`, `/v1/chat/completions`, `/v1/responses`, `/v1/messages`. Configure the address and supported modes locally. Author Auto/Ultra modes require the specific qualified model identity.
+ 
+ Source build: VS2022 x64 Developer PowerShell, Clang23.1.4, CUDA12.9, CMake/Ninja/Git; run `powershell -File p40/build.ps1 -Jobs 12`. CPU vision build: `powershell -File p40/build-vision.ps1 -Jobs 12`, using the checked private-copy dependency overlay. Compiling new bytes does not qualify them.
+ 
+-[Historical measurements](p40/BENCHMARKS.md) identify a different source/native version; current-build throughput gain has not been measured.
++[Historical measurements](p40/BENCHMARKS.md) identify older source/native versions. Current selected dense operations improve about 6–40%; same-native Swift 37.8 vs 37.6 tok/s is below noise, so an overall model TPS gain is not established. Setup extraction/hash/import checks passed; fresh Windows installation was not tested. The installer is unsigned.
+ 
+ [Changes](p40/CHANGES.md) · [Recipe](p40/build-profile.json) · [Validation](p40/INSTALLATION-VERIFICATION.md) · [Licenses](THIRD_PARTY_NOTICES.md) · [Upstream](https://github.com/Niko1221/Strata)
+diff --git a/README.ru.md b/README.ru.md
+index f0531b943f8fdfc19fd2ea9a21ab4f3e9626560a..412512174e8ed7a11f0503e60833d83691dc3886 100644
+--- a/README.ru.md
++++ b/README.ru.md
+@@ -4,16 +4,16 @@
+ 
+ Локальный OpenAI-совместимый сервер для Windows/Ivy Bridge/P40. Один пользовательский `strata.json`; модель выбирается данными и совместимым backend, а не названием приложения.
+ 
+-**Движок 0.1.56**, source `ffa80d73133e` (`ffa80d73133ea5c548aefe57889a16e8085a938f`). Квалифицирован профиль AVX1/Pascal sm61; ZIP содержит classic native E4 и отдельно проверенный CPU vision helper. DeepSeek/MiniMax и другие backend-исходники остаются experimental; непроверенные native runtime не включены.
++**Движок 0.1.58**, официальный source `146df3c46873`, native `62b147b0`. [Полный Setup.exe и portable ZIP](https://github.com/aktalascloud/strata-legacy-gpu/releases/tag/v0.1.58-swift-p40-62b147b0-setup-r3) включают Python, P40 engine, CPU vision и WebUI. При первом запуске готовится Swift IQ3_S с совместимым Q2 MTP; веса, личные настройки и SDK не включены. [Патч, замеры и границы review](docs/PASCAL_EXACT_WARP_20261107.md).
+ 
+-1. Распакуйте ZIP, проверьте SHA256SUMS, запустите `INSTALL.cmd`.
+-2. Установите подготовленную native-модель; дополнительные generic backends в этом ZIP представлены только исходниками. Веса и личные настройки в ZIP не входят.
++1. Проверьте SHA256SUMS и запустите Setup.exe в новую папку либо распакуйте ZIP и запустите `INSTALL.cmd`.
++2. Укажите папку Swift. Недостающие закреплённые файлы загружаются с докачкой. Setup сохраняет существующие config/runtime; рабочую установку обновляет её штатный updater.
+ 3. `START.cmd` запускает сервер; `CHECK.cmd` проверяет установку; `STOP.cmd` завершает её штатно. `AUTOSTART.cmd` включает независимый запуск.
+ 
+ API: `/v1/models`, `/v1/chat/completions`, `/v1/responses`, `/v1/messages`. Адрес и режимы задаются конфигурацией. Авторские Auto/Ultra не выдаются неподходящим моделям.
+ 
+ Сборка из исходников: VS2022 x64 Developer PowerShell, Clang23.1.4, CUDA12.9, CMake/Ninja/Git; команда `powershell -File p40/build.ps1 -Jobs 12`. CPU vision: `powershell -File p40/build-vision.ps1 -Jobs 12`, с проверяемым overlay в отдельной копии зависимости. Новая сборка не является квалификацией новых байтов.
+ 
+-[Исторические замеры](p40/BENCHMARKS.md) относятся к другой версии исходников/движка; ускорение текущей сборки пока не измерено.
++[Исторические замеры](p40/BENCHMARKS.md) относятся к прежним версиям. Выбранные dense-операции ускорились примерно на 6–40%; Swift 37,8 против 37,6 ток/с — ниже шума, общий прирост TPS не подтверждён. Извлечение, хеши и импорты Setup проверены; чистая Windows не проверялась. EXE не подписан.
+ 
+ [Изменения](p40/CHANGES.md) · [Рецепт](p40/build-profile.json) · [Проверки](p40/INSTALLATION-VERIFICATION.md) · [Лицензии](THIRD_PARTY_NOTICES.md) · [Оригинальный проект](https://github.com/Niko1221/Strata)
+diff --git a/THIRD_PARTY_NOTICES.md b/THIRD_PARTY_NOTICES.md
+index ed297a2924ccad22f2f704f579bb734ccccaae82..e9fcee02159c14a342e66d9160124898e36be9e4 100644
+--- a/THIRD_PARTY_NOTICES.md
++++ b/THIRD_PARTY_NOTICES.md
+@@ -6,6 +6,7 @@ This is an independent community build, not endorsed by NVIDIA, Microsoft or ups
+ | Component | License / distribution |
+ |---|---|
+ | Strata and local source modifications | MIT; upstream copyright preserved. |
++| NSIS installer bootstrap and plugins | NSIS distribution terms, including component notices, preserved in p40/licenses/NSIS-COPYING.txt. No NSIS build tools are bundled. |
+ | Vendored KaTeX web assets and fonts | MIT; original license and source provenance retained under serve/web/vendor/katex and p40/licenses/KaTeX-MIT.txt. |
+ | Stateless Adaptive author-mode routing | Strata-Mnemosyne, MIT; pinned source and notice in p40/REASONING-MODES.md and p40/licenses/Strata-Mnemosyne-MIT.txt. No memory/database/embedder component is bundled. |
+ | GGML/llama.cpp and Pascal source overlay | MIT; upstream notices preserved. |
+diff --git a/p40/backends.json b/p40/backends.json
+index a575c2d100ec6e7212bdc14d7747095cf16faf36..ca53bc13d436db683c57117611f9518327473f6d 100644
+--- a/p40/backends.json
++++ b/p40/backends.json
+@@ -1,6 +1,5 @@
+ {
+   "schema": 1,
+-  "native_source_sha": "ffa80d73133ea5c548aefe57889a16e8085a938f",
+-  "engines": {},
+-  "scope": "Classic qualified E4 and CPU vision99E1 only. Additional backend and DeepSeek native source is experimental and no corresponding runtime is bundled."
++  "native_source_sha": "146df3c468739147f520ac3816de806f71232571",
++  "engines": {}
+ }
+diff --git a/p40/licenses/NSIS-COPYING.txt b/p40/licenses/NSIS-COPYING.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..402183edfc4e0a2177cc1f0da10e1c221ff1eb93
+--- /dev/null
++++ b/p40/licenses/NSIS-COPYING.txt
+@@ -0,0 +1,144 @@
++COPYRIGHT
++---------
++
++Copyright (C) 1999-2025 Contributors
++
++More detailed copyright information can be found in the individual source code files.
++
++APPLICABLE LICENSES
++-------------------
++
++* All NSIS source code, plug-ins, documentation, examples, header files and graphics, with the exception of the compression modules and where otherwise noted, are licensed under the zlib/libpng license.
++
++* The zlib compression module for NSIS is licensed under the zlib/libpng license.
++
++* The bzip2 compression module for NSIS is licensed under the bzip2 license.
++
++* The LZMA compression module for NSIS is licensed under the Common Public License version 1.0.
++
++ZLIB/LIBPNG LICENSE
++-------------------
++
++This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.
++
++Permission is granted to anyone to use this software for any purpose, including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions:
++
++      1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
++
++      2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
++
++      3. This notice may not be removed or altered from any source distribution.
++
++BZIP2 LICENSE
++-------------
++
++This program, "bzip2" and associated library "libbzip2", are copyright (C) 1996-2000 Julian R Seward. All rights reserved.
++
++Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
++
++      1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
++    
++      2. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
++
++      3. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
++
++      4. The name of the author may not be used to endorse or promote products derived from this software without specific prior written permission.
++
++THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++
++Julian Seward, Cambridge, UK.
++
++jseward@acm.org
++
++COMMON PUBLIC LICENSE VERSION 1.0
++---------------------------------
++
++THE ACCOMPANYING PROGRAM IS PROVIDED UNDER THE TERMS OF THIS COMMON PUBLIC LICENSE ("AGREEMENT"). ANY USE, REPRODUCTION OR DISTRIBUTION OF THE PROGRAM CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS AGREEMENT.
++
++1. DEFINITIONS
++
++"Contribution" means:
++
++      a) in the case of the initial Contributor, the initial code and documentation distributed under this Agreement, and
++      b) in the case of each subsequent Contributor:
++
++      i) changes to the Program, and
++
++      ii) additions to the Program;
++
++      where such changes and/or additions to the Program originate from and are distributed by that particular Contributor. A Contribution 'originates' from a Contributor if it was added to the Program by such Contributor itself or anyone acting on such Contributor's behalf. Contributions do not include additions to the Program which: (i) are separate modules of software distributed in conjunction with the Program under their own license agreement, and (ii) are not derivative works of the Program. 
++
++"Contributor" means any person or entity that distributes the Program.
++
++"Licensed Patents " mean patent claims licensable by a Contributor which are necessarily infringed by the use or sale of its Contribution alone or when combined with the Program.
++
++"Program" means the Contributions distributed in accordance with this Agreement.
++
++"Recipient" means anyone who receives the Program under this Agreement, including all Contributors.
++
++2. GRANT OF RIGHTS
++
++      a) Subject to the terms of this Agreement, each Contributor hereby grants Recipient a non-exclusive, worldwide, royalty-free copyright license to reproduce, prepare derivative works of, publicly display, publicly perform, distribute and sublicense the Contribution of such Contributor, if any, and such derivative works, in source code and object code form.
++
++      b) Subject to the terms of this Agreement, each Contributor hereby grants Recipient a non-exclusive, worldwide, royalty-free patent license under Licensed Patents to make, use, sell, offer to sell, import and otherwise transfer the Contribution of such Contributor, if any, in source code and object code form. This patent license shall apply to the combination of the Contribution and the Program if, at the time the Contribution is added by the Contributor, such addition of the Contribution causes such combination to be covered by the Licensed Patents. The patent license shall not apply to any other combinations which include the Contribution. No hardware per se is licensed hereunder. 
++
++      c) Recipient understands that although each Contributor grants the licenses to its Contributions set forth herein, no assurances are provided by any Contributor that the Program does not infringe the patent or other intellectual property rights of any other entity. Each Contributor disclaims any liability to Recipient for claims brought by any other entity based on infringement of intellectual property rights or otherwise. As a condition to exercising the rights and licenses granted hereunder, each Recipient hereby assumes sole responsibility to secure any other intellectual property rights needed, if any. For example, if a third party patent license is required to allow Recipient to distribute the Program, it is Recipient's responsibility to acquire that license before distributing the Program.
++
++      d) Each Contributor represents that to its knowledge it has sufficient copyright rights in its Contribution, if any, to grant the copyright license set forth in this Agreement. 
++
++3. REQUIREMENTS
++
++A Contributor may choose to distribute the Program in object code form under its own license agreement, provided that:
++
++      a) it complies with the terms and conditions of this Agreement; and
++
++      b) its license agreement:
++
++      i) effectively disclaims on behalf of all Contributors all warranties and conditions, express and implied, including warranties or conditions of title and non-infringement, and implied warranties or conditions of merchantability and fitness for a particular purpose; 
++
++      ii) effectively excludes on behalf of all Contributors all liability for damages, including direct, indirect, special, incidental and consequential damages, such as lost profits; 
++
++      iii) states that any provisions which differ from this Agreement are offered by that Contributor alone and not by any other party; and
++
++      iv) states that source code for the Program is available from such Contributor, and informs licensees how to obtain it in a reasonable manner on or through a medium customarily used for software exchange. 
++
++When the Program is made available in source code form:
++
++      a) it must be made available under this Agreement; and 
++
++      b) a copy of this Agreement must be included with each copy of the Program. 
++
++Contributors may not remove or alter any copyright notices contained within the Program.
++
++Each Contributor must identify itself as the originator of its Contribution, if any, in a manner that reasonably allows subsequent Recipients to identify the originator of the Contribution.
++
++4. COMMERCIAL DISTRIBUTION
++
++Commercial distributors of software may accept certain responsibilities with respect to end users, business partners and the like. While this license is intended to facilitate the commercial use of the Program, the Contributor who includes the Program in a commercial product offering should do so in a manner which does not create potential liability for other Contributors. Therefore, if a Contributor includes the Program in a commercial product offering, such Contributor ("Commercial Contributor") hereby agrees to defend and indemnify every other Contributor ("Indemnified Contributor") against any losses, damages and costs (collectively "Losses") arising from claims, lawsuits and other legal actions brought by a third party against the Indemnified Contributor to the extent caused by the acts or omissions of such Commercial Contributor in connection with its distribution of the Program in a commercial product offering. The obligations in this section do not apply to any claims or Losses relating to any actual or alleged intellectual property infringement. In order to qualify, an Indemnified Contributor must: a) promptly notify the Commercial Contributor in writing of such claim, and b) allow the Commercial Contributor to control, and cooperate with the Commercial Contributor in, the defense and any related settlement negotiations. The Indemnified Contributor may participate in any such claim at its own expense.
++
++For example, a Contributor might include the Program in a commercial product offering, Product X. That Contributor is then a Commercial Contributor. If that Commercial Contributor then makes performance claims, or offers warranties related to Product X, those performance claims and warranties are such Commercial Contributor's responsibility alone. Under this section, the Commercial Contributor would have to defend claims against the other Contributors related to those performance claims and warranties, and if a court requires any other Contributor to pay any damages as a result, the Commercial Contributor must pay those damages.
++
++5. NO WARRANTY
++
++EXCEPT AS EXPRESSLY SET FORTH IN THIS AGREEMENT, THE PROGRAM IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED INCLUDING, WITHOUT LIMITATION, ANY WARRANTIES OR CONDITIONS OF TITLE, NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE. Each Recipient is solely responsible for determining the appropriateness of using and distributing the Program and assumes all risks associated with its exercise of rights under this Agreement, including but not limited to the risks and costs of program errors, compliance with applicable laws, damage to or loss of data, programs or equipment, and unavailability or interruption of operations.
++
++6. DISCLAIMER OF LIABILITY
++
++EXCEPT AS EXPRESSLY SET FORTH IN THIS AGREEMENT, NEITHER RECIPIENT NOR ANY CONTRIBUTORS SHALL HAVE ANY LIABILITY FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING WITHOUT LIMITATION LOST PROFITS), HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OR DISTRIBUTION OF THE PROGRAM OR THE EXERCISE OF ANY RIGHTS GRANTED HEREUNDER, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
++
++7. GENERAL
++
++If any provision of this Agreement is invalid or unenforceable under applicable law, it shall not affect the validity or enforceability of the remainder of the terms of this Agreement, and without further action by the parties hereto, such provision shall be reformed to the minimum extent necessary to make such provision valid and enforceable.
++
++If Recipient institutes patent litigation against a Contributor with respect to a patent applicable to software (including a cross-claim or counterclaim in a lawsuit), then any patent licenses granted by that Contributor to such Recipient under this Agreement shall terminate as of the date such litigation is filed. In addition, if Recipient institutes patent litigation against any entity (including a cross-claim or counterclaim in a lawsuit) alleging that the Program itself (excluding combinations of the Program with other software or hardware) infringes such Recipient's patent(s), then such Recipient's rights granted under Section 2(b) shall terminate as of the date such litigation is filed.
++
++All Recipient's rights under this Agreement shall terminate if it fails to comply with any of the material terms or conditions of this Agreement and does not cure such failure in a reasonable period of time after becoming aware of such noncompliance. If all Recipient's rights under this Agreement terminate, Recipient agrees to cease use and distribution of the Program as soon as reasonably practicable. However, Recipient's obligations under this Agreement and any licenses granted by Recipient relating to the Program shall continue and survive.
++
++Everyone is permitted to copy and distribute copies of this Agreement, but in order to avoid inconsistency the Agreement is copyrighted and may only be modified in the following manner. The Agreement Steward reserves the right to publish new versions (including revisions) of this Agreement from time to time. No one other than the Agreement Steward has the right to modify this Agreement. IBM is the initial Agreement Steward. IBM may assign the responsibility to serve as the Agreement Steward to a suitable separate entity. Each new version of the Agreement will be given a distinguishing version number. The Program (including Contributions) may always be distributed subject to the version of the Agreement under which it was received. In addition, after a new version of the Agreement is published, Contributor may elect to distribute the Program (including its Contributions) under the new version. Except as expressly stated in Sections 2(a) and 2(b) above, Recipient receives no rights or licenses to the intellectual property of any Contributor under this Agreement, whether expressly, by implication, estoppel or otherwise. All rights in the Program not expressly granted under this Agreement are reserved.
++
++This Agreement is governed by the laws of the State of New York and the intellectual property laws of the United States of America. No party to this Agreement will bring a legal action under this Agreement more than one year after the cause of action arose. Each party waives its rights to a jury trial in any resulting litigation. 
++
++SPECIAL EXCEPTION FOR LZMA COMPRESSION MODULE
++---------------------------------------------
++
++Igor Pavlov and Amir Szekely, the authors of the LZMA compression module for NSIS, expressly permit you to statically or dynamically link your code (or bind by name) to the files from the LZMA compression module for NSIS without subjecting your linked code to the terms of the Common Public license version 1.0. Any modifications or additions to files from the LZMA compression module for NSIS, however, are subject to the terms of the Common Public License version 1.0.
+diff --git a/p40/model-downloads.json b/p40/model-downloads.json
+index 68e499557660d1c31225014ea0f348e478725a7f..c8ad0b1b148e046be13c7e38158ecdedf86d3299 100644
+--- a/p40/model-downloads.json
++++ b/p40/model-downloads.json
+@@ -1,52 +1,15 @@
+ {
+   "schema": 1,
+   "allowed_repositories": [
+-    "DavidAU/Qwen3.8-Flash-Next-Abliterated-Uncensored-Turbo-Brilliance-50x-Reasoning-Instruct-GSQ-RCO-GGUF",
+-    "SC117/Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF"
++    "SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF"
+   ],
+   "files": [
+-    {
+-      "kind": "model",
+-      "name": "Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00001-of-00002.gguf",
+-      "remote": "Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00001-of-00002.gguf",
+-      "repo": "DavidAU/Qwen3.8-Flash-Next-Abliterated-Uncensored-Turbo-Brilliance-50x-Reasoning-Instruct-GSQ-RCO-GGUF",
+-      "revision": "b7f9593a6e25d6b4db950f6d0a2cc08ced014cfa",
+-      "size": 55063664928,
+-      "sha256": "78706315c2fe912777c006b4ae18be1024c9f4353bd25d33b8a306c9c55f9e34"
+-    },
+-    {
+-      "kind": "model",
+-      "name": "Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00002-of-00002.gguf",
+-      "remote": "Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00002-of-00002.gguf",
+-      "repo": "DavidAU/Qwen3.8-Flash-Next-Abliterated-Uncensored-Turbo-Brilliance-50x-Reasoning-Instruct-GSQ-RCO-GGUF",
+-      "revision": "b7f9593a6e25d6b4db950f6d0a2cc08ced014cfa",
+-      "size": 28800138432,
+-      "sha256": "316b46f3a2dbd68c900f43136ab9449f9dcc3725dfd8c794847c204bc161e113"
+-    },
+-    {
+-      "kind": "vision",
+-      "name": "mmproj-Qwen3.8-Flash-Next-BF16.gguf",
+-      "remote": "mmproj-Qwen3.8-Flash-Next-BF16.gguf",
+-      "repo": "DavidAU/Qwen3.8-Flash-Next-Abliterated-Uncensored-Turbo-Brilliance-50x-Reasoning-Instruct-GSQ-RCO-GGUF",
+-      "revision": "b7f9593a6e25d6b4db950f6d0a2cc08ced014cfa",
+-      "size": 907543008,
+-      "sha256": "b1a82259702816a5330d7bd7607cd9676b11780e79ff7348c21103ff3ce49bd0"
+-    },
+-    {
+-      "kind": "mtp",
+-      "name": "dense.bin",
+-      "remote": "strata/rt/dense.bin",
+-      "repo": "SC117/Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF",
+-      "revision": "90a3350cd800ec1fe0d1660a38414ad9e985782f",
+-      "size": 116099072,
+-      "sha256": "c724dc0b0822ada5d2977bf5bde821605feabaa64ea2e0045b67ca656329070a"
+-    },
+     {
+       "kind": "mtp",
+       "name": "dense.txt",
+       "remote": "strata/rt/dense.txt",
+-      "repo": "SC117/Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF",
+-      "revision": "90a3350cd800ec1fe0d1660a38414ad9e985782f",
++      "repo": "SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF",
++      "revision": "3db919a964b1f0ae0d1000ba7be90b3e38b1f7a3",
+       "size": 1880,
+       "sha256": "8773c81ebb0986e37fe94a8a9933e87be48b1fabc6889a0106bcdab179d1c2ac"
+     },
+@@ -54,39 +17,70 @@
+       "kind": "mtp",
+       "name": "draft_vocab.bin",
+       "remote": "strata/rt/draft_vocab.bin",
+-      "repo": "SC117/Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF",
+-      "revision": "90a3350cd800ec1fe0d1660a38414ad9e985782f",
++      "repo": "SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF",
++      "revision": "3db919a964b1f0ae0d1000ba7be90b3e38b1f7a3",
+       "size": 425196,
+       "sha256": "b1e1d3a7a9e4bf862dcd5923ce661fb59bbd07907e594df5cf86a62ac235cb91"
+     },
++    {
++      "kind": "mtp",
++      "name": "dense.bin",
++      "remote": "strata/rt/dense.bin",
++      "repo": "SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF",
++      "revision": "3db919a964b1f0ae0d1000ba7be90b3e38b1f7a3",
++      "size": 116099072,
++      "sha256": "c724dc0b0822ada5d2977bf5bde821605feabaa64ea2e0045b67ca656329070a"
++    },
+     {
+       "kind": "mtp",
+       "name": "experts.bin",
+       "remote": "strata/rt/experts.bin",
+-      "repo": "SC117/Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF",
+-      "revision": "90a3350cd800ec1fe0d1660a38414ad9e985782f",
++      "repo": "SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF",
++      "revision": "3db919a964b1f0ae0d1000ba7be90b3e38b1f7a3",
+       "size": 707788800,
+       "sha256": "09398406be61f1f54c93861f449e48b8df0bfccbc9ec9b2b7636775a6ea9244f"
++    },
++    {
++      "kind": "vision",
++      "name": "mmproj-Qwen3.8-Flash-Next-BF16.gguf",
++      "remote": "mmproj-Qwen3.8-Flash-Next-BF16.gguf",
++      "repo": "SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF",
++      "revision": "3db919a964b1f0ae0d1000ba7be90b3e38b1f7a3",
++      "size": 907542944,
++      "sha256": "2e788f8c511d8093c7b43cb87b2fd7e14228340318057f8fb20c86df2efe2355"
++    },
++    {
++      "kind": "model",
++      "name": "Swift-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00001-of-00002.gguf",
++      "remote": "Swift-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00001-of-00002.gguf",
++      "repo": "SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF",
++      "revision": "3db919a964b1f0ae0d1000ba7be90b3e38b1f7a3",
++      "size": 44849330016,
++      "sha256": "638fbd42a01c7b39a9b7b21c5c8dc5eb1876222d8bd268d471304b647fcd6f94"
++    },
++    {
++      "kind": "model",
++      "name": "Swift-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00002-of-00002.gguf",
++      "remote": "Swift-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00002-of-00002.gguf",
++      "repo": "SC117/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF",
++      "revision": "3db919a964b1f0ae0d1000ba7be90b3e38b1f7a3",
++      "size": 38699929024,
++      "sha256": "091a4f6a53697a12a2ea1e5e1d61414410d50c0d44e971304602bba6873fd23d"
+     }
+   ],
+   "native_preset": {
+-    "model_id": "Qwen",
+-    "model_name": "davidau-qwen3.8-flash-next-iq3_s",
+-    "display_name": "DavidAU Qwen3.8 IQ3_S",
+-    "models_directory": "models/DavidAU-Qwen3.8-IQ3_S",
+-    "pack_directory": "packs/davidau-iq3_s",
+-    "mtp_directory": "mtp/rt",
+-    "native_file": "Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00001-of-00002.gguf",
+-    "ple_file": "Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00002-of-00002.gguf",
++    "model_id": "Swift",
++    "model_name": "swift-1.5-iq3-s",
++    "display_name": "Swift1.5 IQ3_S / Q2 MTP",
++    "models_directory": "models/swift-iq3_s",
++    "pack_directory": "packs/swift-iq3_s",
++    "mtp_directory": "mtp/swift-q2/rt",
++    "native_file": "Swift-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00001-of-00002.gguf",
++    "ple_file": "Swift-Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00001-of-00002.gguf",
+     "vision_file": "mmproj-Qwen3.8-Flash-Next-BF16.gguf",
+-    "reason_modes": true,
+-    "reason_mode": "auto",
+-    "reasoning_effort": "high",
+-    "author_identity": {
+-      "repo": "DavidAU/Qwen3.8-Flash-Next-Abliterated-Uncensored-Turbo-Brilliance-50x-Reasoning-Instruct-GSQ-RCO-GGUF",
+-      "revision": "b7f9593a6e25d6b4db950f6d0a2cc08ced014cfa",
+-      "main_sha256": "78706315c2fe912777c006b4ae18be1024c9f4353bd25d33b8a306c9c55f9e34"
+-    }
++    "reason_modes": false,
++    "reason_mode": "off",
++    "reasoning_effort": "xhigh"
+   },
+-  "MTP_scope": "Published original Qwen3.8 base Q2 runtime, SHA-identical to qualified RT used by DavidAU/Swift; not a Swift-trained draft."
++  "MTP_scope": "Compatible qualified base Q2 RT bytes supplied by the pinned Swift repository; not a newly trained Swift-specific head."
+ }
+diff --git a/p40/windows/installer.py b/p40/windows/installer.py
+index 73781dbdeb31091c6bd6536a3244cb47139e7375..44d469502a45e377311c2bd3add8f23267cfdf6d 100644
+--- a/p40/windows/installer.py
++++ b/p40/windows/installer.py
+@@ -182,17 +182,17 @@ def make_config(root, models, manifest, workers, numa, port=8093):
+         STRATA_DENSE_F32='1', STRATA_IQ_STAGE_TABLES='1', STRATA_IQ_STAGE_GRID_MMVQ='1',
+         STRATA_QFUSE='1', STRATA_GR_NORM_FAST='1', STRATA_B6_MMVQ_ROWS='1', STRATA_EXPDEC='1',
+         STRATA_EXPDEC_R='1', STRATA_DF_BRANCH='0', STRATA_PCIE_BALANCE='0', STRATA_SIDE_MIXER='0',
+-        STRATA_CKPT_PARK_REUSE='1', STRATA_PF_GROUP_SCRATCH='1', STRATA_POOL_FUSED='0', STRATA_POOL_GUIDED='0', STRATA_POOL_GUIDED_MIN='128', STRATA_ROUTE_PRIOR='0')
++        STRATA_CKPT_PARK_REUSE='1', STRATA_PF_GROUP_SCRATCH='1', STRATA_POOL_FUSED='0', STRATA_POOL_GUIDED='0', STRATA_POOL_GUIDED_MIN='128', STRATA_ROUTE_PRIOR='0', STRATA_PCIE_FETCH_OVERLAP='1', STRATA_PCIE_STATIC_STAGE='1', STRATA_ARGMAX_ROWS='1', STRATA_MMVQ_EXACT_WARP='1', STRATA_KV_GROW='1', STRATA_Q8_SM60='1', STRATA_MTP_Q8_SM60='0')
+     return dict(exe=str(root/'runtime/engine/strata.exe'), cwd=str(root/'app'), tokenizer=str(pack/'tokenizer'),
+         args=['--pack',str(pack),'--native',str(weights[0]),'--ple-gguf',str(weights[1]),
+               '--expert-profile',str(root/'app/data/expert-profile.bin'),'--expert-cache','auto',
+-              '--max-context','131072','--kv','q4_0','--prefill','512','--pool-workers',str(workers),
+-              '--spec','3','--spec-min-p','0.25','--prompt-cache','6','--prompt-cache-every','16384',
+-              '--prompt-cache-root','2048','--vision','--vram-reserve-mib','1216','--mtp',str(mtp),
+-              '--suffix-draft','0','--lookup-chain','0','--ple-io','ram','--adapt-async','1','--pool-tasks','0'],
++              '--max-context','262144','--kv','q4_0','--kv-resident','20480','--kv-grow','--prefill','512','--pool-workers',str(workers),
++              '--spec','3','--spec-min-p','0.5','--prompt-cache','6','--prompt-cache-every','16384',
++              '--prompt-cache-root','2048','--vram-reserve-mib','150','--mtp',str(mtp),
++              '--suffix-draft','3','--lookup-chain','0','--pcie-frac','1','--ple-io','ram','--adapt-async','1','--pool-tasks','0'],
+         model_id=preset['model_id'], model_name=preset['model_name'], api_model_id=preset['model_name'], display_name=preset['display_name'],host='127.0.0.1',port=port,
+         log=str(root/'logs/engine.log'),mtp=True,open_browser=False,env=env,
+-        reasoning_effort=preset['reasoning_effort'],reason_modes=preset['reason_modes'],reason_mode=preset['reason_mode'],sampling=dict(top_k=20,min_p=0.0,repetition_penalty=1.0,frequency_penalty=0.0),
++        reasoning_effort=preset['reasoning_effort'],reason_modes=preset['reason_modes'],reason_mode=preset['reason_mode'],sampling=dict(temperature=1.0,top_p=0.95,top_k=20,min_p=0.0,repetition_penalty=1.0,frequency_penalty=0.0),
+         vision=dict(exe=str(root/'runtime/vision/strata-vision.exe'),model=str(weights[0]),mmproj=str(projector),
+                     gpu=False,threads=8,max_tokens=300,require_ram=True))
+ 
+diff --git a/p40/windows/setup.nsi b/p40/windows/setup.nsi
+new file mode 100644
+index 0000000000000000000000000000000000000000..3cc05f617cf65fa9bbecd8ea5028e7a3f3ff4795
+--- /dev/null
++++ b/p40/windows/setup.nsi
+@@ -0,0 +1,137 @@
++Unicode true
++!include "MUI2.nsh"
++!include "LogicLib.nsh"
++!include "FileFunc.nsh"
++!include "nsDialogs.nsh"
++!include "x64.nsh"
++!ifndef PAYLOAD
++!error "PAYLOAD must be the verified weights-free release directory"
++!endif
++!ifndef OUTPUT
++!error "OUTPUT must be the new Setup.exe path"
++!endif
++Name "Strata Legacy GPU"
++OutFile "${OUTPUT}"
++InstallDir "$LOCALAPPDATA\Strata Legacy GPU"
++RequestExecutionLevel user
++SetCompressor /FINAL zlib
++ShowInstDetails show
++Var VerifyOnly
++Var ModelDirectory
++Var ModelField
++!define MUI_ABORTWARNING
++!insertmacro MUI_PAGE_WELCOME
++!insertmacro MUI_PAGE_LICENSE "${PAYLOAD}\THIRD_PARTY_NOTICES.md"
++!insertmacro MUI_PAGE_DIRECTORY
++Page custom ChooseModels SaveModels
++!insertmacro MUI_PAGE_INSTFILES
++!define MUI_FINISHPAGE_TEXT "Strata is installed. Swift uses the selected model files and its own local configuration. START.cmd starts the server; STOP.cmd drains it gracefully. No GPU driver is installed."
++!insertmacro MUI_PAGE_FINISH
++!insertmacro MUI_LANGUAGE "English"
++!insertmacro MUI_LANGUAGE "Russian"
++
++Function .onInit
++  ${IfNot} ${RunningX64}
++    MessageBox MB_ICONSTOP "Windows x64 is required."
++    Abort
++  ${EndIf}
++  StrCpy $VerifyOnly "0"
++  ${GetParameters} $0
++  ClearErrors
++  ${GetOptions} $0 "/VERIFYONLY" $1
++  ${IfNot} ${Errors}
++    StrCpy $VerifyOnly "1"
++  ${EndIf}
++  StrCpy $ModelDirectory ""
++FunctionEnd
++
++Function ChooseModels
++  ${If} $VerifyOnly == "1"
++    Abort
++  ${EndIf}
++  ${If} $ModelDirectory == ""
++    StrCpy $ModelDirectory "$INSTDIR\models\swift-iq3_s"
++  ${EndIf}
++  nsDialogs::Create 1018
++  Pop $0
++  ${If} $0 == error
++    Abort
++  ${EndIf}
++  ${NSD_CreateLabel} 0 0 100% 42u "Swift IQ3_S + Q2 MTP. Choose the folder with both GGUF shards and the CPU projector. Missing files are downloaded with resume and SHA-256 checks (about 84 GB). Existing configuration is never replaced."
++  Pop $0
++  ${NSD_CreateDirRequest} 0 50u 85% 14u "$ModelDirectory"
++  Pop $ModelField
++  ${NSD_CreateBrowseButton} 87% 50u 13% 14u "..."
++  Pop $0
++  ${NSD_OnClick} $0 BrowseModels
++  nsDialogs::Show
++FunctionEnd
++
++Function BrowseModels
++  nsDialogs::SelectFolderDialog "Swift model folder" "$ModelDirectory"
++  Pop $0
++  ${If} $0 != error
++    StrCpy $ModelDirectory $0
++    ${NSD_SetText} $ModelField $ModelDirectory
++  ${EndIf}
++FunctionEnd
++
++Function SaveModels
++  ${NSD_GetText} $ModelField $ModelDirectory
++  ${If} $ModelDirectory == ""
++    MessageBox MB_ICONSTOP "Choose a model folder."
++    Abort
++  ${EndIf}
++FunctionEnd
++
++Section "Strata"
++  ; A fresh-folder installer must never overwrite a working installation or private state.
++  IfFileExists "$INSTDIR\strata.json" Existing
++  IfFileExists "$INSTDIR\runtime\active.json" Existing
++  SetOutPath "$INSTDIR"
++  File /r "${PAYLOAD}\*"
++  ${If} $VerifyOnly == "1"
++    nsExec::ExecToLog '"$INSTDIR\runtime\python\python.exe" -I -s -B "$INSTDIR\p40\windows\installer.py" --check-bundle'
++    Pop $0
++    ${If} $0 != 0
++      SetErrorLevel 10
++      Quit
++    ${EndIf}
++    nsExec::ExecToLog '"$INSTDIR\runtime\engine\strata.exe" --version'
++    Pop $0
++    ${If} $0 != 0
++      SetErrorLevel 11
++      Quit
++    ${EndIf}
++    SetErrorLevel 0
++    Quit
++  ${EndIf}
++  DetailPrint "Checking the NVIDIA driver and Microsoft runtime."
++  nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\p40\windows\prerequisites.ps1"'
++  Pop $0
++  ${If} $0 != 0
++    Goto Failed
++  ${EndIf}
++  DetailPrint "Preparing Swift. Existing model files are verified; partial downloads resume."
++  nsExec::ExecToLog '"$INSTDIR\runtime\python\python.exe" -I -s -B "$INSTDIR\p40\windows\installer.py" --backend native --models-dir "$ModelDirectory"'
++  Pop $0
++  ${If} $0 != 0
++    Goto Failed
++  ${EndIf}
++  nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\p40\windows\autostart.ps1"'
++  Pop $0
++  ${If} $0 != 0
++    Goto Failed
++  ${EndIf}
++  CreateShortcut "$DESKTOP\Strata Legacy GPU.lnk" "$INSTDIR\START.cmd" "" "$INSTDIR\runtime\engine\strata.exe"
++  CreateShortcut "$DESKTOP\Stop Strata Legacy GPU.lnk" "$INSTDIR\STOP.cmd"
++  Goto Done
++Existing:
++  MessageBox MB_ICONSTOP "Existing Strata settings or runtime state were found. They are preserved. Choose a new empty installation folder; use the managed updater for an existing installation."
++  SetErrorLevel 12
++  Quit
++Failed:
++  MessageBox MB_ICONSTOP "Setup did not finish. Existing files and partial downloads are preserved. Run INSTALL.cmd to resume. No process was force-stopped."
++  SetErrorLevel 13
++Done:
++SectionEnd
+diff --git a/p40/windows/test_installer_swift.py b/p40/windows/test_installer_swift.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..4c0067c2d839442ecede42261e0bebec49c483c9
+--- /dev/null
++++ b/p40/windows/test_installer_swift.py
+@@ -0,0 +1,32 @@
++"""First-install profile checks without weights, downloads, tasks or a server."""
++import copy
++import importlib.util
++import json
++import tempfile
++from pathlib import Path
++
++def main():
++    folder=Path(__file__).resolve().parent
++    spec=importlib.util.spec_from_file_location('strata_installer',folder/'installer.py')
++    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
++    manifest=json.loads((folder.parent/'model-downloads.json').read_text())
++    with tempfile.TemporaryDirectory(prefix='strata profile ') as temporary:
++        root=Path(temporary)
++        config=module.make_config(root,root/'models',manifest,14,'off')
++        args=config['args'];value=lambda flag:args[args.index(flag)+1]
++        assert value('--max-context')=='262144' and value('--vram-reserve-mib')=='150'
++        assert value('--kv-resident')=='20480' and '--kv-grow' in args
++        assert value('--spec-min-p')=='0.5' and value('--suffix-draft')=='3'
++        assert config['model_id']=='Swift' and config['reason_modes'] is False and config['reason_mode']=='off'
++        assert config['reasoning_effort']=='xhigh' and config['vision']['gpu'] is False
++        assert config['vision']['require_ram'] is True
++        assert config['sampling']['temperature']==1.0 and config['sampling']['top_p']==0.95
++        assert config['env']['STRATA_MMVQ_EXACT_WARP']=='1'
++        bad=copy.deepcopy(manifest);bad['native_preset']['pack_directory']='../escape'
++        try:module.make_config(root,root/'models',bad,14,'off')
++        except ValueError:pass
++        else:raise AssertionError('Traversal accepted')
++        assert not (root/'strata.json').exists() and not (root/'runtime').exists()
++    print('Swift first-install profile: passed; no downloads, config writes or tasks.')
++
++if __name__=='__main__':main()
