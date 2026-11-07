@@ -1,0 +1,95 @@
+diff --git a/src/core/verify.cpp b/src/core/verify.cpp
+index 727a8de9b792f93433a72c5b1cea71c52c3ed495..cba13c9f68d2f6141f4b49cbddb1b91566c13b59 100644
+--- a/src/core/verify.cpp
++++ b/src/core/verify.cpp
+@@ -257,6 +257,18 @@ inline cudaError_t prio_node_deps(cudaGraphNode_t node, cudaGraphNode_t* deps, s
+ #endif
+ }
+ #endif
++bool pcie_fetch_overlap_on() {
++#if defined(STRATA_USE_HIP) || defined(STRATA_GPU_METAL)
++    return false;
++#else
++    static const bool enabled = [] {
++        const char* value = std::getenv("STRATA_PCIE_FETCH_OVERLAP");
++        return value != nullptr && std::strcmp(value, "1") == 0;
++    }();
++    return enabled;
++#endif
++}
++
+ // fork 34a35db + b063c13 (Eddoursul), STRATA_SIDE_MIXER=1 / =2: the mixer's work that reads only the layer's input on
+ // branches of the window's graph (bitwise the same outputs); 0 = in line, and no branch stream is created.  Unset: 2 on a
+ // compute capability 12.0 card (sm120_series.hpp; STRATA_SM120_PERF=0 turns it off), 0 elsewhere.
+@@ -713,6 +725,7 @@ Verifier::~Verifier() {
+     }
+     if (cs_) cudaStreamSynchronize(cs_);
+     if (sh_cs_) cudaStreamSynchronize(sh_cs_);
++    if (side2_ && pcie_fetch_overlap_on()) cudaStreamSynchronize(side2_);
+     for (auto& row : exec_)
+         for (auto& e : row)
+             if (e) cudaGraphExecDestroy(e);
+@@ -1290,6 +1303,13 @@ bool Verifier::init(const WeightTable& wt, const ModelGeometry& g, SessionState&
+         err = "verify: the mixer branch's stream / events could not be created";
+         return false;
+     }
++    if (g_side_mixer() == 0 && pcie_fetch_overlap_on() &&
++        (make_stream(&side2_, gp_hi) != cudaSuccess ||
++         cudaEventCreateWithFlags(&pfork_, cudaEventDisableTiming) != cudaSuccess ||
++         cudaEventCreateWithFlags(&pjoin_, cudaEventDisableTiming) != cudaSuccess)) {
++        err = "verify: PCIe fetch branch setup failed";
++        return false;
++    }
+     // E-6: a layer whose routed experts are all resident is planned on the device (STRATA_VERIFY_DEVICE_PLAN=1: on;
+     // exact, but neutral on RIBPC 1-2 GPUs: off by default)
+     {
+@@ -2400,17 +2420,45 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
+                 copy_i32_from_mapped(pl, m_plan_ + (size_t) grp * (size_t) plan_i32_, plan_i32_, cs);
+                 }
+             }
++            const bool overlap_fetch = pcie_fetch_overlap_on() && !side_mixer && !batch_rec_ &&
++                G == 1 && !prof_on_ && !device_plan_ && m_bal_ == nullptr && remote_opt_ == nullptr &&
++                sink_.pcie_mode == 2 && side2_ != nullptr;
++            const int64_t per = G == 2 ? kStagingBlobs / 2 : kStagingBlobs;
++            uint8_t* stage = sink_.pcie_mode == 2 ? staging_ + (size_t) (grp * per) * lay.max_blob : nullptr;
++            const auto fetch = [&](cudaStream_t stream) {
++                fetch_blobs(p_ptr2, p_counts + 2, stage, (int64_t) lay.blob_bytes(l), (int) per, stream);
++            };
++            if (overlap_fetch) {
++                static std::atomic<bool> logged{false};
++                if (!logged.exchange(true, std::memory_order_relaxed))
++                    std::fprintf(stderr, "strata verify: PCIe fetch overlap active\n");
++                // The side stream consumes the published device plan. Rebase only after its copy joins.
++                if (cudaEventRecord(pfork_, cs) != cudaSuccess ||
++                    cudaStreamWaitEvent(side2_, pfork_, 0) != cudaSuccess) {
++                    err = "verify: PCIe fetch branch fork failed";
++                    return false;
++                }
++                wait_flag_ge(m_flagB_, ring, side2_);
++                fetch(side2_);
++                if (cudaEventRecord(pjoin_, side2_) != cudaSuccess) {
++                    err = "verify: PCIe fetch branch record failed";
++                    return false;
++                }
++            }
+             stamp(l, 19, grp);
+             grouped(p_ptr, p_start, p_counts, 0, hit_out, true);
+             stamp(l, 20, grp);
+-            if (device_plan_) wait_flag_ge_or(m_flagB_, ring, skip_ + grp, cs);
++            if (overlap_fetch) {
++                if (cudaStreamWaitEvent(cs, pjoin_, 0) != cudaSuccess) {
++                    err = "verify: PCIe fetch branch join failed";
++                    return false;
++                }
++            } else if (device_plan_) wait_flag_ge_or(m_flagB_, ring, skip_ + grp, cs);
+             else if (m_bal_ != nullptr)   // set_pcie_balance: the PCIe part starts
+                 wait_flag_ge_stamped(m_flagB_, ring, m_bal_ + ((l - lb_) * 2 + grp) * 4 + 1, nullptr, cs);
+             else wait_flag_ge(m_flagB_, ring, cs);                 // the PCIe share is in staging (DMA) or mapped
+             if (sink_.pcie_mode == 2) {                            // stage it with a copy kernel, then point at staging
+-                const int64_t per = G == 2 ? kStagingBlobs / 2 : kStagingBlobs;
+-                uint8_t* stage = staging_ + (size_t) (grp * per) * lay.max_blob;
+-                fetch_blobs(p_ptr2, p_counts + 2, stage, (int64_t) lay.blob_bytes(l), (int) per, cs);
++                if (!overlap_fetch) fetch(cs);
+                 rebase_ptrs((unsigned long long*) p_ptr2, p_counts + 2, stage, (int64_t) lay.blob_bytes(l), cs);
+             }
+             stamp(l, 21, grp);
