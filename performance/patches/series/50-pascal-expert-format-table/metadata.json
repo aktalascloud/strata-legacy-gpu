@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "status": "selected_source_or_dependency",
+  "base_commit": "f049d0f3925c61f1c3740e686462903b6dc403db",
+  "official_source_sha": "146df3c468739147f520ac3816de806f71232571",
+  "engine_sha256": "6c51f44c32ca8033fb5e67749abbf7511770e530eeb538d52383b4493d1b86da",
+  "patch_sha256": "3c59427cc8c0ddd2fa88a781ae09e2fbc660e57dfe83b7d79dd2d9f457984d60",
+  "previous_private_CRLF_patch_sha256": "158a22f558f120ede6a708c6959a85720645c943f785e2eff92ff4f0e6d28b43",
+  "source_equivalence": {
+    "private_sha256": "8f1b8da099ddb7c71d8f7ccbbeffc0924cb279443238a1633f31c7a49378f92d",
+    "public_sha256": "86fb3cf1b1c16ef5d916689cae840ae665a69c9a89c92b039b3b6e36e465bbce",
+    "LF_identical": true,
+    "only_line_endings_differ": true
+  },
+  "qualification": {
+    "expert_layout_T_grid_pairs": 112,
+    "direct_and_Graph_bitwise": true,
+    "Q8_cases": 130,
+    "required_package_cases": 27,
+    "full_F32_check": true,
+    "model_observed_gain_percent": -1.5306122448979664,
+    "model_TPS_gain_confirmed": false,
+    "Q8_expected_shared_memory_declines_per_mode": 1
+  },
+  "original_context_required": true,
+  "apply_as_series": false
+}

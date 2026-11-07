@@ -22,6 +22,7 @@ def main():
         assert config['vision']['require_ram'] is True
         assert config['sampling']['temperature']==1.0 and config['sampling']['top_p']==0.95
         assert config['env']['STRATA_MMVQ_EXACT_WARP']=='1'
+        assert config['env']['STRATA_SM61_EXPERT_TABLE']=='1'
         bad=copy.deepcopy(manifest);bad['native_preset']['pack_directory']='../escape'
         try:module.make_config(root,root/'models',bad,14,'off')
         except ValueError:pass

@@ -27,3 +27,5 @@ Retained applied source/dependency changes and currently used build/startup safe
 - [47. Pascal exact logical warp](47-pascal-exact-warp-5476/README.md)
 - [48. Full Swift Windows Setup](48-full-swift-setup/README.md)
 - [49. Publication checks follow I64/I128](49-publication-i64-case-gate/README.md)
+- [50. Exact P40 per-format expert dispatch](50-pascal-expert-format-table/README.md)
+- [51. Declared successful I64 extra check](51-publication-declared-i64-extra/README.md)
