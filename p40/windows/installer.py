@@ -182,14 +182,14 @@ def make_config(root, models, manifest, workers, numa, port=8093):
         STRATA_DENSE_F32='1', STRATA_IQ_STAGE_TABLES='1', STRATA_IQ_STAGE_GRID_MMVQ='1',
         STRATA_QFUSE='1', STRATA_GR_NORM_FAST='1', STRATA_B6_MMVQ_ROWS='1', STRATA_EXPDEC='1',
         STRATA_EXPDEC_R='1', STRATA_DF_BRANCH='0', STRATA_PCIE_BALANCE='0', STRATA_SIDE_MIXER='0',
-        STRATA_CKPT_PARK_REUSE='1', STRATA_PF_GROUP_SCRATCH='1', STRATA_POOL_FUSED='0', STRATA_POOL_GUIDED='0', STRATA_POOL_GUIDED_MIN='128', STRATA_ROUTE_PRIOR='0', STRATA_PCIE_FETCH_OVERLAP='1', STRATA_PCIE_STATIC_STAGE='1', STRATA_ARGMAX_ROWS='1', STRATA_MMVQ_EXACT_WARP='1', STRATA_SM61_EXPERT_TABLE='1', STRATA_KV_GROW='1', STRATA_Q8_SM60='1', STRATA_MTP_Q8_SM60='0')
+        STRATA_CKPT_PARK_REUSE='1', STRATA_PF_GROUP_SCRATCH='1', STRATA_POOL_FUSED='0', STRATA_POOL_GUIDED='0', STRATA_POOL_GUIDED_MIN='128', STRATA_ROUTE_PRIOR='0', STRATA_PCIE_FETCH_OVERLAP='1', STRATA_PCIE_STATIC_STAGE='1', STRATA_ARGMAX_ROWS='1', STRATA_MMVQ_EXACT_WARP='1', STRATA_SM61_EXPERT_TABLE='1', STRATA_SM61_FUSED_H2='1', STRATA_KV_GROW='1', STRATA_Q8_SM60='1', STRATA_MTP_Q8_SM60='0')
     return dict(exe=str(root/'runtime/engine/strata.exe'), cwd=str(root/'app'), tokenizer=str(pack/'tokenizer'),
         args=['--pack',str(pack),'--native',str(weights[0]),'--ple-gguf',str(weights[1]),
               '--expert-profile',str(root/'app/data/expert-profile.bin'),'--expert-cache','auto',
               '--max-context','262144','--kv','q4_0','--kv-resident','20480','--kv-grow','--prefill','512','--pool-workers',str(workers),
               '--spec','3','--spec-min-p','0.5','--prompt-cache','6','--prompt-cache-every','16384',
               '--prompt-cache-root','2048','--vram-reserve-mib','150','--mtp',str(mtp),
-              '--suffix-draft','3','--lookup-chain','0','--pcie-frac','1','--ple-io','ram','--adapt-async','1','--pool-tasks','0'],
+              '--suffix-draft','3','--lookup-chain','0','--lookup-sizes','4,12','--pcie-frac','1','--ple-io','ram','--adapt-async','1','--pool-tasks','0'],
         model_id=preset['model_id'], model_name=preset['model_name'], api_model_id=preset['model_name'], display_name=preset['display_name'],host='127.0.0.1',port=port,
         log=str(root/'logs/engine.log'),mtp=True,open_browser=False,env=env,
         reasoning_effort=preset['reasoning_effort'],reason_modes=preset['reason_modes'],reason_mode=preset['reason_mode'],sampling=dict(temperature=1.0,top_p=0.95,top_k=20,min_p=0.0,repetition_penalty=1.0,frequency_penalty=0.0),

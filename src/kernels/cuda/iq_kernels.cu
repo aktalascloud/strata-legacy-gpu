@@ -6059,7 +6059,9 @@ __global__ void __launch_bounds__(256) native_down_lds_kernel(const unsigned lon
 // [r0, r0 + 32): gate rows r0.. and up rows r0.. (64 weight rows, the same per-(row, entry) sums as mode 7), so
 // one 32-lane warp per entry holds exactly one q8_1 block of h and runs quantize_q8_1_kernel's own code on it -
 // bitwise the separate kernels' hq, two launches fewer per call.
-template<int TG>
+// Logical half-warps preserve each original lane's accumulation and replay the same XOR tree.
+// Adapted from Niko1221/Strata#5033 (MIT), applied to the actually used fused path.
+template<int TG, bool H2 = false>
 __global__ void __launch_bounds__(256) native_gu_fused_kernel(const unsigned long long* __restrict__ grp_ptr,
                                                               const int32_t* __restrict__ grp_start,
                                                               const int32_t* __restrict__ n_groups,
@@ -6092,12 +6094,41 @@ __global__ void __launch_bounds__(256) native_gu_fused_kernel(const unsigned lon
             for (int i = tid; i < xb * 9; i += 256) sx_raw[j * xb * 9 + i] = src[i];
         }
         __syncthreads();
-        for (int p = 0; p < 4; ++p) {
-            const int i0 = p * 16 + warp, i1 = i0 + 8;
+        for (int p = 0; p < (H2 ? 2 : 4); ++p) {
+            const int i0 = H2 ? p * 32 + (lane >> 4) * 16 + warp : p * 16 + warp;
+            const int i1 = i0 + 8;
             const uint8_t* w0 = wrow(i0);
             const uint8_t* w1 = wrow(i1);
             auto pass = [&](auto ntc) {
                 constexpr int NTC = decltype(ntc)::value;
+                if constexpr (H2) {
+                    const int q=lane&15, n=nb*F::ipb;
+                    float lo0[NTC]={},lo1[NTC]={},hi0[NTC]={},hi1[NTC]={};
+                    for(int k=q;k<n;k+=32) {
+                        auto add=[&](int kk,float* s0,float* s1) {
+                            const int kb=kk/F::ipb,iq=F::step*(kk%F::ipb);
+#pragma unroll
+                            for(int j=0;j<NTC;++j) {
+                                const auto* xk=sx+(size_t)j*xb+kb*(F::qk/32);
+                                s0[j]+=DotG<TG,1>::f(w0,xk,kb,iq,sgrid);
+                                s1[j]+=DotG<TG,1>::f(w1,xk,kb,iq,sgrid);
+                            }
+                        };
+                        add(k,lo0,lo1);
+                        if(k+16<n)add(k+16,hi0,hi1);
+                    }
+#pragma unroll
+                    for(int j=0;j<NTC;++j) {
+                        float aa=lo0[j]+hi0[j],bb=lo1[j]+hi1[j];
+#pragma unroll
+                        for(int off=8;off>0;off>>=1) {
+                            aa+=__shfl_xor_sync(0xffffffffu,aa,off);
+                            bb+=__shfl_xor_sync(0xffffffffu,bb,off);
+                        }
+                        if(q==0){res[j][i0]=aa;res[j][i1]=bb;}
+                    }
+                    return;
+                }
                 float s0[NTC], s1[NTC];
 #pragma unroll
                 for (int j = 0; j < NTC; ++j) { s0[j] = 0.0f; s1[j] = 0.0f; }
@@ -6233,6 +6264,24 @@ bool sm61_expert_table(const NativeExpertLayout& L, int em, int64_t cap, int64_t
         L.n_embd != 2560 || L.n_ff != 640 || (L.gu_type != 18 && L.gu_type != 22) ||
         (L.d_type != 20 && L.d_type != 42) || cap < 10 || cap > 40 || cap % 10 != 0 ||
         (grid > 0 && grid < cap)) return false;
+    int dev = 0, major = 0, minor = 0;
+    if (cudaGetDevice(&dev) != cudaSuccess ||
+        cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, dev) != cudaSuccess ||
+        cudaDeviceGetAttribute(&minor, cudaDevAttrComputeCapabilityMinor, dev) != cudaSuccess) return false;
+    return major == 6 && minor == 1;
+#else
+    (void)L; (void)em; (void)cap; (void)grid; (void)v1;
+    return false;
+#endif
+}
+
+bool sm61_fused_h2(const NativeExpertLayout& L, int em, int64_t cap, int64_t grid, bool v1) {
+#if STRATA_EXP_LAYOUTS && defined(STRATA_EXPERIMENTAL_SM60) && !defined(__HIPCC__)
+    static const bool enabled = env_on("STRATA_SM61_FUSED_H2");
+    if (!enabled || em != 8 || g_exp_mode >= 0 || std::getenv("STRATA_EXP_MODE") ||
+        g_old_kernels || v1 || L.had_block > 0 || nib_layout(L) || L.gu_type != 21 ||
+        L.n_embd != 2560 || L.n_ff != 640 || (L.d_type != 20 && L.d_type != 42) ||
+        cap < 10 || cap > 40 || cap % 10 != 0 || (grid > 0 && grid < cap)) return false;
     int dev = 0, major = 0, minor = 0;
     if (cudaGetDevice(&dev) != cudaSuccess ||
         cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, dev) != cudaSuccess ||
@@ -6402,7 +6451,11 @@ void native_expert_grouped(const NativeExpertLayout& L, const unsigned long long
         switch (L.gu_type) {
             case 16: native_gu_fused_kernel<16><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq); break;
             case 18: native_gu_fused_kernel<18><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq); break;
-            case 21: native_gu_fused_kernel<21><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq); break;
+            case 21:
+                if (sm61_fused_h2(L, em0, cap_groups, grid_groups, v1))
+                    native_gu_fused_kernel<21, true><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq);
+                else native_gu_fused_kernel<21><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq);
+                break;
             case 23: native_gu_fused_kernel<23><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq); break;
             default: native_gu_fused_kernel<22><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq); break;
         }

@@ -29,3 +29,5 @@ Retained applied source/dependency changes and currently used build/startup safe
 - [49. Publication checks follow I64/I128](49-publication-i64-case-gate/README.md)
 - [50. Exact P40 per-format expert dispatch](50-pascal-expert-format-table/README.md)
 - [51. Declared successful I64 extra check](51-publication-declared-i64-extra/README.md)
+- [52. Exact P40 fused expert half-warps](52-pascal-fused-expert-halfwarp/README.md)
+- [53. Keep five useful Swift graph sizes](53-swift-lookup-graph-window-set/README.md)

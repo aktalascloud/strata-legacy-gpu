@@ -17,12 +17,14 @@ def main():
         assert value('--max-context')=='262144' and value('--vram-reserve-mib')=='150'
         assert value('--kv-resident')=='20480' and '--kv-grow' in args
         assert value('--spec-min-p')=='0.5' and value('--suffix-draft')=='3'
+        assert value('--lookup-sizes')=='4,12'
         assert config['model_id']=='Swift' and config['reason_modes'] is False and config['reason_mode']=='off'
         assert config['reasoning_effort']=='xhigh' and config['vision']['gpu'] is False
         assert config['vision']['require_ram'] is True
         assert config['sampling']['temperature']==1.0 and config['sampling']['top_p']==0.95
         assert config['env']['STRATA_MMVQ_EXACT_WARP']=='1'
         assert config['env']['STRATA_SM61_EXPERT_TABLE']=='1'
+        assert config['env']['STRATA_SM61_FUSED_H2']=='1'
         bad=copy.deepcopy(manifest);bad['native_preset']['pack_directory']='../escape'
         try:module.make_config(root,root/'models',bad,14,'off')
         except ValueError:pass

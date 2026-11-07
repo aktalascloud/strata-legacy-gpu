@@ -1,0 +1,25 @@
+diff --git a/p40/windows/installer.py b/p40/windows/installer.py
+index cab36d2bbb073455f5e7f9c09f07ab5d9a27717e..134178053d44629f155fb87d4aac249132168cc1 100644
+--- a/p40/windows/installer.py
++++ b/p40/windows/installer.py
+@@ -189,7 +189,7 @@ def make_config(root, models, manifest, workers, numa, port=8093):
+               '--max-context','262144','--kv','q4_0','--kv-resident','20480','--kv-grow','--prefill','512','--pool-workers',str(workers),
+               '--spec','3','--spec-min-p','0.5','--prompt-cache','6','--prompt-cache-every','16384',
+               '--prompt-cache-root','2048','--vram-reserve-mib','150','--mtp',str(mtp),
+-              '--suffix-draft','3','--lookup-chain','0','--pcie-frac','1','--ple-io','ram','--adapt-async','1','--pool-tasks','0'],
++              '--suffix-draft','3','--lookup-chain','0','--lookup-sizes','4,12','--pcie-frac','1','--ple-io','ram','--adapt-async','1','--pool-tasks','0'],
+         model_id=preset['model_id'], model_name=preset['model_name'], api_model_id=preset['model_name'], display_name=preset['display_name'],host='127.0.0.1',port=port,
+         log=str(root/'logs/engine.log'),mtp=True,open_browser=False,env=env,
+         reasoning_effort=preset['reasoning_effort'],reason_modes=preset['reason_modes'],reason_mode=preset['reason_mode'],sampling=dict(temperature=1.0,top_p=0.95,top_k=20,min_p=0.0,repetition_penalty=1.0,frequency_penalty=0.0),
+diff --git a/p40/windows/test_installer_swift.py b/p40/windows/test_installer_swift.py
+index 57cd0ab08c5355aaabfc4885ac91d85222dd9b68..8229d0c2b16a602036c16ac7ee020a89306c68b7 100644
+--- a/p40/windows/test_installer_swift.py
++++ b/p40/windows/test_installer_swift.py
+@@ -17,6 +17,7 @@ def main():
+         assert value('--max-context')=='262144' and value('--vram-reserve-mib')=='150'
+         assert value('--kv-resident')=='20480' and '--kv-grow' in args
+         assert value('--spec-min-p')=='0.5' and value('--suffix-draft')=='3'
++        assert value('--lookup-sizes')=='4,12'
+         assert config['model_id']=='Swift' and config['reason_modes'] is False and config['reason_mode']=='off'
+         assert config['reasoning_effort']=='xhigh' and config['vision']['gpu'] is False
+         assert config['vision']['require_ram'] is True

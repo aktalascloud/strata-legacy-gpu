@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "status": "selected_source_or_dependency",
+  "base_commit": "9b5c9057ed256363d670c0a2e6c50f97d8207fb4",
+  "official_source_sha": "146df3c468739147f520ac3816de806f71232571",
+  "engine_sha256": "8cc3edf048b71fc0ab8b184887716c279980d0e0203d3956ebcb3e1947105fc1",
+  "patch_sha256": "ce085a0c7079e1d238ad80c3fe7825ee7dbcd57b6ff4c01d2827a8233af259de",
+  "previous_private_patch_sha256": null,
+  "original_context_required": true,
+  "apply_as_series": false,
+  "qualification": {
+    "predecessor_native": "6c51f44c",
+    "graph_reclaims_before": 21,
+    "graph_reclaims_after": 0,
+    "long_probe_actual_tokens": 23999,
+    "current_model_probe_reclaims": 0
+  }
+}
