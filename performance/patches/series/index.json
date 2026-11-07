@@ -2,9 +2,9 @@
   "schema": 1,
   "kind": "selected_applied_patch_catalogue",
   "source_binding": {
-    "official_source_sha": "54828c7efbcdf9474697e70922d851f6707f4b32",
-    "native_engine_sha256": "ef3d294498c5aa5295cbbe1427a83a3cfb549d6207bed96f0baf29a443adbd56",
-    "published_source_commit": "157f5810bf0458b940521baf59f32fd2f71345c2"
+    "official_source_sha": "146df3c468739147f520ac3816de806f71232571",
+    "native_engine_sha256": "62b147b072b50e50832086ddd4f06103fdf24c1ac7e29449a743e49d977667d8",
+    "commit_binding": "Source commit is the containing Git revision; historical deltas retain their own stated bases."
   },
   "application_order": [],
   "integration_reference": "Only retained applied source/dependency changes and currently used workspace safety recipes. Original deltas require their stated bases.",
@@ -226,6 +226,17 @@
       "scope": "Local build/startup/control recipe; not an extra upstream engine overlay. Generic public installation counterparts are in p40/windows and p40/tools.",
       "patch": null,
       "sha256": null,
+      "original_context_required": true,
+      "apply_as_series": false
+    },
+    {
+      "id": 47,
+      "directory": "47-pascal-exact-warp-5476",
+      "title": "Exact logical-warp dense scheduling on P40",
+      "status": "selected_source_or_dependency",
+      "scope": "Retains four logical FP accumulation chains inside one physical warp. Exact operator benefit; no established overall model TPS gain.",
+      "patch": "47-pascal-exact-warp-5476/change.patch",
+      "sha256": "189229bd3be4dd6f9d5dd0d6e180cb7b0e3e6aa4d5ec8d552757293bfff04cba",
       "original_context_required": true,
       "apply_as_series": false
     }

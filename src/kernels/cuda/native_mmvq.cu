@@ -1544,10 +1544,52 @@ bool b6_launch(const typename F::Block* w, const Q81Block* x, float* y, int n_in
     }
 }
 
+#if !defined(__HIPCC__) && defined(STRATA_EXPERIMENTAL_SM60)
+// One physical warp retains the original four logical warps' independent sums and merge order.
+// Adapted dispatch idea: Niko1221/Strata#5476; arithmetic follows native_mmvq_multi_kernel (MIT).
+template<class F, int NCOLS>
+__global__ __launch_bounds__(32, 4) void exact_nw1_kernel(const typename F::Block* w, const Q81Block* x,
+                                                       float* y, int n_in, int n_out) {
+    const int row = int(blockIdx.x), lane = int(threadIdx.x);
+    if (row >= n_out) return;
+    const int bpr = n_in / F::DIV, xs = n_in / Q8K;
+    float sums[WARPS][NCOLS] = {};
+#pragma unroll
+    for (int logical = 0; logical < WARPS; ++logical) {
+        const int tid = lane + logical * WARP;
+        const int kqs = F::kqs(tid);
+        for (int kb = tid / F::T; kb < bpr; kb += F::BPI) {
+            const typename F::W weight = F::load(w + std::size_t(row) * bpr + kb, kqs);
+#pragma unroll
+            for (int col = 0; col < NCOLS; ++col)
+                sums[logical][col] += F::apply(weight, x + std::size_t(col) * xs + kb * F::KBY, kqs);
+        }
+    }
+#pragma unroll
+    for (int col = 0; col < NCOLS; ++col) {
+        float total = sums[0][col];
+#pragma unroll
+        for (int logical = 1; logical < WARPS; ++logical) total += sums[logical][col];
+        total = warp_sum(total);
+        if (lane == 0) y[std::size_t(col) * n_out + row] = total;
+    }
+}
+#endif
+
 template<typename F, int NCOLS>
 void launch_multi_n(const void* weights, const void* x_q8_1, float* y, int n_in, int n_out, cudaStream_t s) {
     const auto* w = static_cast<const typename F::Block*>(weights);
     const auto* x = static_cast<const Q81Block*>(x_q8_1);
+#if !defined(__HIPCC__) && defined(STRATA_EXPERIMENTAL_SM60)
+    if constexpr (std::is_same_v<F, Q4KTraits> || std::is_same_v<F, Q5KTraits> || std::is_same_v<F, SmallTraits<IQ4NLBlock, 4>>) {
+        // P40-qualified opt-in. Retain the four logical warps' sums, unlike a one-warp reduction.
+        static const bool exact_warp = [] { const char* v = std::getenv("STRATA_MMVQ_EXACT_WARP"); return v && v[0] == '1'; }();
+        if (exact_warp && n_in <= 4096 && n_out >= 512 && n_in / F::DIV >= 1 && (NCOLS <= 4 || NCOLS == 8)) {
+            exact_nw1_kernel<F, NCOLS><<<unsigned(n_out), WARP, 0, s>>>(w, x, y, n_in, n_out);
+            return;
+        }
+    }
+#endif
     if (b6_launch<F, NCOLS>(w, x, y, n_in, n_out, s)) return;   // STRATA_B6_MMVQ_ROWS
     if (!g_multi_exact) {
         constexpr int NW = NCOLS <= 4 ? 4 : 2;

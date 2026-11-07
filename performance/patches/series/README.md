@@ -24,3 +24,4 @@ Retained applied source/dependency changes and currently used build/startup safe
 - [44. tool-buffer-chunks](44-tool-buffer-chunks/README.md)
 - [45. windows-numa-arena](45-windows-numa-arena/README.md)
 - [46. windows-preflight-json-bom](46-windows-preflight-json-bom/README.md)
+- [47. Pascal exact logical warp](47-pascal-exact-warp-5476/README.md)
