@@ -23,7 +23,7 @@ Same-native Swift IQ3_S A/B used seven requests per arm, two warm-ups and five m
 
 The observed +0.53% is below the measured noise. Outputs and MTP acceptance also vary, so **overall model TPS gain is not established**. The profile retains the confirmed exact operator benefit without a credible model regression. It is not an absolute maximum claim.
 
-The broader template experiment covered140 comparisons with exact outputs. Large Q6_K/IQ4_XS shapes were about10–20% slower at three columns, so those formats are excluded from this dispatch. A separate existing EXPDEC R1 MINB2/MINB4 comparison, three normal rounds and one strided round, found only timing noise; MINB4 remains unchanged. No extra model arm was run for that ineffective parameter.
+The broader template experiment covered140 comparisons with exact outputs. Large Q6_K/IQ4_XS shapes were about10–20% slower at three columns, so those formats are excluded from this dispatch. The initial standalone MINB/MINBLK timing passes were preempted by the automatic P40 mode8 layout and are withdrawn as evidence about EXPDEC. No parameter was changed from those passes. A corrected harness explicitly selects mode8 or mode0, uses the verifier's10*T group capacity and checks the actual EXPDEC diagnostic; follow-up results are separate from the selected dense exact-warp qualification.
 
 CPU/host retain the O3/Ivy AVX1 profile with strict FP and no baseline AVX2/FMA/F16C. The native MMVQ unit retains its existing source-controlled CUDA math flags; this patch adds no FP relaxation. CPU vision is reused by identical component bytes and normalized source closure, not relabeled as a fresh compilation.
 
@@ -33,7 +33,7 @@ The checked Swift profile keeps context262144,150MiB reserve,14workers, Q2 MTP, 
 
 ## Review scope
 
-Ten selected fresh PR revisions were assessed; eight relevant code scopes were read and two remain explicitly partial. This is not completion of every tracked PR. Relevant findings include:
+Ten selected fresh PR revisions were assessed; all ten selected relevant code scopes were read; this is not a full all-source audit. This is not completion of every tracked PR. Relevant findings include:
 
 - [Strata #4910](https://github.com/Niko1221/Strata/pull/4910): the small-batch PLE allocation avoidance is already integrated; preserve main's large-batch hash fallback.
 - [Strata #5474](https://github.com/Niko1221/Strata/pull/5474): unwidened FP16 and grouped SwiGLU fusion are prefill ideas, not demonstrated decode gains here.
@@ -41,6 +41,6 @@ Ten selected fresh PR revisions were assessed; eight relevant code scopes were r
 - [PolyStrata #149](https://github.com/simplexai-labs/PolyStrata/pull/149): size-class MMQ reduces padded prefill work in a separate engine; no direct classic-decode port.
 - [Maya #906](https://github.com/mw00/project-maya/pull/906): fixes shared-prefix/slot restoration in the separate DeepSeek scheduler; not a Swift change.
 - [Xolotl #115](https://github.com/Indras-Mirror/Xolotl/pull/115): disk-prefix latency policies do not benefit this RAM-only profile.
-- [Strata #5471](https://github.com/Niko1221/Strata/pull/5471) and [Sepal #8](https://github.com/bloomifycafe/Sepal-Runner/pull/8): relevant implementation read, full proof/benchmark/safety scopes still incomplete. No unmeasured architecture thresholds were imported.
+- [Strata #5471](https://github.com/Niko1221/Strata/pull/5471) and [Sepal #8](https://github.com/bloomifycafe/Sepal-Runner/pull/8): all changed implementation, test and benchmark scopes read; Sepal's733-line Lean proof was read but not executed. Its exact-real associativity and assumed chunk-write correctness do not prove CUDA floating-point equivalence. No unmeasured architecture thresholds were imported.
 
 Review follows exact heads and a two-month activity window. Earlier inventory/applicability closure is not full semantic or security review. No new weights, hardware settings, affinity, system NUMA policy or unrelated services were changed.
