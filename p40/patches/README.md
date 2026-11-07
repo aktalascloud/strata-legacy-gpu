@@ -6,7 +6,7 @@
 
 The first two affect the shared native verifier and are not selected by a model name or quant type. Their historical model measurements are scoped to Swift/P40. No universal throughput claim or new other-model benchmark is made. Experimental candidates are published only with an explicit status; failed candidates are not silently enabled.
 
-Experimental, not active:
+Additional measured candidates:
 
 - [Transposed native matvec](native-mmvq-transposed-reduction/README.md): numerical checks passed; no confirmed model speed benefit.
-- [Vectorized table staging](cuda-staged-table-copy/README.md): isolated operation improvement; model A/B pending.
+- [Vectorized table staging](cuda-staged-table-copy/README.md): isolated operation improvement; no confirmed model A/B benefit.
