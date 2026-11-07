@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "status": "used_workspace_recipe",
+  "extends_patch": 49,
+  "patch_sha256": "afb3f16f93ed58e644806581c1fe3ab6e636c0eb93b8e2e8cf5d48a8285e7a67",
+  "synthetic_case_set_checks": 7,
+  "current_actual_cases": 27,
+  "previous_actual_cases": 26,
+  "new_GPU_runs": 0,
+  "source_encoding": "UTF8 LF logical pre/postimages",
+  "native_changed": false
+}

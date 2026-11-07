@@ -3,7 +3,7 @@
   "kind": "selected_applied_patch_catalogue",
   "source_binding": {
     "official_source_sha": "146df3c468739147f520ac3816de806f71232571",
-    "native_engine_sha256": "62b147b072b50e50832086ddd4f06103fdf24c1ac7e29449a743e49d977667d8",
+    "native_engine_sha256": "6c51f44c32ca8033fb5e67749abbf7511770e530eeb538d52383b4493d1b86da",
     "commit_binding": "Source commit is the containing Git revision; historical deltas retain their own stated bases."
   },
   "application_order": [],
@@ -259,6 +259,28 @@
       "scope": "Used qualification/installation workflow; see its README. No extra native speed claim.",
       "patch": null,
       "sha256": "9b9569bdc64a2c1f80638ddd1a0b67ad3648aaf254aafd63aef67ca3cd15d5e8",
+      "original_context_required": true,
+      "apply_as_series": false
+    },
+    {
+      "id": 50,
+      "directory": "50-pascal-expert-format-table",
+      "title": "Exact P40 per-format expert dispatch",
+      "status": "selected_source_or_dependency",
+      "scope": "Existing exact kernels, per-format local scheduling. See matched workload and limitations.",
+      "patch": "50-pascal-expert-format-table/change.patch",
+      "sha256": "3c59427cc8c0ddd2fa88a781ae09e2fbc660e57dfe83b7d79dd2d9f457984d60",
+      "original_context_required": true,
+      "apply_as_series": false
+    },
+    {
+      "id": 51,
+      "directory": "51-publication-declared-i64-extra",
+      "title": "Account for a declared successful extra I64 MMQ case",
+      "status": "workspace_recipe_reference",
+      "scope": "Keeps every required check and allows one known declared extra actual receipt; no speed claim.",
+      "patch": null,
+      "sha256": "afb3f16f93ed58e644806581c1fe3ab6e636c0eb93b8e2e8cf5d48a8285e7a67",
       "original_context_required": true,
       "apply_as_series": false
     }

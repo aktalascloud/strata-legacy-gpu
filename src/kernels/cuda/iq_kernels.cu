@@ -4105,43 +4105,43 @@ bool expdec_down_ok(const NativeExpertLayout& L) {
 }
 // rows per block: `knob` rounded up to the rows per pass, or (0) doubled from one pass while ceil(nrow / rb) x
 // cap_groups blocks stay >= g_expdec_minblk (cap_groups: the launch's group rows; every block row g >= n_groups returns)
-int expdec_rows_per_block(int nrow, int rpp, int64_t cap_groups, int knob) {
+int expdec_rows_per_block(int nrow, int rpp, int64_t cap_groups, int knob, int minblk = 0) {
     if (knob > 0) {
         int rb = (knob + rpp - 1) / rpp * rpp;
         return rb > nrow ? nrow : rb;
     }
     int rb = rpp;
     const int64_t cap = cap_groups > 0 ? cap_groups : 1;
-    while (rb * 2 <= nrow && ((int64_t) ((nrow + 2 * rb - 1) / (2 * rb))) * cap >= g_expdec_minblk) rb *= 2;
+    while (rb * 2 <= nrow && ((int64_t) ((nrow + 2 * rb - 1) / (2 * rb))) * cap >= (minblk > 0 ? minblk : g_expdec_minblk)) rb *= 2;
     return rb;
 }
 
 template<int TG, int R, int MINB>
 void expdec_gu_r(int64_t gy, int64_t cap_groups, cudaStream_t s, const unsigned long long* grp_ptr, const int32_t* grp_start,
                  const int32_t* n_groups, const int32_t* ent_tok, const block_q8_1* X, const NativeExpertLayout& L,
-                 float* gate, float* up) {
+                 float* gate, float* up, int minblk) {
     const int nrow = 2 * (int) L.n_ff;
-    const int rb = expdec_rows_per_block(nrow, 16 * R, cap_groups, g_expdec_rb);
+    const int rb = expdec_rows_per_block(nrow, 16 * R, cap_groups, g_expdec_rb, minblk);
     const dim3 grid((unsigned) ((nrow + rb - 1) / rb), (unsigned) gy);
     expdec_gu_kernel<TG, R, MINB><<<grid, 256, 0, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up, rb);
 }
 template<int TG>
 void expdec_gu_t(int64_t gy, int64_t cap_groups, cudaStream_t s, const unsigned long long* grp_ptr, const int32_t* grp_start,
                  const int32_t* n_groups, const int32_t* ent_tok, const block_q8_1* X, const NativeExpertLayout& L,
-                 float* gate, float* up) {
+                 float* gate, float* up, int minblk) {
     const bool b4 = g_expdec_minb >= 4;
     if (expdec_r() == 2) {
-        if (b4) expdec_gu_r<TG, 2, 4>(gy, cap_groups, s, grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up);
-        else expdec_gu_r<TG, 2, 2>(gy, cap_groups, s, grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up);
+        if (b4) expdec_gu_r<TG, 2, 4>(gy, cap_groups, s, grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up, minblk);
+        else expdec_gu_r<TG, 2, 2>(gy, cap_groups, s, grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up, minblk);
     } else {
-        if (b4) expdec_gu_r<TG, 1, 4>(gy, cap_groups, s, grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up);
-        else expdec_gu_r<TG, 1, 2>(gy, cap_groups, s, grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up);
+        if (b4) expdec_gu_r<TG, 1, 4>(gy, cap_groups, s, grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up, minblk);
+        else expdec_gu_r<TG, 1, 2>(gy, cap_groups, s, grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up, minblk);
     }
 }
 // One line on stderr per (role, format, taken or not), the first time STRATA_EXPDEC=1 meets it: the proof in the
 // engine's log that the EXPDEC kernels are the ones launched (or captured into the window's graph), with the
 // choices in force.
-void expdec_note(const NativeExpertLayout& L, bool gu, bool taken, cudaStream_t s, int64_t gy, int64_t cap_groups) {
+void expdec_note(const NativeExpertLayout& L, bool gu, bool taken, cudaStream_t s, int64_t gy, int64_t cap_groups, int minblk = 0) {
     static bool seen[2][64][2] = {};
     const int ty = gu ? L.gu_type : L.d_type;
     if (ty < 0 || ty >= 64 || seen[gu ? 0 : 1][ty][taken ? 1 : 0]) return;
@@ -4156,7 +4156,7 @@ void expdec_note(const NativeExpertLayout& L, bool gu, bool taken, cudaStream_t 
         return;
     }
     if (gu) {
-        const int R = expdec_r(), rb = expdec_rows_per_block(2 * (int) L.n_ff, 16 * R, cap_groups, g_expdec_rb);
+        const int R = expdec_r(), rb = expdec_rows_per_block(2 * (int) L.n_ff, 16 * R, cap_groups, g_expdec_rb, minblk);
         std::fprintf(stderr, "strata expdec: CUDA%d gate/up type %d: expdec_gu_kernel R %d MINB %d, %d rows per block, grid %d x %lld "
                              "(cap %lld groups)%s\n", dev, ty, R, g_expdec_minb >= 4 ? 4 : 2, rb, (2 * (int) L.n_ff + rb - 1) / rb,
                      (long long) gy, (long long) cap_groups, cs != cudaStreamCaptureStatusNone ? ", captured into a graph" : "");
@@ -4172,16 +4172,16 @@ void expdec_note(const NativeExpertLayout& L, bool gu, bool taken, cudaStream_t 
 // false: EXPDEC is off or does not take this layout (the caller launches the default kernels)
 bool expdec_gu(const NativeExpertLayout& L, int64_t gy, int64_t cap_groups, cudaStream_t s, const unsigned long long* grp_ptr,
                const int32_t* grp_start, const int32_t* n_groups, const int32_t* ent_tok, const block_q8_1* X, float* gate,
-               float* up) {
+               float* up, int minblk = 0) {
     if (!expdec_mode() || g_old_kernels) return false;
-    if (!expdec_gu_ok(L)) { expdec_note(L, true, false, s, gy, cap_groups); return false; }
-    expdec_note(L, true, true, s, gy, cap_groups);
+    if (!expdec_gu_ok(L)) { expdec_note(L, true, false, s, gy, cap_groups, minblk); return false; }
+    expdec_note(L, true, true, s, gy, cap_groups, minblk);
     switch (L.gu_type) {
-        case 16: expdec_gu_t<16>(gy, cap_groups, s, grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up); break;
-        case 17: expdec_gu_t<17>(gy, cap_groups, s, grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up); break;
-        case 18: expdec_gu_t<18>(gy, cap_groups, s, grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up); break;
-        case 21: expdec_gu_t<21>(gy, cap_groups, s, grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up); break;
-        default: expdec_gu_t<22>(gy, cap_groups, s, grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up); break;
+        case 16: expdec_gu_t<16>(gy, cap_groups, s, grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up, minblk); break;
+        case 17: expdec_gu_t<17>(gy, cap_groups, s, grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up, minblk); break;
+        case 18: expdec_gu_t<18>(gy, cap_groups, s, grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up, minblk); break;
+        case 21: expdec_gu_t<21>(gy, cap_groups, s, grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up, minblk); break;
+        default: expdec_gu_t<22>(gy, cap_groups, s, grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up, minblk); break;
     }
     return true;
 }
@@ -6223,6 +6223,27 @@ int sm75_down_em(int em0, int64_t cap_groups) {
 int sm75_down_em(int em0, int64_t) { return em0; }
 #endif
 
+// Qualified per-format scheduling, with the original weights and expert selection.
+// Keep benchmark/manual mode overrides authoritative. No global mode is changed here.
+bool sm61_expert_table(const NativeExpertLayout& L, int em, int64_t cap, int64_t grid, bool v1) {
+#if STRATA_EXP_LAYOUTS && defined(STRATA_EXPERIMENTAL_SM60) && !defined(__HIPCC__)
+    static const bool enabled = env_on("STRATA_SM61_EXPERT_TABLE");
+    if (!enabled || em != 8 || g_exp_mode >= 0 || std::getenv("STRATA_EXP_MODE") ||
+        g_old_kernels || v1 || L.had_block > 0 || nib_layout(L) || !expdec_mode() ||
+        L.n_embd != 2560 || L.n_ff != 640 || (L.gu_type != 18 && L.gu_type != 22) ||
+        (L.d_type != 20 && L.d_type != 42) || cap < 10 || cap > 40 || cap % 10 != 0 ||
+        (grid > 0 && grid < cap)) return false;
+    int dev = 0, major = 0, minor = 0;
+    if (cudaGetDevice(&dev) != cudaSuccess ||
+        cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, dev) != cudaSuccess ||
+        cudaDeviceGetAttribute(&minor, cudaDevAttrComputeCapabilityMinor, dev) != cudaSuccess) return false;
+    return major == 6 && minor == 1;
+#else
+    (void)L; (void)em; (void)cap; (void)grid; (void)v1;
+    return false;
+#endif
+}
+
 void native_expert_set_mode(int mode, int phase) {
 #if STRATA_EXP_LAYOUTS
     g_exp_mode = mode;
@@ -6353,6 +6374,7 @@ void native_expert_grouped(const NativeExpertLayout& L, const unsigned long long
         check("native_expert_grouped (v2k)");
         return;
     }
+    int gu_minblk = 0;
     const bool v1 = g_grouped_v1;
     const int64_t gy = (v1 || grid_groups <= 0 || grid_groups > cap_groups) ? cap_groups : grid_groups;
     const int gu_rows = (!g_old_kernels && !g_no_sub16_gu && L.n_embd == 2560 && gu_split(L.gu_type) &&
@@ -6360,12 +6382,16 @@ void native_expert_grouped(const NativeExpertLayout& L, const unsigned long long
     const dim3 ggu((unsigned) ((2 * L.n_ff + gu_rows - 1) / gu_rows), (unsigned) gy);
 #if STRATA_EXP_LAYOUTS
 #if defined(STRATA_HIP_GFX906)
-    const int em0 = exp_mode();
+    const int em_base = exp_mode();
 #else
     // CUDA: the AMD layouts launch a block row per possible group, so a call that strides (a verify window's PCIe
     // call, grid_groups 1..cap) keeps the CUDA layout: V100, 0 groups 11.3 vs 6.5 us, 1 group of 2 29.6 vs 21.3
-    const int em0 = (grid_groups > 0 && grid_groups < cap_groups) ? 0 : exp_mode();
+    const int em_base = (grid_groups > 0 && grid_groups < cap_groups) ? 0 : exp_mode();
 #endif
+    const bool p40_table = sm61_expert_table(L, em_base, cap_groups, grid_groups, v1);
+    const int em0 = p40_table ? 0 : em_base;
+    // Only the auto GU row budget changes. Explicit row/block knobs remain authoritative.
+    if (p40_table && !std::getenv("STRATA_EXPDEC_MINBLK")) gu_minblk = 400;
 #endif
 #if STRATA_EXP_LAYOUTS
     const bool fused_gu = !nib_layout(L) && em0 == 8 && ((kExpLds16 && L.gu_type == 16) || L.gu_type == 18 || L.gu_type == 21 || L.gu_type == 22 || L.gu_type == 23) &&
@@ -6448,7 +6474,7 @@ void native_expert_grouped(const NativeExpertLayout& L, const unsigned long long
                       n_groups, ent_tok, X, gate, up);
     else
 #endif
-    if (!expdec_gu(L, gy, cap_groups, s, grp_ptr, grp_start, n_groups, ent_tok, X, gate, up))   // STRATA_EXPDEC=1
+    if (!expdec_gu(L, gy, cap_groups, s, grp_ptr, grp_start, n_groups, ent_tok, X, gate, up, gu_minblk))   // STRATA_EXPDEC=1
     switch (L.gu_type) {
 #define STRATA_GU(T) case T: launch_gu<T>(ggu, s, grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up); break;
         STRATA_GU_FMTS(STRATA_GU)
@@ -6494,7 +6520,7 @@ void native_expert_grouped(const NativeExpertLayout& L, const unsigned long long
     }
 #endif
 #if STRATA_EXP_LAYOUTS
-    const int em0d = sm75_down_em(em0, cap_groups);
+    const int em0d = p40_table && L.d_type == 42 ? 8 : sm75_down_em(em0, cap_groups);
     // The gfx1151 exception is HIP-only. CUDA/Pascal needs no runtime device query here.
     bool lds_down_ok = L.d_type == 42 || L.d_type == 20;
 #if defined(__HIPCC__) && !defined(STRATA_HIP_GFX906)
