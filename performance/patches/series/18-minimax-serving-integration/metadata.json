@@ -1,0 +1,11 @@
+{
+  "id": 18,
+  "directory": "18-minimax-serving-integration",
+  "title": "minimax-serving-integration",
+  "status": "retained_optional_model_history",
+  "scope": "Additional-model source/history; that model is retired from the local installation. No current model startup or new throughput qualification is claimed.",
+  "patch": "18-minimax-serving-integration/change.patch",
+  "sha256": "01068c3d0447244d3b3dcc9b6390b57cb4446a9617622bc84d56e356cea24bd0",
+  "original_context_required": true,
+  "apply_as_series": false
+}

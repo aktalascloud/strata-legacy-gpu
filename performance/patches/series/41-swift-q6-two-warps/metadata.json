@@ -1,0 +1,11 @@
+{
+  "id": 41,
+  "directory": "41-swift-q6-two-warps",
+  "title": "swift-q6-two-warps",
+  "status": "not_selected",
+  "scope": "Historical experiment, rejected or not confirmed in the selected runtime. Original inputs and measured limits are retained; no activation implied.",
+  "patch": "41-swift-q6-two-warps/change.patch",
+  "sha256": "8c243c8711c1f2119872667b84bd5aa8268f69da3ea75c400f8246fc0e15564b",
+  "original_context_required": true,
+  "apply_as_series": false
+}

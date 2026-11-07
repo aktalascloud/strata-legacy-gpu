@@ -1,0 +1,320 @@
+diff --git a/src/ds4/ds4_iq.cu b/src/ds4/ds4_iq.cu
+index cfcfca14ad892ad454bf55d434549f103906c905..06c86e1c6971e26495c8a6c2da99cd9e88975c7f 100644
+--- a/src/ds4/ds4_iq.cu
++++ b/src/ds4/ds4_iq.cu
+@@ -1029,6 +1029,8 @@ __global__ void __launch_bounds__(kThreads) set_tc_kernel(const SetArgs a) {
+     pdl_trigger();
+ #if defined(STRATA_USE_HIP) && !DS4_ROCWMMA
+     __builtin_trap();   // (a device pass for a card without WMMA: never launched there - tc_ok)
++#elif defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 700
++    asm volatile("trap;");   // tc_ok() keeps Pascal on set_kernel's F32 path.
+ #else
+ #if defined(STRATA_USE_HIP)
+     namespace wm = rocwmma;
+diff --git a/src/kernels/cpu/pool.cpp b/src/kernels/cpu/pool.cpp
+index 51ad4d7ac1f9bf1b4773c7ce67e9c60a9ce907da..2071630d9dc0998ebcbfd1e83e5e26809c3c36c2 100644
+--- a/src/kernels/cpu/pool.cpp
++++ b/src/kernels/cpu/pool.cpp
+@@ -96,49 +96,18 @@ std::vector<int> physical_cores(bool skip_first) {
+ namespace {
+ 
+ void pin_this_thread(int core) {
+-    if (core < 0) return;
+-#if defined(_WIN32)
+-    SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR) 1 << (core & 63));
+-#else
+-    cpu_set_t set;
+-    CPU_ZERO(&set);
+-    CPU_SET(core, &set);
+-    pthread_setaffinity_np(pthread_self(), sizeof set, &set);
+-#endif
++    (void) core;   // Legacy host: preserve the user's scheduler policy.
+ }
+ 
+ }  // namespace
+ 
+ long long pin_current_thread(int core) {
+-    if (core < 0) return -1;
+-#if defined(_WIN32)
+-    // `SetThreadAffinityMask` RETURNS the previous mask, or 0 on failure - so 0 doubles as the error, which is
+-    // why the caller must not treat it as a restorable value.
+-    const DWORD_PTR prev = SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR) 1 << (core & 63));
+-    return prev == 0 ? -1 : (long long) prev;
+-#else
+-    cpu_set_t prev;
+-    CPU_ZERO(&prev);
+-    if (pthread_getaffinity_np(pthread_self(), sizeof prev, &prev) != 0) return -1;
+-    unsigned long mask = 0;
+-    for (int i = 0; i < CPU_SETSIZE && i < 64; ++i)
+-        if (CPU_ISSET(i, &prev)) mask |= 1ul << i;
+-    pin_this_thread(core);
+-    return (long long) mask;
+-#endif
++    (void) core;
++    return -1;
+ }
+ 
+ void restore_thread_affinity(long long previous) {
+-    if (previous <= 0) return;
+-#if defined(_WIN32)
+-    SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR) previous);
+-#else
+-    cpu_set_t set;
+-    CPU_ZERO(&set);
+-    for (int i = 0; i < 64; ++i)
+-        if ((previous >> i) & 1) CPU_SET(i, &set);
+-    pthread_setaffinity_np(pthread_self(), sizeof set, &set);
+-#endif
++    (void) previous;
+ }
+ 
+ namespace {
+diff --git a/src/mm3/mm3_exl3.cu b/src/mm3/mm3_exl3.cu
+index 6beab9df840763f783772ea1f03d396aca21c825..8df55fac9c081cdf2751bbe48128e29bb4a30432 100644
+--- a/src/mm3/mm3_exl3.cu
++++ b/src/mm3/mm3_exl3.cu
+@@ -1478,8 +1478,32 @@ __global__ void __launch_bounds__(kThreads) gate_up_kernel(const GArgs a) {
+ // sums - a block owns one expert, up to eight of its routed rows and 128 outputs; no host bounds readback, no expanded
+ // weights.  AMD runs them (no tensor-core port yet), and NVIDIA before sm_80 (V100, T4, RTX 20: the tensor-core
+ // kernels below need mma.m16n8k16), which had no prompt path for EXL3 experts before.
++// SetArgs owns the host's full mixed-layout table. Device kernels already receive its compact KMix
++// separately; passing the unused table too exceeds Pascal's 4096-byte kernel-argument limit.
++struct KSet {
++    const uint8_t* wbase;
++    size_t stride;
++    ExpertLayout lay;
++    const unsigned long long* eptr;
++    int n_exp;
++    const int* bounds;
++    int row0, max_rows, n_embd, n_ff;
++    float limit;
++    int skip_ge;
++    const int* hbounds;
++    const uint16_t* x16;
++    float* graw;
++
++    KSet(const SetArgs& a)
++        : wbase(a.wbase), stride(a.stride), lay(a.lay), eptr(a.eptr), n_exp(a.n_exp), bounds(a.bounds),
++          row0(a.row0), max_rows(a.max_rows), n_embd(a.n_embd), n_ff(a.n_ff), limit(a.limit),
++          skip_ge(a.skip_ge), hbounds(a.hbounds), x16(a.x16), graw(a.graw) {}
++};
++static_assert(std::is_trivially_copyable_v<KSet>);
++static_assert(sizeof(KSet) + sizeof(KMix) + 8 * sizeof(void*) < 4096);
++
+ template <int K2, int cb, bool gate_up>
+-__global__ void __launch_bounds__(kThreads) hip_set_kernel(SetArgs a, const float* x, int ldx,
++__global__ void __launch_bounds__(kThreads) hip_set_kernel(KSet a, const float* x, int ldx,
+                                                         const int* idx, uint16_t* h, int ldh,
+                                                         float* y, int ldy) {
+     __shared__ __align__(16) BlockSmem<K2> sm;
+@@ -1527,7 +1551,7 @@ __global__ void __launch_bounds__(kThreads) hip_set_kernel(SetArgs a, const floa
+ 
+ // hip_set_kernel for a mixed-precision layer: expert e's blob at a.eptr[e], each part at its class's K
+ template <int cb, bool gate_up>
+-__global__ void __launch_bounds__(kThreads) set_mix_kernel(SetArgs a, KMix mx, const float* x, int ldx,
++__global__ void __launch_bounds__(kThreads) set_mix_kernel(KSet a, KMix mx, const float* x, int ldx,
+                                                         const int* idx, uint16_t* h, int ldh,
+                                                         float* y, int ldy) {
+     __shared__ __align__(16) MixSmem sm;
+@@ -1740,7 +1764,7 @@ __device__ void block_gemm_w(const uint32_t* __restrict__ tr, int ld, int tc0, i
+ // a block's rows [row, row + nc) of one expert (gemm(r, in): part r's NR-row product, its out): gate / up into h
+ // through the clamped swiglu, or down into y - hip_set_kernel's arithmetic around the product
+ template <int NR, bool gate_up, class Gemm>
+-__device__ __forceinline__ void set_rows_w(const SetArgs& a, Gemm&& gemm, const uint16_t* svh0, const uint16_t* svh1,
++__device__ __forceinline__ void set_rows_w(const KSet& a, Gemm&& gemm, const uint16_t* svh0, const uint16_t* svh1,
+                                            const uint16_t* svh2, const float* x, int ldx, const int* idx, uint16_t* h,
+                                            int ldh, float* y, int ldy, int row, int nc, int g, float* gate) {
+     const int warp = threadIdx.x >> 5, lane = threadIdx.x & 31;
+@@ -1776,7 +1800,7 @@ __device__ __forceinline__ void set_rows_w(const SetArgs& a, Gemm&& gemm, const
+ }
+ 
+ template <int K2, int cb, bool gate_up, int NR>
+-__global__ void __launch_bounds__(kThreads) wmma_set_kernel(SetArgs a, const float* x, int ldx, const int* idx,
++__global__ void __launch_bounds__(kThreads) wmma_set_kernel(KSet a, const float* x, int ldx, const int* idx,
+                                                          uint16_t* h, int ldh, float* y, int ldy) {
+     __shared__ __align__(16) WmmaSmem<K2, NR> sm;
+     __shared__ float gate[NR * kCols];
+@@ -1798,7 +1822,7 @@ __global__ void __launch_bounds__(kThreads) wmma_set_kernel(SetArgs a, const flo
+ }
+ 
+ template <int cb, bool gate_up, int NR>
+-__global__ void __launch_bounds__(kThreads) wmma_set_mix_kernel(SetArgs a, KMix mx, const float* x, int ldx,
++__global__ void __launch_bounds__(kThreads) wmma_set_mix_kernel(KSet a, KMix mx, const float* x, int ldx,
+                                                              const int* idx, uint16_t* h, int ldh, float* y,
+                                                              int ldy) {
+     __shared__ __align__(16) WmmaSmem<8, NR> sm;
+diff --git a/src/mm3/mm3_host.cpp b/src/mm3/mm3_host.cpp
+index 2feb4e0d62fadeb8daa001b3b527633dfd499fa3..050e25702d77efb2326b2c729c2c841d89d78cf5 100644
+--- a/src/mm3/mm3_host.cpp
++++ b/src/mm3/mm3_host.cpp
+@@ -9,16 +9,17 @@
+ namespace mm3::host {
+ 
+ #if defined(__GNUC__) || defined(__clang__)
+-__attribute__((target("avx2,fma")))
++__attribute__((target("avx")))
+ #endif
+ float dot(const float* a, const float* b, int n) {
+     __m256 s0 = _mm256_setzero_ps(), s1 = s0, s2 = s0, s3 = s0;
+     int i = 0;
+     for (; i + 32 <= n; i += 32) {
+-        s0 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i), s0);
+-        s1 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 8), _mm256_loadu_ps(b + i + 8), s1);
+-        s2 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 16), _mm256_loadu_ps(b + i + 16), s2);
+-        s3 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 24), _mm256_loadu_ps(b + i + 24), s3);
++        // Ivy Bridge: preserve the reduction order with separate, strictly rounded AVX operations.
++        s0 = _mm256_add_ps(s0, _mm256_mul_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i)));
++        s1 = _mm256_add_ps(s1, _mm256_mul_ps(_mm256_loadu_ps(a + i + 8), _mm256_loadu_ps(b + i + 8)));
++        s2 = _mm256_add_ps(s2, _mm256_mul_ps(_mm256_loadu_ps(a + i + 16), _mm256_loadu_ps(b + i + 16)));
++        s3 = _mm256_add_ps(s3, _mm256_mul_ps(_mm256_loadu_ps(a + i + 24), _mm256_loadu_ps(b + i + 24)));
+     }
+     alignas(32) float l[8];
+     _mm256_store_ps(l, _mm256_add_ps(_mm256_add_ps(s0, s1), _mm256_add_ps(s2, s3)));
+@@ -28,7 +29,7 @@ float dot(const float* a, const float* b, int n) {
+ }
+ 
+ #if defined(__GNUC__) || defined(__clang__)
+-__attribute__((target("avx2,fma")))
++__attribute__((target("avx")))
+ #endif
+ void rms_rows(const float* x, const float* w, int rows, int D, float eps, float* y) {
+     for (int r = 0; r < rows; ++r) {
+@@ -42,7 +43,7 @@ void rms_rows(const float* x, const float* w, int rows, int D, float eps, float*
+ }
+ 
+ #if defined(__GNUC__) || defined(__clang__)
+-__attribute__((target("avx2")))
++__attribute__((target("avx")))
+ #endif
+ void sum_into(float* h, const float* const* p, int np, const float* extra, size_t n) {
+     for (size_t i = 0; i < n; i += 8) {
+diff --git a/src/mm3/mm3_host.hpp b/src/mm3/mm3_host.hpp
+index 10e4fc8aea34174abf5d0ae012881f5461ad518a..30f09c841d017ccf93123171532388238d6e5535 100644
+--- a/src/mm3/mm3_host.hpp
++++ b/src/mm3/mm3_host.hpp
+@@ -1,4 +1,4 @@
+-// src/mm3/mm3_host.hpp - maya-mm3's x86 host helpers (AVX2), in a .cpp of their own: nvcc's front end cannot read
++// src/mm3/mm3_host.hpp - maya-mm3's x86 host helpers (AVX1), in a .cpp of their own: nvcc's front end cannot read
+ // <immintrin.h> with every host compiler (CUDA 12.4 with GCC 13: the AMX intrinsics' builtins are unknown to it), so
+ // the .cu files call these instead of including it.
+ #pragma once
+diff --git a/src/mm3/mm3_kernels.cu b/src/mm3/mm3_kernels.cu
+index 4343814e0f76d3234085c0707b8ea2a490bb8ea0..228b092e53041e769b8ad1417370e56df9e720b4 100644
+--- a/src/mm3/mm3_kernels.cu
++++ b/src/mm3/mm3_kernels.cu
+@@ -1865,8 +1865,8 @@ __device__ uint32_t kth_key(const F& val, int V, int k, SelScratch& S) {
+                 bin = (key >> shift) & 255u;
+             }
+             const unsigned act = __ballot_sync(0xffffffffu, in);
+-#if defined(STRATA_USE_HIP)
+-            // (HIP has no 32-lane-mask __match_any_sync: the same peer masks from one ballot per distinct bin, the
++#if defined(STRATA_USE_HIP) || (defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 700)
++            // (HIP/Pascal have no __match_any_sync: the same peer masks from one ballot per distinct bin, the
+             //  whole warp in the loop - act and rest are the warp's own, so every lane takes the same turns)
+             unsigned peers = 0;
+             for (unsigned rest = act; rest != 0u;) {
+@@ -2221,8 +2221,7 @@ void moe_combine(const float* res, const float* y, const int* inv, const float*
+     check("moe_combine");
+ }
+ 
+-__global__ void wait_flag_kernel(const unsigned* flag, unsigned v) {
+-    if (threadIdx.x != 0) return;
++__device__ inline void wait_until(const unsigned* flag, unsigned v) {
+     const unsigned long long t0 = gtimer();
+     while ((int) (*(volatile const unsigned*) flag - v) < 0) {
+ #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 700
+@@ -2236,6 +2235,10 @@ __global__ void wait_flag_kernel(const unsigned* flag, unsigned v) {
+     __threadfence_system();
+ }
+ 
++__global__ void wait_flag_kernel(const unsigned* flag, unsigned v) {
++    if (threadIdx.x == 0) wait_until(flag, v);
++}
++
+ unsigned wait_timeouts() {
+     unsigned n = 0;
+     if (cudaMemcpyFromSymbol(&n, g_wait_timeouts, sizeof n) != cudaSuccess) {
+@@ -2258,10 +2261,7 @@ __global__ void pull_kernel(float4* dst, const float4* src, size_t n4) {
+ // one block: thread 0 spins on the host's counter, then the block reads the rows (four 16-byte loads in flight a thread)
+ __global__ void __launch_bounds__(1024) wait_pull_kernel(const unsigned* flag, unsigned v, float4* dst,
+                                                          const float4* src, size_t n4) {
+-    if (threadIdx.x == 0) {
+-        while ((int) (*(volatile const unsigned*) flag - v) < 0) __nanosleep(100);
+-        __threadfence_system();
+-    }
++    if (threadIdx.x == 0) wait_until(flag, v);
+     __syncthreads();
+     const size_t st = blockDim.x;
+     size_t i = threadIdx.x;
+diff --git a/src/mm3/mm3_main.cpp b/src/mm3/mm3_main.cpp
+index 647135dedb05489f842f32b36774ba4132fc3b96..e94ecea8605535c1498fbf684a730167330ec9ad 100644
+--- a/src/mm3/mm3_main.cpp
++++ b/src/mm3/mm3_main.cpp
+@@ -44,8 +44,14 @@
+ #include <unordered_map>
+ #include <vector>
+ 
+-#include <cuda_profiler_api.h>
+ #include <cuda_runtime.h>
++#if __has_include(<cuda_profiler_api.h>)
++#include <cuda_profiler_api.h>
++#else
++// Minimal CUDA SDK: these documented APIs are exported by the existing cudart runtime.
++extern "C" cudaError_t CUDARTAPI cudaProfilerStart(void);
++extern "C" cudaError_t CUDARTAPI cudaProfilerStop(void);
++#endif
+ 
+ #include "mm3_cands.hpp"
+ #include "mm3_cpu.hpp"
+diff --git a/src/mm3/mm3_os.hpp b/src/mm3/mm3_os.hpp
+index a77d3bbbcc52c2deb501e3ffcf1e057bfa16b1d7..87d8856e6c57ed629c1c44a75d555b01a48b0e1a 100644
+--- a/src/mm3/mm3_os.hpp
++++ b/src/mm3/mm3_os.hpp
+@@ -130,7 +130,7 @@ inline void drop_mapped(const void* p, size_t n) {
+ #endif
+ }
+ 
+-/// The calling thread on logical CPU `cpu`.
+-inline void pin_self(int cpu) { sys::pin_self(cpu); }
++/// The legacy host keeps the user's scheduler policy; workers never change affinity.
++inline void pin_self(int cpu) { (void) cpu; }
+ 
+ }  // namespace mm3::os
+diff --git a/src/mm3/mm3_pack.hpp b/src/mm3/mm3_pack.hpp
+index c7c9a4a295db78900a5ee595fdf72aefb5103fc4..9a9bef12afd9e2fcccba035828b43d64ad604964 100644
+--- a/src/mm3/mm3_pack.hpp
++++ b/src/mm3/mm3_pack.hpp
+@@ -58,17 +58,19 @@ struct Pack {
+             std::string tag;
+             is >> tag;
+             if (tag == "file") {
+-                int i;
++                int i = -1;
+                 std::string p;
+-                is >> i >> p;
+-                if (i != (int) files.size()) {
++                if (!(is >> i >> p) || i < 0 || (size_t) i != files.size()) {
+                     err = "tensors.txt: files out of order";
+                     return false;
+                 }
+                 files.push_back(p);
+             } else if (tag == "t") {
+                 Tensor x;
+-                is >> x.name >> x.dtype >> x.file >> x.off >> x.bytes;
++                if (!(is >> x.name >> x.dtype >> x.file >> x.off >> x.bytes)) {
++                    err = "tensors.txt: incomplete tensor record";
++                    return false;
++                }
+                 for (int64_t d; is >> d;) x.shape.push_back(d);
+                 t[x.name] = std::move(x);
+             }
+@@ -87,7 +89,8 @@ struct Pack {
+             map_bytes[i] = sz;
+         }
+         for (const auto& [n, x] : t)
+-            if (x.file < 0 || x.file >= (int) files.size() || x.off + x.bytes > map_bytes[(size_t) x.file]) {
++            if (x.file < 0 || (size_t) x.file >= files.size() || x.off > map_bytes[(size_t) x.file] ||
++                x.bytes > map_bytes[(size_t) x.file] - x.off) {
+                 err = n + ": outside its file";
+                 return false;
+             }

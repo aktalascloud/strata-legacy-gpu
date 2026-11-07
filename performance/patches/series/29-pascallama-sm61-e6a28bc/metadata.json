@@ -1,0 +1,11 @@
+{
+  "id": 29,
+  "directory": "29-pascallama-sm61-e6a28bc",
+  "title": "pascallama-sm61-e6a28bc",
+  "status": "selected_build_local_dependency_overlay",
+  "scope": "Applied by CMake to a build-local pinned GGML copy; not to the original dependency or directly to the repository root.",
+  "patch": "29-pascallama-sm61-e6a28bc/change.patch",
+  "sha256": "4870287d3595bded3cae012131bf0e6e47a4e5320afe571dc962ba1b79604d41",
+  "original_context_required": true,
+  "apply_as_series": false
+}

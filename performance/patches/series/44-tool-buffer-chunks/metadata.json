@@ -1,0 +1,11 @@
+{
+  "id": 44,
+  "directory": "44-tool-buffer-chunks",
+  "title": "tool-buffer-chunks",
+  "status": "selected_source_or_dependency",
+  "scope": "Retained in the selected source/runtime or dependency workflow. This catalogue does not reapply or rebuild unchanged bytes.",
+  "patch": "44-tool-buffer-chunks/change.patch",
+  "sha256": "38ab8825971680aef22970a6fb4f39fcdc01e2ed852ad2e8841732bfb798da52",
+  "original_context_required": true,
+  "apply_as_series": false
+}

@@ -1,0 +1,248 @@
+diff --git a/serve/frontend.py b/serve/frontend.py
+index 8ce042fb7e70d36d02e51a09b98b28453e814522..8b1b1fc2af1a4348ecc2b89775305838a4609eb7 100644
+--- a/serve/frontend.py
++++ b/serve/frontend.py
+@@ -1233,7 +1233,7 @@ class OutputParser:
+     def clean(self) -> bool:
+         """Nothing is held back: a clean point to stop the thinking at (a parser that rewrites the model's text, as
+         serve/dsml.py's does, also counts what it holds)."""
+-        return not self.buf
++        return not self.buf and not self._scan_parts
+ 
+     def _ok_at(self, p: int) -> bool:
+         """self.buf[p] would open a call: at the start of a line, outside a code fence and inline code."""
+@@ -1244,10 +1244,7 @@ class OutputParser:
+         return ok
+ 
+     def _callable(self, name: str) -> bool:
+-        """#3075: may a call for `name` be a call?  A tool the request declared (or its Responses spelling); with
+-        none declared, only where `declared_only` is off."""
+-        if not self.schemas:
+-            return not self.declared_only
++        """Only a tool explicitly declared by this request (including its canonical alias) can be a call."""
+         return name in self.schemas or name in self.aliases
+ 
+     def _loose_open(self, after: str):
+@@ -1441,6 +1438,8 @@ class OutputParser:
+ 
+     def _reset_scan(self):
+         self._call_end_checked = 0   # closing-tag search progress for the current wrapped call
++        self._function_end_checked = 0
++        self._scan_parts = []        # consumed canonical call text; restored for structural walks/final parsing
+         self.sp = 0                  # how much of self.buf (the call body) the scanner has consumed
+         self.ss = "name"             # name -> between -> str|raw -> ... -> function_done -> done
+         self.scall = None            # the ToolCall being streamed (its id is reused by the final event)
+@@ -1451,11 +1450,51 @@ class OutputParser:
+         self.svstart = 0
+         self._param_end_checked = 0  # candidate search progress within one raw parameter
+ 
++    def _restore_scan_body(self) -> None:
++        if not self._scan_parts:
++            return
++        prefix = ''.join(self._scan_parts)
++        shift = len(prefix)
++        self.buf = prefix + self.buf
++        self.sp += shift
++        if self.ss == 'str' and self.sval_started:
++            self.svstart += shift
++        if self._call_end_checked >= 0:
++            self._call_end_checked += shift
++        if self._function_end_checked >= 0:
++            self._function_end_checked += shift
++        self._scan_parts.clear()
++
++    def _compact_scan_body(self) -> None:
++        if self.native_call_format or self.sp < 4096 or self.ss in ('function_done', 'done'):
++            return
++        cut = self.sp
++        self._scan_parts.append(self.buf[:cut])
++        self.buf = self.buf[cut:]
++        self.sp = 0
++        if self.ss == 'str' and self.sval_started:
++            self.svstart -= cut
++        if self._call_end_checked >= 0:
++            self._call_end_checked = max(0, self._call_end_checked - cut)
++        if self._function_end_checked >= 0:
++            self._function_end_checked = max(0, self._function_end_checked - cut)
++
++    def _function_end(self) -> int:
++        if self._function_end_checked >= 0:
++            start = max(0, self._function_end_checked - len(FUNC_END) + 1)
++            if self.buf.find(FUNC_END, start) < 0:
++                self._function_end_checked = len(self.buf)
++                return -1
++        self._restore_scan_body()
++        end = function_end(self.buf)
++        self._function_end_checked = -1 if end >= 0 else len(self.buf)
++        return end
++
+     def _wrapped_call_end(self) -> int:
+         # A canonical wrapped call cannot finish without a function or wrapper closer.
+         # Before either candidate the body is append-only, including with recovery:
+-        # its in-call rewrite requires a completed function below. Once any candidate
+-        # appears (even quoted in a value), retain the full structural walk for this call.
++        # its in-call rewrite requires a completed function below. Restore compacted text
++        # for each new candidate; literal tags do not force a walk on every later delta.
+         # Native family hooks keep their previous recovery behavior.
+         if self._call_end_checked >= 0 and (not self.recover or not self.native_call_format):
+             tags = (CALL_END,) if self.native_call_format else (CALL_END, FUNC_END)
+@@ -1463,8 +1502,11 @@ class OutputParser:
+             if not any(self.buf.find(tag, start) >= 0 for tag in tags):
+                 self._call_end_checked = len(self.buf)
+                 return -1
+-            self._call_end_checked = -1
+-        return self._body_end(self.buf)
++            if not self.native_call_format:
++                self._restore_scan_body()
++        end = self._body_end(self.buf)
++        self._call_end_checked = -1 if end >= 0 or self.native_call_format else len(self.buf)
++        return end
+ 
+     # Family hooks keep the canonical parser and its declared-name boundary intact.
+     native_call_format = False
+@@ -1541,6 +1583,9 @@ class OutputParser:
+                     self.sval_started = True
+                     self.svstart = self.sp
+                 # the walk starts at the value (a quoted call's opener counts); only a close in the new text can end it
++                if PARAM_END in rest and self._scan_parts:
++                    self._restore_scan_body()           # quoted/nested tags need the complete value's context
++                    rest = self.buf[self.sp:]
+                 end = param_end(self.buf[self.svstart:], name=self.spname) if PARAM_END in rest else -1
+                 end = end - (self.sp - self.svstart) if end >= 0 else end
+                 if end >= 0:
+@@ -1868,7 +1913,7 @@ class OutputParser:
+             else:
+                 drop = None
+                 if self.bare:                       # no wrapper: the call ends at its </function>; a stray
+-                    i = function_end(self.buf)      # </tool_call> after it is the wrapper's closer, dropped
++                    i = self._function_end()        # </tool_call> after it is the wrapper's closer, dropped
+                     if i >= 0:
+                         after = self.buf[i:].lstrip()
+                         if after.startswith(CALL_END):
+@@ -1881,7 +1926,7 @@ class OutputParser:
+                         drop = len(CALL_END)
+                     # Only a following call opener confirms an omitted wrapper closer.
+                     # The same candidate check covers omitted-wrapper recovery too.
+-                    f = -1 if not self.native_call_format and self._call_end_checked >= 0 else function_end(self.buf)
++                    f = function_end(self.buf) if self.native_call_format else self._function_end()
+                     nxt = self.buf[f:].lstrip() if f >= 0 else ""
+                     if re.match(r"<tool_call>\s*<function=\s*[^<>\s]+\s*>", nxt):
+                         i, drop = f, 0
+@@ -1901,6 +1946,8 @@ class OutputParser:
+                     else:
+                         out += self._scan()
+                 if i < 0 or drop is None:
++                    if self.stream_tools:
++                        self._compact_scan_body()
+                     return out
+                 body = self.buf[:i]
+                 self.buf = self.buf[i + drop:]
+@@ -1915,6 +1962,7 @@ class OutputParser:
+         how the turn ended: calls waiting from the reasoning become real calls only on a natural stop (None = stop);
+         a turn cut by max tokens (or cancelled, or failed) keeps them as reasoning text (#1058)."""
+         out = []
++        self._restore_scan_body()
+         if self.state == "rcall" and reason in (None, "stop"):
+             # #4427: a call in the reasoning whose `</function>` is the end of the output (the `</tool_call>` left out)
+             # is as whole as one in the answer: it waits for the turn's end like the others
+@@ -1985,7 +2033,9 @@ class OutputParser:
+         if name not in self.schemas:
+             self._reset_scan()
+             self.state, self.lead = "content", True
+-            return []
++            if self.native_call_format:
++                return []
++            return [Event("content", self._track(body if bare else CALL_START + body + CALL_END))]
+         try:
+             if raw_name != raw_name.strip() and name not in self.schemas:
+                 raise ValueError("whitespace tool name is not declared")
+diff --git a/serve/test_native_tool_parser.py b/serve/test_native_tool_parser.py
+index 342137adf854f1438b2f465273d7dea725226e94..5f536c89988f382587f6985cbe4a29c5a1e08fc9 100644
+--- a/serve/test_native_tool_parser.py
++++ b/serve/test_native_tool_parser.py
+@@ -55,10 +55,9 @@ class NativeTools(unittest.TestCase):
+                         events += parser.finish()
+                         self.assertFalse(any(event.kind.startswith("tool") for event in events))
+                         self.assertEqual("".join(event.text for event in events if event.kind == "content"), text)
+-                    # an unpadded name nobody declared: text where tools are declared (the 0.2.2 rule, #3075); the Responses
+-                    # route of a request with no tools (Codex compaction, declared_only off) keeps it as a native call
++                    # No request may authorize a tool from model output or prompt text alone.
+                     text = "<tool_call><function=missing></function></tool_call>"
+-                    for tools, declared_only, expected in ((TOOLS, False, []), (TOOLS, True, []), (None, False, ["missing"])):
++                    for tools, declared_only, expected in ((TOOLS, False, []), (TOOLS, True, []), (None, False, []), ([], False, [])):
+                         parser = OutputParser(thinking=False, tools=tools, stream_tools=streaming, recover=recover,
+                                               declared_only=declared_only)
+                         events = []
+diff --git a/serve/test_tool_buffer_chunks.py b/serve/test_tool_buffer_chunks.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..85600ca22912d0d71405a0fc73313a3a237fe04b
+--- /dev/null
++++ b/serve/test_tool_buffer_chunks.py
+@@ -0,0 +1,51 @@
++"""Large canonical string values retain structural context after compaction."""
++import json
++import unittest
++from serve.frontend import OutputParser
++
++TOOLS = [{'name': 'write', 'parameters': {'properties': {'content': {'type': 'string'}}}}]
++OPEN = '<tool_call><function=write><parameter=content>\n'
++CLOSE = '\n</parameter></function></tool_call>'
++
++
++class ToolBufferChunks(unittest.TestCase):
++    def test_large_value_quoted_tags_and_split_boundaries(self):
++        for value in ('x' * 10000, 'x' * 5000 + ' literal </parameter> and </function> and </tool_call> ' + 'y' * 5000,
++                      'x' * 5000 + ' "</parameter>" ' + 'y' * 5000,
++                      'x' * 5000 + ' <tool_call><function=example><parameter=a>\nhi\n</parameter></function></tool_call> ' + 'y' * 5000):
++            for step in (1, 7, 4096):
++                with self.subTest(value=value[4998:5070], step=step):
++                    p = OutputParser(thinking=False, tools=TOOLS, stream_tools=True, recover=True)
++                    text = OPEN + value + CLOSE
++                    events, peak = [], 0
++                    for i in range(0, len(text), step):
++                        events += p.feed(text[i:i + step])
++                        if i + step <= len(OPEN) + len(value):
++                            peak = max(peak, len(p.buf))
++                    events += p.finish()
++                    calls = [e.call for e in events if e.kind == 'tool_call']
++                    self.assertEqual([(c.name, c.arguments) for c in calls], [('write', {'content': value})])
++                    self.assertEqual(json.loads(''.join(e.text for e in events if e.kind == 'tool_args')), {'content': value})
++                    if value == 'x' * 10000:
++                        self.assertLess(peak, 8192)
++
++    def test_bare_function_close_waits_for_wrapper_or_following_text(self):
++        for ending in (' tail', '</tool_call> tail', ''):
++            p = OutputParser(thinking=False, tools=TOOLS, stream_tools=True, recover=True)
++            events = p.feed(OPEN[len('<tool_call>'):] + 'x' * 9000)
++            self.assertFalse(p.clean)
++            events += p.feed('\n</parameter></function>')
++            events += p.feed(ending)
++            events += p.finish()
++            self.assertEqual([e.call.arguments for e in events if e.kind == 'tool_call'], [{'content': 'x' * 9000}])
++
++    def test_truncated_call_restores_held_text_without_completed_tool(self):
++        p = OutputParser(thinking=False, tools=TOOLS, stream_tools=True)
++        events = p.feed(OPEN + 'x' * 9000)
++        self.assertTrue(p._scan_parts)
++        self.assertFalse(p.clean)
++        events += p.finish('length')
++        self.assertFalse(any(e.kind == 'tool_call' for e in events))
++
++
++if __name__ == '__main__': unittest.main()
+diff --git a/serve/test_tool_call_envelope.py b/serve/test_tool_call_envelope.py
+index cf3275b381b620bcfbb3caf032280bfb267f0f46..0c0be3c6009518a19b45ed932040cf0625df160c 100644
+--- a/serve/test_tool_call_envelope.py
++++ b/serve/test_tool_call_envelope.py
+@@ -116,9 +116,9 @@ class OnlyDeclaredTools(unittest.TestCase):
+         self.assertEqual((calls(evs), text(evs)), ([], raw))
+         evs, p = run(raw, 3, tools=[], declared_only=True)
+         self.assertEqual((calls(evs), text(evs)), ([], raw))
+-        # without the flag (the Responses route: a Codex compaction request keeps its tools in the prompt only)
++        # Prompt text alone never declares a tool, including on the Responses route.
+         evs, p = run(raw, 3, tools=None)
+-        self.assertEqual(calls(evs), [("search", {"q": "2+2"})])
++        self.assertEqual((calls(evs), text(evs)), ([], raw))
+ 
+     def test_the_reasoning_state_is_as_before(self):
+         p = frontend.OutputParser(thinking=True, tools=TOOLS, stream_tools=True)

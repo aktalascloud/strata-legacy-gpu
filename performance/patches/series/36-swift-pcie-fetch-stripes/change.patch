@@ -1,0 +1,61 @@
+diff --git a/src/kernels/cuda/verify_kernels.cu b/src/kernels/cuda/verify_kernels.cu
+index 7b2553784be715ae4c0c568201a92ce427ae1914..935cc0f8c0463ebce339aa5c8d37fe5a02e34e0f 100644
+--- a/src/kernels/cuda/verify_kernels.cu
++++ b/src/kernels/cuda/verify_kernels.cu
+@@ -653,6 +653,38 @@ __global__ void fetch_blobs_kernel(const unsigned long long* __restrict__ src, c
+     }
+ }
+ 
++#if defined(STRATA_EXPERIMENTAL_SM60) && !defined(__HIPCC__)
++__global__ void fetch_stripes(const unsigned long long* __restrict__ src, const int32_t* __restrict__ n,
++                              uint4* __restrict__ dst, int per) {
++    for (int blob = blockIdx.y; blob < *n; blob += gridDim.y) {
++        const auto* from = reinterpret_cast<const uint4*>(src[blob]);
++        auto* to = dst + static_cast<size_t>(blob) * per;
++        for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < per; i += gridDim.x * blockDim.x)
++            to[i] = from[i];
++    }
++}
++
++bool fetch_stripes_sm61() {
++    static const bool enabled = [] {
++        const char* value = std::getenv("STRATA_PCIE_FETCH_STRIPES");
++        return value && value[0] == '1' && value[1] == '\0';
++    }();
++    if (!enabled) return false;
++    int dev = -1;
++    if (cudaGetDevice(&dev) != cudaSuccess) return false;
++    static thread_local int cached_dev = -1;
++    static thread_local bool sm61 = false;
++    if (cached_dev != dev) {
++        int major = 0, minor = 0;
++        sm61 = cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, dev) == cudaSuccess &&
++               cudaDeviceGetAttribute(&minor, cudaDevAttrComputeCapabilityMinor, dev) == cudaSuccess &&
++               major == 6 && minor == 1;
++        cached_dev = dev;
++    }
++    return sm61;
++}
++#endif
++
+ __global__ void res_patch_kernel(int32_t* __restrict__ table, const volatile int32_t* pairs, int n) {
+     for (int k = blockIdx.x * blockDim.x + threadIdx.x; k < n; k += gridDim.x * blockDim.x) table[pairs[2 * k]] = pairs[2 * k + 1];
+ }
+@@ -751,6 +783,17 @@ __global__ void force_token_kernel(int32_t* tok, const int32_t* force, int j) {
+ void fetch_blobs(const unsigned long long* src, const int32_t* n, uint8_t* dst, int64_t blob_bytes, int cap, void* stream) {
+     if (cap <= 0) return;
+     if (blob_bytes % 16 != 0) { std::fprintf(stderr, "fetch_blobs: blob size must be a multiple of 16\n"); std::exit(1); }
++#if defined(STRATA_EXPERIMENTAL_SM60) && !defined(__HIPCC__)
++    if (cap == 16 && blob_bytes > 0 && blob_bytes <= (3 << 20) && fetch_stripes_sm61()) {
++        // P40 saturates the link with four blocks per stripe on the staged Swift blobs.
++        static const bool announced = [] { std::fprintf(stderr, "strata verify: PCIe fetch stripes active\n"); return true; }();
++        (void) announced;
++        fetch_stripes<<<dim3(4, 4), 256, 0, (cudaStream_t) stream>>>(
++            src, n, reinterpret_cast<uint4*>(dst), static_cast<int>(blob_bytes / 16));
++        check("fetch_stripes");
++        return;
++    }
++#endif
+     fetch_blobs_kernel<<<48 * 8, 256, 0, (cudaStream_t) stream>>>(src, n, (uint4*) dst, (long long) (blob_bytes / 16));
+     check("fetch_blobs");
+ }

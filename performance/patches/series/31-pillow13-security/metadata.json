@@ -1,0 +1,11 @@
+{
+  "id": 31,
+  "directory": "31-pillow13-security",
+  "title": "pillow13-security",
+  "status": "selected_source_or_dependency",
+  "scope": "Retained in the selected source/runtime or dependency workflow. This catalogue does not reapply or rebuild unchanged bytes.",
+  "patch": "31-pillow13-security/change.patch",
+  "sha256": "b3de43fa33117eaf6947f9d6e920022c29ec30e48df8f1a021d9359dc15bf28a",
+  "original_context_required": true,
+  "apply_as_series": false
+}

@@ -1,0 +1,11 @@
+{
+  "id": 24,
+  "directory": "24-nvml-pcie-readings",
+  "title": "nvml-pcie-readings",
+  "status": "selected_source_or_dependency",
+  "scope": "Retained in the selected source/runtime or dependency workflow. This catalogue does not reapply or rebuild unchanged bytes.",
+  "patch": "24-nvml-pcie-readings/change.patch",
+  "sha256": "25939619db3a172a44436049b166a659c4f1930ad5fa6c9d6fb50233be4046ce",
+  "original_context_required": true,
+  "apply_as_series": false
+}

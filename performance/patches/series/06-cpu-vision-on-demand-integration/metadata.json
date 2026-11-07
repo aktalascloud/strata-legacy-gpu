@@ -1,0 +1,11 @@
+{
+  "id": 6,
+  "directory": "06-cpu-vision-on-demand-integration",
+  "title": "cpu-vision-on-demand-integration",
+  "status": "selected_source_or_dependency",
+  "scope": "Retained in the selected source/runtime or dependency workflow. This catalogue does not reapply or rebuild unchanged bytes.",
+  "patch": "06-cpu-vision-on-demand-integration/change.patch",
+  "sha256": "149213575c71497bd1eb1c987d49ef57a8da9df59f6ced6924c732b61cb3fec5",
+  "original_context_required": true,
+  "apply_as_series": false
+}

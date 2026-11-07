@@ -1,0 +1,11 @@
+{
+  "id": 38,
+  "directory": "38-swift-ple-nonfinite-4688",
+  "title": "swift-ple-nonfinite-4688",
+  "status": "selected_source_or_dependency",
+  "scope": "Retained in the selected source/runtime or dependency workflow. This catalogue does not reapply or rebuild unchanged bytes.",
+  "patch": "38-swift-ple-nonfinite-4688/change.patch",
+  "sha256": "702dbd390054bde1069a43c52c6d4c484104bd3be4d723e9c77a0ebe478292e9",
+  "original_context_required": true,
+  "apply_as_series": false
+}

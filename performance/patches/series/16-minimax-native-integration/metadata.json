@@ -1,0 +1,11 @@
+{
+  "id": 16,
+  "directory": "16-minimax-native-integration",
+  "title": "minimax-native-integration",
+  "status": "retained_optional_model_history",
+  "scope": "Additional-model source/history; that model is retired from the local installation. No current model startup or new throughput qualification is claimed.",
+  "patch": "16-minimax-native-integration/change.patch",
+  "sha256": "2a0fd7c1b1a9dfe93719f51f65276c2757bdca943e5678caf552bed2323d5772",
+  "original_context_required": true,
+  "apply_as_series": false
+}

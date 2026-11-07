@@ -1,0 +1,11 @@
+{
+  "id": 36,
+  "directory": "36-swift-pcie-fetch-stripes",
+  "title": "swift-pcie-fetch-stripes",
+  "status": "not_selected",
+  "scope": "Historical experiment, rejected or not confirmed in the selected runtime. Original inputs and measured limits are retained; no activation implied.",
+  "patch": "36-swift-pcie-fetch-stripes/change.patch",
+  "sha256": "8ca729513a975e0a171dc61352928c122f135f6c32547578dba6f6dd42710bf0",
+  "original_context_required": true,
+  "apply_as_series": false
+}

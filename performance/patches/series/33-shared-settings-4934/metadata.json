@@ -1,0 +1,11 @@
+{
+  "id": 33,
+  "directory": "33-shared-settings-4934",
+  "title": "shared-settings-4934",
+  "status": "selected_source_or_dependency",
+  "scope": "Retained in the selected source/runtime or dependency workflow. This catalogue does not reapply or rebuild unchanged bytes.",
+  "patch": "33-shared-settings-4934/change.patch",
+  "sha256": "7be0e4d639d10490f6d4dfd1ab821940f0a7caa3dc8fce3d12058715ed9542db",
+  "original_context_required": true,
+  "apply_as_series": false
+}

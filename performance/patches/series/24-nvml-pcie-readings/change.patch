@@ -1,0 +1,74 @@
+diff --git a/serve/telemetry.py b/serve/telemetry.py
+index f56da0907f0027b7e274b82924bb83b2525b87c5..a1da978bf55979b27f4cadf01e9f27a37cc7e664 100644
+--- a/serve/telemetry.py
++++ b/serve/telemetry.py
+@@ -23,6 +23,8 @@ import threading
+ import time
+ 
+ HISTORY = 60
++# Reported GP100 spikes are near 200 GiB/s; this ceiling is above PCIe 6.0 x16.
++PCIE_KB_S_MAX = 150 << 20
+ 
+ 
+ # ------------------------------------------------------------------------------------------------ NVML
+@@ -101,12 +103,16 @@ class _Nvml:
+         out["pcie_gen"] = self._uint("nvmlDeviceGetCurrPcieLinkGeneration")        # drops at idle (power saving)
+         out["pcie_gen_max"] = self._uint("nvmlDeviceGetMaxPcieLinkGeneration")
+         out["pcie_width"] = self._uint("nvmlDeviceGetCurrPcieLinkWidth")
+-        rx = self._uint("nvmlDeviceGetPcieThroughput", ctypes.c_uint(1))                 # NVML_PCIE_UTIL_RX_BYTES, KB/s
+-        tx = self._uint("nvmlDeviceGetPcieThroughput", ctypes.c_uint(0))
+-        out["pcie_rx_mb"] = rx / 1024.0 if rx is not None else None
+-        out["pcie_tx_mb"] = tx / 1024.0 if tx is not None else None
++        out["pcie_rx_mb"] = self._pcie_mb(1)             # NVML_PCIE_UTIL_RX_BYTES, KB/s
++        out["pcie_tx_mb"] = self._pcie_mb(0)
+         return out
+ 
++    def _pcie_mb(self, counter):
++        kb = self._uint('nvmlDeviceGetPcieThroughput', ctypes.c_uint(counter))
++        if kb is not None and kb > PCIE_KB_S_MAX:
++            kb = self._uint('nvmlDeviceGetPcieThroughput', ctypes.c_uint(counter))
++        return kb / 1024.0 if kb is not None and kb <= PCIE_KB_S_MAX else None
++
+ 
+ # ------------------------------------------------------------------------------------------------ AMD (Linux sysfs)
+ SYSFS = "/sys"
+diff --git a/serve/test_nvml_pcie_readings.py b/serve/test_nvml_pcie_readings.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..519f58ed5e9dd4fbc578661c6da8c90d939697ce
+--- /dev/null
++++ b/serve/test_nvml_pcie_readings.py
+@@ -0,0 +1,34 @@
++"""NVML counter handling with fake driver answers; no GPU, clocks or OS calls."""
++import unittest
++from serve import telemetry
++
++
++class NvmlPcieReadings(unittest.TestCase):
++    def read(self, answers, counter=1):
++        class Lib:
++            def nvmlDeviceGetPcieThroughput(self, dev, which, output):
++                calls.append(which.value)
++                value = left.pop(0)
++                if value is None: return 1
++                output._obj.value = value
++                return 0
++        left, calls = list(answers), []
++        gpu = telemetry._Nvml.__new__(telemetry._Nvml)
++        gpu.dev, gpu.lib = None, Lib()
++        return gpu._pcie_mb(counter), calls, left
++
++    def test_supported_readings_unchanged_and_unsupported_not_retried(self):
++        for value in (0, 2048, 58 << 20, telemetry.PCIE_KB_S_MAX):
++            self.assertEqual(self.read([value, 1]), (value / 1024.0, [1], [1]))
++        self.assertEqual(self.read([None, 2048]), (None, [1], [2048]))
++
++    def test_wrap_retries_exact_same_counter_once(self):
++        for counter in (0, 1):
++            self.assertEqual(self.read([209708000, 2048], counter), (2.0, [counter, counter], []))
++
++    def test_repeated_wrap_or_failed_retry_is_unreadable(self):
++        for second in (209708000, None):
++            self.assertEqual(self.read([209708000, second, 2048]), (None, [1, 1], [2048]))
++
++
++if __name__ == '__main__': unittest.main()

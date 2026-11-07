@@ -1,0 +1,73 @@
+diff --git a/src/kernels/cuda/native_mmvq.cu b/src/kernels/cuda/native_mmvq.cu
+index 3ba0c169e4f7012746f7bd6dad71f70d5eed1666..b9d8d4b6beec7fbb49c0a3b21c7f7e3ea5cde421 100644
+--- a/src/kernels/cuda/native_mmvq.cu
++++ b/src/kernels/cuda/native_mmvq.cu
+@@ -771,6 +771,42 @@ __global__ void native_q6_k_mmvq_kernel(const Q6KBlock* __restrict__ w,
+     }
+ }
+ 
++#if defined(STRATA_EXPERIMENTAL_SM60) && !defined(__HIPCC__)
++template<int Rows>
++__launch_bounds__(Rows * 2 * WARP, 1)
++__global__ void q6_draft_two_warps(const Q6KBlock* __restrict__ w, const Q81Block* __restrict__ x,
++                                   float* __restrict__ y, int n_out) {
++    constexpr int blocks_per_row = 10;
++    const int local_row = threadIdx.y / 2;
++    const int row = blockIdx.x * Rows + local_row;
++    const int parity = threadIdx.y % 2;
++    const int lane = threadIdx.x;
++    float lower = 0.f, upper = 0.f;
++    if (row < n_out) {
++        const auto* weights = w + static_cast<size_t>(row) * blocks_per_row;
++#pragma unroll
++        for (int k = parity; k < blocks_per_row; k += 4) {
++            lower += q6_q8_dot(weights + k, x + k * 8, lane);
++            if (k + 2 < blocks_per_row) upper += q6_q8_dot(weights + k + 2, x + (k + 2) * 8, lane);
++        }
++    }
++    __shared__ float odd[Rows][2][WARP];
++    if (parity) {
++        odd[local_row][0][lane] = lower;
++        odd[local_row][1][lane] = upper;
++    }
++    __syncthreads();
++    if (!parity && row < n_out) {
++        // Preserve the four original per-lane partials and their order of addition.
++        lower += odd[local_row][0][lane];
++        lower += upper;
++        lower += odd[local_row][1][lane];
++        lower = warp_sum(lower);
++        if (!lane) y[row] = lower;
++    }
++}
++#endif
++
+ // The four 32-element formats use native two-byte loads and VDR=2. The affine
+ // Q4_0/Q5_0 correction consumes the original-input sum stored in Q8_1, exactly
+ // as the pinned CUDA dot does; a signed-integer code substitution would differ.
+@@ -3426,6 +3462,25 @@ void native_q6_k_mmvq(const void* weights, const void* x_q8_1, float* y,
+     const auto* w = static_cast<const Q6KBlock*>(weights);
+     const auto* x = static_cast<const Q81Block*>(x_q8_1);
+     const auto s = static_cast<cudaStream_t>(stream);
++#if defined(STRATA_EXPERIMENTAL_SM60) && !defined(__HIPCC__)
++    static const int draft_rows = [] {
++        const char* value = std::getenv("STRATA_Q6_DRAFT_TWO_WARPS");
++        return value && (value[0] == '1' || value[0] == '2') && value[1] == '\0' ? value[0] - '0' : 0;
++    }();
++    if (draft_rows && n_in == 2560 && n_out == 106299 && il_cc() == 61) {
++        static const bool announced = [] {
++            std::fprintf(stderr, "strata q6: two-warps draft head active (%d rows/block)\n", draft_rows);
++            return true;
++        }();
++        (void) announced;
++        if (draft_rows == 2)
++            q6_draft_two_warps<2><<<unsigned((n_out + 1) / 2), dim3(WARP, 4), 0, s>>>(w, x, y, n_out);
++        else
++            q6_draft_two_warps<1><<<unsigned(n_out), dim3(WARP, 2), 0, s>>>(w, x, y, n_out);
++        launch_check();
++        return;
++    }
++#endif
+     const dim3 threads(WARP, WARPS);
+     if (n_in / 256 < WARPS * WARP / 32) {
+         const unsigned blocks = unsigned((std::size_t(n_out) + WARPS - 1) / WARPS);

@@ -1,0 +1,11 @@
+{
+  "id": 26,
+  "directory": "26-pascal-q8-exact-5438",
+  "title": "pascal-q8-exact-5438",
+  "status": "not_selected",
+  "scope": "Historical experiment, rejected or not confirmed in the selected runtime. Original inputs and measured limits are retained; no activation implied.",
+  "patch": "26-pascal-q8-exact-5438/change.patch",
+  "sha256": "10662ec9492ac72834137b3a160dd4641916d1c0f43aba4e8651a97765847892",
+  "original_context_required": true,
+  "apply_as_series": false
+}

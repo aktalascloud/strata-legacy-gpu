@@ -1,0 +1,11 @@
+{
+  "id": 45,
+  "directory": "45-windows-numa-arena",
+  "title": "windows-numa-arena",
+  "status": "selected_source_or_dependency",
+  "scope": "Retained in the selected source/runtime or dependency workflow. This catalogue does not reapply or rebuild unchanged bytes.",
+  "patch": "45-windows-numa-arena/change.patch",
+  "sha256": "a407ded96de8b130d355d9c36f276f9d4b51ccdc2111e2d1217748e7c25f4037",
+  "original_context_required": true,
+  "apply_as_series": false
+}

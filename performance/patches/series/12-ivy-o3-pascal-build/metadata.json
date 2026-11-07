@@ -1,0 +1,11 @@
+{
+  "id": 12,
+  "directory": "12-ivy-o3-pascal-build",
+  "title": "ivy-o3-pascal-build",
+  "status": "workspace_recipe_reference",
+  "scope": "Local build/startup/control recipe; not an extra upstream engine overlay. Generic public installation counterparts are in p40/windows and p40/tools.",
+  "patch": null,
+  "sha256": null,
+  "original_context_required": true,
+  "apply_as_series": false
+}

@@ -1,0 +1,11 @@
+{
+  "id": 34,
+  "directory": "34-swift-iq4nl-avx1",
+  "title": "swift-iq4nl-avx1",
+  "status": "not_selected",
+  "scope": "Historical experiment, rejected or not confirmed in the selected runtime. Original inputs and measured limits are retained; no activation implied.",
+  "patch": "34-swift-iq4nl-avx1/change.patch",
+  "sha256": "fc0882629f8cc02d859c7600372c8f6bf82391bbfcbd557216eebdf4f2d06b26",
+  "original_context_required": true,
+  "apply_as_series": false
+}

@@ -1,0 +1,1119 @@
+diff --git a/tools/minimax/README.md b/tools/minimax/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..238ca63fbb65231643169e1cf423cbf19e4bbdc8
+--- /dev/null
++++ b/tools/minimax/README.md
+@@ -0,0 +1,42 @@
++# MiniMax-M3.1 metadata pack
++
++This is the GGUF/DSpark metadata adapter for the separate MiniMax engine. It is adapted from
++Project Maya `26aacb6bcea9333e4f408a68ee60c4c1c316bd68` (MIT). Tensor mappings and model geometry
++come from Maya; bounded readers, path checks, complete-shard checks and atomic output are local.
++The model/template license is in `serve/fixtures/minimax_m31/LICENSE`.
++
++The pack references the existing files. It does not copy matrix weights or store runtime sampler,
++device, context or worker settings. `strata.json` remains the user's configuration.
++
++```text
++python tools/minimax/pack_gguf.py --model SHARD_DIRECTORY --model-root COMMON_MODEL_ROOT --companions COMPANION_DIRECTORY --out NEW_PACK_DIRECTORY --require-dspark
++```
++
++The explicit common root must contain the GGUF and companion files. File entries stay relative to
++that root, without `..`, UNC, ADS or escaped symlinks. Existing output is never overwritten.
++The output directory appears only after metadata preparation finishes. `.part` inputs, missing,
++short or inconsistent shards and missing required DSpark files are rejected.
++
++MiniMax-M3.1 runs sparse attention on all60layers. Missing first-layer indexers are errors;
++the tool never substitutes dense attention. Known MiniMax GGUF `minimax-m2` tokenizer labels
++are exported as the explicit Strata `minimax` scheme only for the matching model architecture
++and native vocabulary. This does not register other model architectures as MiniMax-M3.1.
++
++The OrcaRouter set also carries per-expert `.scale` vectors. llama.cpp passes these three role
++scales to its MoE graph ([reference6b95a99](https://github.com/ggml-org/llama.cpp/blob/6b95a99/src/models/minimax-m3.cpp)).
++Only vectors whose everyF32value is exactly1.0 may be omitted. Other values fail with an explicit
++error; role scales are never silently dropped or applied twice.
++
++The packer checks byte extents and metadata. This does not replace pinned SHA verification or
++qualification of model math, GPU graphs, MTP acceptance and throughput. The adapter is under
++integration; a successful metadata test is not a qualified runtime profile.
++
++`validate_pack.py` checks a completed pack against the original GGUF/safetensors headers and
++the completed producer/pack receipt. It checks every role's file, dtype, shape, offset and
++expert slice, sparse-indexer completeness and tokenizer identity. It hashes the small output
++metadata and checks pinned input size/mtime receipts; it does not rehash whole weights or
++execute the model. The receipt must have completed status; partial download states are refused.
++
++```text
++python tools/minimax/validate_pack.py --project-root PROJECT --pack PROJECT/packs/minimax-m31-mix128g --model-root PROJECT/weights --receipt PROJECT/research/current/minimax-20261102/pack-wait-status.json
++```
+diff --git a/tools/minimax/metadata.py b/tools/minimax/metadata.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..c5f263dfda70e84ba74d2a077856af93ef0a9856
+--- /dev/null
++++ b/tools/minimax/metadata.py
+@@ -0,0 +1,182 @@
++"""Bounded metadata readers for the MiniMax pack; no NumPy, weight copies or tensor reads."""
++from __future__ import annotations
++import importlib.util
++from contextlib import contextmanager
++import json
++import math
++from pathlib import Path
++import struct
++import sys
++import os
++import tempfile
++
++_spec = importlib.util.spec_from_file_location('_minimax_gguf_reader', Path(__file__).resolve().parents[1] / 'gguf_reader.py')
++_reader = importlib.util.module_from_spec(_spec)
++sys.modules[_spec.name] = _reader
++_spec.loader.exec_module(_reader)
++
++_SUPPORTED = (0, 1, 8, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21, 22, 23, 29, 30)
++TYPES = {t: (_reader.GGML_TYPES[t], *_reader.BLOCK_GEOMETRY[_reader.GGML_TYPES[t]]) for t in _SUPPORTED}
++DTYPE_BYTES = {'F32': 4, 'F16': 2, 'BF16': 2, 'I32': 4, 'I16': 2, 'F8_E4M3': 1, 'F8_E8M0': 1, 'U8': 1, 'I8': 1, 'I64': 8}
++
++
++def unique_object(pairs):
++    out = {}
++    for key, value in pairs:
++        if key in out:
++            raise ValueError('duplicate JSON metadata key')
++        out[key] = value
++    return out
++
++
++@contextmanager
++def output_directory(destination):
++    destination = checked_path(destination)
++    if destination.exists():
++        raise ValueError('pack output already exists')
++    destination.parent.mkdir(parents=True, exist_ok=True)
++    with tempfile.TemporaryDirectory(prefix='.minimax-prepare-', dir=destination.parent) as temporary:
++        staging = Path(temporary)
++        if staging.resolve().parent != destination.parent.resolve():
++            raise ValueError('temporary pack left the selected output parent')
++        yield staging
++        if destination.exists():
++            raise ValueError('pack output appeared during preparation')
++        os.rename(staging, destination)
++
++
++def checked_path(path):
++    path = Path(path).expanduser()
++    text = str(path).replace('\\', '/')
++    if (text.startswith('//') or '..' in path.parts or path.drive and not path.is_absolute()
++            or any(ord(c) < 32 for c in text) or any(':' in p for p in path.parts if p != path.anchor)):
++        raise ValueError('UNC, ADS, traversal or control characters in model path')
++    return path.resolve()
++
++
++class _Header(_reader.GGUFFile):
++    def _read(self, stream, n):
++        if self._pos + n > 32 * 1024 * 1024:
++            raise ValueError('GGUF header exceeds32MiB')
++        return super()._read(stream, n)
++
++
++class Gguf:
++    def __init__(self, path):
++        self.path = Path(path)
++        g = _Header(self.path)
++        self.kv, self.data_start = g.metadata, g.data_start
++        self.alignment = g.alignment
++        self.tensors = [(t.name, t.type_id, t.shape, t.offset) for t in g.tensors]
++
++
++def short(g):
++    need = g.data_start
++    for name, typ, dims, off in g.tensors:
++        if type(off) is not int or off < 0 or off % getattr(g, 'alignment', 32):
++            return name + ': invalid tensor offset/alignment'
++        if typ not in TYPES:
++            return name + ': unsupported MiniMax GGUF type ' + str(typ)
++        _, block, size = TYPES[typ]
++        if not dims or any(type(d) is not int or d <= 0 for d in dims) or dims[0] % block:
++            return name + ': invalid dimensions/block alignment'
++        need = max(need, g.data_start + off + math.prod(dims) // block * size)
++    have = g.path.stat().st_size
++    return None if have >= need else f'{g.path.name}: {have} of {need} bytes'
++
++
++def relative_file(root, path):
++    root, path = checked_path(root), checked_path(path)
++    try:
++        relative = path.relative_to(root)
++    except ValueError:
++        raise ValueError('model file leaves the explicitly selected model root') from None
++    text = relative.as_posix()
++    if not text or text == '.' or any(c.isspace() or ord(c) < 32 for c in text) or ':' in text:
++        raise ValueError('model file name cannot be represented safely in the native pack')
++    return text
++
++
++def contained_file(root, name):
++    name = Path(name)
++    if name.is_absolute() or '..' in name.parts or ':' in str(name):
++        raise ValueError('absolute, ADS or traversing file name in model metadata')
++    path = Path(root) / name
++    relative_file(root, path)
++    return path.resolve()
++
++
++def safetensor_header(path):
++    path = Path(path)
++    size = path.stat().st_size
++    with path.open('rb') as f:
++        prefix = f.read(8)
++        if len(prefix) != 8:
++            raise ValueError('incomplete safetensors header length')
++        n = struct.unpack('<Q', prefix)[0]
++        if n > 16 * 1024 * 1024 or 8 + n > size:
++            raise ValueError('safetensors header outside file/budget')
++        header = json.loads(f.read(n), object_pairs_hook=unique_object)
++    if not isinstance(header, dict):
++        raise ValueError('safetensors header must be an object')
++    result = []
++    ranges = []
++    for name, item in header.items():
++        if name == '__metadata__':
++            continue
++        if not name or any(c.isspace() or ord(c) < 32 for c in name):
++            raise ValueError('tensor name cannot be represented in native pack')
++        if not isinstance(item, dict):
++            raise ValueError('safetensors tensor description must be an object')
++        dtype, shape, bounds = item.get('dtype'), item.get('shape'), item.get('data_offsets')
++        if (not isinstance(dtype, str) or dtype not in DTYPE_BYTES or not isinstance(shape, list) or
++                any(type(d) is not int or d < 0 for d in shape) or
++                not isinstance(bounds, list) or len(bounds) != 2 or any(type(x) is not int for x in bounds)):
++            raise ValueError('invalid safetensors tensor description')
++        a, b = bounds
++        if not 0 <= a <= b <= size - 8 - n or b - a != math.prod(shape) * DTYPE_BYTES[dtype]:
++            raise ValueError('safetensors tensor range or byte count is invalid')
++        result.append((name, dtype, tuple(shape), 8 + n + a, b - a))
++        if b > a:
++            ranges.append((a, b))
++    ranges.sort()
++    if any(left[1] > right[0] for left, right in zip(ranges, ranges[1:])):
++        raise ValueError('overlapping safetensors tensor ranges')
++    return result
++
++
++class SafeTensors:
++    """Only index-declared files, every indexed name present in its declared file."""
++    def __init__(self, directory):
++        self.dir = Path(directory)
++        index = json.loads((self.dir / 'model.safetensors.index.json').read_text('utf-8'), object_pairs_hook=unique_object)['weight_map']
++        if not isinstance(index, dict) or not index or not all(isinstance(k, str) and isinstance(v, str) for k, v in index.items()):
++            raise ValueError('invalid safetensors weight map')
++        self.files = sorted(set(index.values()))
++        self.t = {}
++        for name in self.files:
++            path = contained_file(self.dir, name)
++            for tensor, dtype, shape, off, n in safetensor_header(path):
++                if index.get(tensor) != name:
++                    raise ValueError('safetensors header/index mismatch')
++                if tensor in self.t:
++                    raise ValueError('duplicate safetensors tensor name')
++                self.t[tensor] = (name, dtype, shape, off, n)
++        if set(self.t) != set(index):
++            raise ValueError('incomplete safetensors index')
++
++
++def flat(stream, prefix, data):
++    for key, value in data.items():
++        if not isinstance(key, str) or not key or any(c.isspace() or ord(c) < 32 for c in key):
++            raise ValueError('invalid pack geometry key')
++        if isinstance(value, bool):
++            value = int(value)
++        if isinstance(value, (int, float)):
++            if not math.isfinite(value):
++                raise ValueError('nonfinite pack geometry')
++            stream.write(f'{prefix}{key} {value}\n')
++        elif isinstance(value, list) and value and all(isinstance(x, (int, float)) for x in value):
++            if not all(math.isfinite(x) for x in value):
++                raise ValueError('nonfinite pack geometry list')
++            stream.write(f'{prefix}{key} ' + ','.join(str(int(x) if isinstance(x, bool) else x) for x in value) + '\n')
+diff --git a/tools/minimax/pack_gguf.py b/tools/minimax/pack_gguf.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..ea2db137f321d05e7d77d5e690739f2f8d13eb89
+--- /dev/null
++++ b/tools/minimax/pack_gguf.py
+@@ -0,0 +1,481 @@
++# Copyright (c) 2026 Peasant Smith and Project Maya contributors (MIT); adapted for Strata AVX1/Pascal.
++"""Metadata-only MiniMax-M3.1 pack, based on Project Maya26aacb6b (MIT).
++
++The engine's pack for a MiniMax-M3.1-Flash GGUF set (Project Maya's MiniMax-M3.1-Flash-Maya-XS /
++-S: llama.cpp's `minimax-m3` layout, dense matrices in Q4_K..Q8_0, routed experts in IQ1_S..IQ3_XXS), beside the model's
++files (no weights copied).
++
++    python tools/minimax/pack_gguf.py --model SHARD_DIRECTORY --model-root COMMON_ROOT --companions COMPANIONS --require-dspark
++
++writes <model>/strata-mm3/ in the native pack format, so the MiniMax engine reads:
++  mm3.txt       the geometry under config.json's text_config names (from the GGUF's minimax-m3.* keys; swiglu_alpha /
++                swiglu_limit MiniMax-M3's 1.702 / 7, as llama.cpp's graph holds them), format gguf, quant_name, model_dir
++  tensors.txt   every tensor under the checkpoint's names (language_model.model.layers.N.self_attn.q_proj.weight ...):
++                `file <i> <name>` lines, then `t <name> <dtype> <file> <offset> <bytes> <dims...>` - dims outermost first
++                (a matrix [out][in]), dtype ggml's type name (Q6_K, IQ1_S, F32 ...); the routed experts an entry each
++                (layers.N.block_sparse_moe.experts.E.w1.weight: expert E's slice of the GGUF's stacked tensor)
++  tokenizer/    the server's tokenizer from the GGUF's vocabulary and merges (pre "minimax"), and Maya's chat template
++                (this directory's chat_template.jinja - the same for every MiniMax pack)
++
++MiniMax-M3.1 runs its sparse attention's indexer in all 60 layers; stock llama.cpp's `minimax-m3` (M3) creates indexers
++only from the first MoE layer on, so the Maya sets keep layers 0-2's (12 tensors) in a side file beside the shards,
++<name>-maya-indexers.bin (a GGUF; .gguf before v1.1.31 - the Hub took a lone .gguf for the model): this pack takes
++it (--indexers names another).  Without it the pack stops: the engine runs
++the model as MiniMax defines it, never those layers on full attention in silence.
++
++The GGUF's norms already hold Gemma's 1 + w (llama.cpp's converter adds it): mm3.txt says so (norms_plus_one 1) and the
++engine adds nothing.
++
++A GGUF set has no vision tower and no DSpark draft.  Both come with the EXL3 repo (Mia-AiLab's, tools/mm3/download.json)
++as files of their own - model-vision-00001-of-00001.safetensors with config.json / preprocessor_config.json, and dspark/
++- which do not depend on the experts' quant: --companions names a folder holding them (the setup downloads them there:
++<models>/MiniMax-M3.1-Flash-companions, the repo's own layout; a whole EXL3 download beside the GGUF serves as well), and
++the pack indexes them as tools/mm3/pack.py does - pictures and drafting with the GGUF's weights.
++"""
++from __future__ import annotations
++
++import argparse
++import importlib.util
++import json
++import math
++import pathlib
++import re
++import struct
++import sys
++
++HERE = pathlib.Path(__file__).resolve().parent
++TEMPLATE = HERE.parents[1] / "serve" / "fixtures" / "minimax_m31" / "chat_template.jinja"
++if __package__:
++    from . import metadata
++else:
++    _spec = importlib.util.spec_from_file_location("_strata_minimax_metadata", HERE / "metadata.py")
++    metadata = importlib.util.module_from_spec(_spec)
++    sys.modules[_spec.name] = metadata
++    _spec.loader.exec_module(metadata)
++Gguf, TYPES, SafeTensors = metadata.Gguf, metadata.TYPES, metadata.SafeTensors
++
++COMPANIONS = "MiniMax-M3.1-Flash-companions"   # (the setup's folder of the EXL3 repo's vision tower and DSpark draft)
++EXL3_DIR = "MiniMax-M3.1-Flash-EXL3-3.5bpw"    # (a whole EXL3 download: maya.py's MM3_DIR)
++
++
++def st_tensors(path: pathlib.Path) -> list:
++    """A .safetensors file's tensors: [(name, dtype, shape, absolute offset, bytes)]."""
++    return metadata.safetensor_header(path)
++
++
++def find_companions(model: pathlib.Path, explicit: str | None) -> pathlib.Path | None:
++    """The folder of the EXL3 repo's vision tower / DSpark draft: --companions, else beside the model (the setup's, or
++    a whole EXL3 download), else None."""
++    if explicit:
++        d = metadata.checked_path(explicit)
++        if not d.is_dir():
++            raise SystemExit("%s: not a folder (--companions)" % d)
++        return d
++    for d in (model.parent / COMPANIONS, model.parent / EXL3_DIR):
++        if (d / "config.json").is_file():
++            return d
++    return None
++
++
++def companion_parts(comp: pathlib.Path, rel, tokens: list, f_index: int) -> tuple:
++    """(files, tensors, vision keys, dspark config) of the companions folder: the vision tower when its file and
++    configs are whole there, the DSpark draft when dspark/ is."""
++    files, tensors, vision, dcfg = [], [], {}, None
++    cfg = json.loads((comp / "config.json").read_text()) if (comp / "config.json").is_file() else {}
++    vfiles = sorted(comp.glob("model-vision-*.safetensors"))
++    pp = comp / "preprocessor_config.json"
++    if vfiles and pp.is_file() and cfg.get("vision_config"):
++        vt = [(fp, t) for fp in vfiles for t in st_tensors(fp)]
++        if any(t[0] == "vision_tower.vision_model.pre_layrnorm.weight" for _, t in vt):
++            for fp in vfiles:
++                files.append(rel(fp))
++            for fp, (name, dt, shape, off, nb) in vt:
++                tensors.append((name, dt, f_index + files.index(rel(fp)), off, nb, shape))
++            ppj = json.loads(pp.read_text())
++            tok = {t: i for i, t in enumerate(tokens)}
++            vc = cfg["vision_config"]
++            vision = {"_vc": vc, "_comp": vc.get("img_token_compression_config") or {},
++                      "_extra": {"image_mean": ppj["image_mean"], "image_std": ppj["image_std"],
++                                 "projector_hidden_size": cfg["projector_hidden_size"], "max_pixels": 672 * 672,
++                                 "min_pixels": 4 * 28 * 28, "image_start": tok["]<]start of image[>["],
++                                 "image_end": tok["]<]end of image[>["], "image_token": tok["]<]image[>["]},
++                      "_ids": {k: cfg[k] for k in ("image_token_index", "video_token_index") if isinstance(cfg.get(k), int)}}
++    dsp = comp / "dspark"
++    if (dsp / "model.safetensors.index.json").is_file() and (dsp / "config.json").is_file():
++        ds = SafeTensors(dsp)
++        base = f_index + len(files)
++        for fn in ds.files:
++            files.append(rel(dsp / fn))
++        for name, (fn, dt, shape, off, nb) in ds.t.items():
++            tensors.append(("dspark." + name, dt, base + ds.files.index(fn), off, nb, list(shape)))
++        dcfg = json.loads((dsp / "config.json").read_text())
++    return files, tensors, vision, dcfg
++
++ARCH = "minimax-m3"
++P = "language_model.model."
++# GGUF name (blk.N. stripped) -> the checkpoint's under layers.N. (pack.py / the engine)
++LAYER = {
++    "attn_norm.weight": "input_layernorm.weight",
++    "ffn_norm.weight": "post_attention_layernorm.weight",
++    "attn_q.weight": "self_attn.q_proj.weight",
++    "attn_k.weight": "self_attn.k_proj.weight",
++    "attn_v.weight": "self_attn.v_proj.weight",
++    "attn_output.weight": "self_attn.o_proj.weight",
++    "attn_q_norm.weight": "self_attn.q_norm.weight",
++    "attn_k_norm.weight": "self_attn.k_norm.weight",
++    "indexer.q_proj.weight": "self_attn.index_q_proj.weight",
++    "indexer.k_proj.weight": "self_attn.index_k_proj.weight",
++    "indexer.q_norm.weight": "self_attn.index_q_norm.weight",
++    "indexer.k_norm.weight": "self_attn.index_k_norm.weight",
++    "ffn_gate_inp.weight": "block_sparse_moe.gate.weight",
++    "exp_probs_b.bias": "block_sparse_moe.e_score_correction_bias",
++    "ffn_gate_shexp.weight": "block_sparse_moe.shared_experts.gate_proj.weight",
++    "ffn_up_shexp.weight": "block_sparse_moe.shared_experts.up_proj.weight",
++    "ffn_down_shexp.weight": "block_sparse_moe.shared_experts.down_proj.weight",
++    "ffn_gate_exps.weight": "block_sparse_moe.experts.w1",   # [n_exp][ff][dim]: an entry an expert
++    "ffn_up_exps.weight": "block_sparse_moe.experts.w3",
++    "ffn_down_exps.weight": "block_sparse_moe.experts.w2",   # [n_exp][dim][ff]
++    "ffn_gate.weight": "mlp.gate_proj.weight",                # (the leading dense layers)
++    "ffn_up.weight": "mlp.up_proj.weight",
++    "ffn_down.weight": "mlp.down_proj.weight",
++}
++GLOBAL = {"token_embd.weight": P + "embed_tokens.weight", "output_norm.weight": P + "norm.weight",
++          "output.weight": "language_model.lm_head.weight"}
++INDEXER = ("indexer.q_proj.weight", "indexer.k_proj.weight", "indexer.q_norm.weight", "indexer.k_norm.weight")
++SWIGLU_ALPHA, SWIGLU_LIMIT = 1.702, 7.0   # MiniMax-M3's (config.json's; llama.cpp's LLM_FFN_SWIGLU_OAI_MOE)
++
++
++def identity_expert_scale(g, typ, dims, off, experts):
++    """Only exact1.0 multipliers can be omitted; non-unit scales need native role-specific support."""
++    if typ != 0 or dims != [experts] or not 0 < experts <= 1024:
++        raise ValueError('unsupported expert scale type/shape')
++    count = 4 * experts
++    position = g.data_start + off
++    if off < 0 or position + count > g.path.stat().st_size:
++        raise ValueError('expert scale data is incomplete')
++    with g.path.open('rb') as f:
++        f.seek(position)
++        raw = f.read(count)
++    if len(raw) != count or any(x != 1.0 for x in struct.unpack('<%df' % experts, raw)):
++        raise ValueError('non-unit expert scales cannot be discarded; native scale support required')
++    return count
++
++
++def validate_draft(geo, cfg):
++    """The requested DSpark must describe the target's actual hidden/vocabulary/layer geometry."""
++    draft = cfg.get("dflash_config") or {}
++    taps = draft.get("target_layer_ids")
++    if (cfg.get("hidden_size") != geo["hidden_size"] or cfg.get("vocab_size") != geo["vocab_size"] or
++            draft.get("num_target_layers") != geo["num_hidden_layers"] or
++            type(cfg.get("num_hidden_layers")) is not int or cfg["num_hidden_layers"] <= 0 or
++            not isinstance(taps, list) or not taps or any(type(i) is not int or not 0 <= i < geo["num_hidden_layers"] for i in taps) or
++            len(taps) != len(set(taps))):
++        raise ValueError("DSpark target geometry/taps disagree with the main model")
++
++
++def validate_shards(gs, kv):
++    split = int(kv.get("split.count", 1))
++    if split != len(gs):
++        raise ValueError(f'{len(gs)} of the {split} shards are present')
++    if split > 1 and (any(g.kv.get("split.count") != split for g in gs) or
++                      sorted(g.kv.get("split.no", -1) for g in gs) != list(range(split))):
++        raise ValueError("shard indexes/counts disagree")
++    identity = {k: v for k, v in kv.items() if k.startswith((ARCH + '.', 'tokenizer.')) or
++                k in ('general.architecture', 'general.name', 'general.file_type', 'general.quantization_version')}
++    if any(k in g.kv and g.kv[k] != v for g in gs for k, v in identity.items()):
++        raise ValueError("shard model/tokenizer identities disagree")
++    total = sum(len(g.tensors) for g in gs)
++    if any('split.tensors.count' in g.kv and g.kv['split.tensors.count'] != total for g in gs):
++        raise ValueError("split tensor total disagrees with shard directories")
++
++
++def geometry(kv: dict, vocab: int, shared_ff: int) -> dict:
++    """config.json's text_config names (what the engine reads) from the GGUF's minimax-m3.* keys."""
++    g = lambda k, d=None: kv.get("%s.%s" % (ARCH, k), d)  # noqa: E731
++    nl, lead = int(g("block_count")), int(g("leading_dense_block_count", 0))
++    hd, rot = int(g("attention.key_length")), int(g("rope.dimension_count"))
++    return {
++        "hidden_size": g("embedding_length"),
++        "num_hidden_layers": nl,
++        "num_attention_heads": g("attention.head_count"),
++        "num_key_value_heads": g("attention.head_count_kv"),
++        "head_dim": hd,
++        "rotary_dim": rot,
++        "partial_rotary_factor": rot / hd,
++        "vocab_size": vocab,
++        "num_local_experts": g("expert_count"),
++        "num_experts_per_tok": g("expert_used_count"),
++        "intermediate_size": g("expert_feed_forward_length"),
++        "dense_intermediate_size": g("feed_forward_length"),
++        "shared_intermediate_size": shared_ff * int(g("expert_shared_count", 1)),
++        "rope_theta": g("rope.freq_base"),
++        "rms_norm_eps": g("attention.layer_norm_rms_epsilon"),
++        "routed_scaling_factor": g("expert_weights_scale", 1.0),
++        "swiglu_alpha": g("swiglu_alpha", SWIGLU_ALPHA),
++        "swiglu_limit": g("swiglu_limit", SWIGLU_LIMIT),
++        "max_position_embeddings": g("context_length"),
++        "moe_layer_freq": [0] * lead + [1] * (nl - lead),
++        "sparse_attention_config.sparse_attention_freq": [1] * nl,
++        "sparse_attention_config.sparse_disable_index_value": [1] * nl,
++        "sparse_attention_config.sparse_num_index_heads": g("attention.indexer.head_count"),
++        "sparse_attention_config.sparse_index_dim": g("attention.indexer.key_length"),
++        "sparse_attention_config.sparse_topk_blocks": g("attention.indexer.top_k"),
++        "sparse_attention_config.sparse_block_size": g("attention.indexer.block_size"),
++        "sparse_attention_config.sparse_local_block": g("attention.indexer.local_blocks", 1),
++        "sparse_attention_config.sparse_init_block": 0,
++        "norms_plus_one": 1,
++    }
++
++
++def write_tokenizer(out: pathlib.Path, kv: dict) -> dict:
++    """pack.py's layout from the GGUF's vocabulary: vocab.json (id order), merges.txt, token_type.json,
++    tokenizer.json {pre minimax, special_ids}, and Maya's chat template."""
++    tokens = kv["tokenizer.ggml.tokens"]
++    types = kv.get("tokenizer.ggml.token_type") or [1] * len(tokens)
++    merges = kv.get("tokenizer.ggml.merges") or []
++    if len(set(tokens)) != len(tokens):
++        raise SystemExit("the GGUF's vocabulary has duplicate token strings")
++    if kv.get("tokenizer.ggml.model") != "gpt2" or not kv.get("tokenizer.ggml.normalizer.nfc", True):
++        raise SystemExit("the GGUF's tokenizer is not the NFC byte-level BPE the `minimax` scheme transcribes")
++    if kv.get("general.architecture") != ARCH or kv.get("tokenizer.ggml.pre") not in ("minimax", "minimax-m2"):
++        raise SystemExit("unverified MiniMax tokenizer architecture/pre label")
++    if len(types) != len(tokens) or any(type(t) is not int for t in types):
++        raise SystemExit("invalid MiniMax token type table")
++    special = {"bos": int(kv["tokenizer.ggml.bos_token_id"]), "eos": int(kv["tokenizer.ggml.eos_token_id"])}
++    ids = {t: i for i, t in enumerate(tokens)}
++    required = ("]~b]", "[e~[", "<mm:think>", "</mm:think>", "]<]minimax[>[")
++    if any(t not in ids or types[ids[t]] not in (3, 4) for t in required):
++        raise SystemExit("missing or untyped MiniMax native special tokens")
++    if special["bos"] != ids["]~b]"] or special["eos"] != ids["[e~["]:
++        raise SystemExit("MiniMax BOS/EOS metadata disagrees with vocabulary")
++    out.mkdir(parents=True, exist_ok=True)
++    (out / "vocab.json").write_text(json.dumps({t: i for i, t in enumerate(tokens)}, ensure_ascii=False),
++                                    encoding="utf-8")
++    (out / "merges.txt").write_text("\n".join(merges), encoding="utf-8")
++    (out / "token_type.json").write_text(json.dumps([int(t) for t in types]))
++    (out / "tokenizer.json").write_text(json.dumps({"pre": "minimax", "source_pre": kv.get("tokenizer.ggml.pre"),
++        "model_arch": ARCH, "special_ids": special}, indent=1))
++    (out / "chat_template.jinja").write_text(TEMPLATE.read_text(encoding="utf-8"), encoding="utf-8")
++    return special
++
++
++SIDE_BIN = "-maya-indexers.bin"                     # (a GGUF; the Hub reads a lone .gguf as the model)
++SIDE_NAMES = (SIDE_BIN, "-maya-indexers.gguf")       # (.gguf: its name up to v1.1.30)
++
++
++def find_shards(model: pathlib.Path, names: list[str] | None, indexers: str | None):
++    """(the main set's shards, the indexers' side file or None) - every .gguf in the folder (and the indexers'
++    -maya-indexers.bin) unless named."""
++    paths = [metadata.contained_file(model, n) for n in names] if names else sorted(model.glob("*.gguf")) + sorted(model.glob("*" + SIDE_BIN))
++    missing = [p for p in paths if not p.is_file()]
++    if not paths or missing:
++        raise SystemExit("%s: no .gguf files" % model if not paths else "%s: not there" % missing[0])
++    side = [p for p in paths if p.name.endswith(SIDE_NAMES)]
++    if names and not side:  # --shards names the .gguf set only: the .bin side file sits beside it
++        side = sorted(model.glob("*" + SIDE_BIN))
++    main = [p for p in paths if p not in side]
++    if indexers:
++        side = [metadata.checked_path(indexers)]
++        if not side[0].is_file():
++            raise SystemExit("%s: not there (--indexers)" % side[0])
++    return main, (side[0] if side else None)
++
++
++def main() -> int:
++    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
++    ap.add_argument("--model", required=True, help="the directory of the GGUF's shards")
++    ap.add_argument("--out", help="new output only; default: <model>/strata-mm3")
++    ap.add_argument("--model-root", help="explicit common root containing GGUF and companions; default: --model")
++    ap.add_argument("--require-dspark", action="store_true", help="refuse a pack without the requested native draft")
++    ap.add_argument("--shards", nargs="+", help="the set's files in --model (default: every .gguf there)")
++    ap.add_argument("--indexers", help="the dense layers' indexers side file (default: the folder's "
++                                       "*-maya-indexers.bin, or .gguf)")
++    ap.add_argument("--companions", help="the EXL3 repo's vision tower / DSpark draft files (default: <model>/../"
++                                         "%s, or a whole EXL3 download beside the model)" % COMPANIONS)
++    ap.add_argument("--text-only", action="store_true", help="leave the companions' vision tower and draft out")
++    a = ap.parse_args()
++    model = metadata.checked_path(a.model)
++    root = metadata.checked_path(a.model_root) if a.model_root else model
++    if not model.is_relative_to(root):
++        raise SystemExit("--model leaves --model-root")
++    out = metadata.checked_path(a.out) if a.out else model / "strata-mm3"
++    if out.exists():
++        raise SystemExit("output already exists; do not overwrite an active or previously prepared pack")
++    paths, side = find_shards(model, a.shards, a.indexers)
++    if any(p.suffix.lower() != ".gguf" for p in paths):
++        raise SystemExit("main shards must be completed .gguf files, never .part")
++    for path in paths + ([side] if side else []):
++        metadata.relative_file(root, path)
++    gs = [Gguf(p) for p in paths]
++    kv = next((g.kv for g in gs if "general.architecture" in g.kv), None)
++    if kv is None or kv.get("general.architecture") != ARCH:
++        raise SystemExit("%s: not a MiniMax-M3 GGUF (architecture %r)" % (model, kv and kv.get("general.architecture")))
++    try:
++        validate_shards(gs, kv)
++    except ValueError as error:
++        raise SystemExit(str(error)) from None
++    why = next((w for w in map(metadata.short, gs) if w), None)
++    if why:
++        raise SystemExit("%s: not whole (%s) - a download still running?" % (model, why))
++    sg = None
++    if side is not None:
++        sg = Gguf(side)
++        if sg.kv.get("general.architecture") != ARCH or metadata.short(sg):
++            raise SystemExit("%s: not a whole MiniMax-M3 indexers file" % side)
++        for_, name = sg.kv.get("maya.indexers.for"), str(kv.get("general.name", "")).replace(" ", "-")
++        if for_ and name and for_ != name:
++            print("note: %s says it is for %s (the set: %s)" % (side.name, for_, name))
++    rel = lambda p: metadata.relative_file(root, p)  # explicit root; no ../ companions in the native manifest
++    files = [rel(p) for p in paths] + ([rel(side)] if sg else [])
++    if any(" " in f for f in files):
++        raise SystemExit("a file name with a space: %s" % [f for f in files if " " in f])
++    n_exp = int(kv["%s.expert_count" % ARCH])
++    nl = int(kv["%s.block_count" % ARCH])
++    tensors, unknown, have, seen = [], [], set(), set()
++    all_names = {t[0] for g in gs for t in g.tensors}
++    identity_scales = 0
++    for fi, g in enumerate(gs + ([sg] if sg else [])):
++        for name, typ, dims, off in g.tensors:
++            if name in seen:
++                raise SystemExit("duplicate tensor across shards: " + name)
++            seen.add(name)
++            if re.fullmatch(r'blk\.\d+\.ffn_(gate|up|down)_exps\.scale', name):
++                if name[:-len('.scale')] + '.weight' not in all_names:
++                    raise SystemExit('expert scale has no matching weight: ' + name)
++                try:
++                    identity_expert_scale(g, typ, dims, off, n_exp)
++                except ValueError as error:
++                    raise SystemExit(name + ': ' + str(error)) from None
++                identity_scales += 1
++                continue
++            if typ not in TYPES:
++                raise SystemExit("%s: %s has ggml type %d, which the engine does not read" % (g.path.name, name, typ))
++            tname, per, bpb = TYPES[typ]
++            nel = 1
++            for d in dims:
++                nel *= d
++            if dims[0] % per:
++                raise SystemExit("%s: %s rows of %d are not whole %s blocks" % (g.path.name, name, dims[0], tname))
++            nbytes = nel // per * bpb
++            m = re.match(r"blk\.(\d+)\.(.+)$", name)
++            if m and m.group(2) in LAYER:
++                ck = "%slayers.%s.%s" % (P, m.group(1), LAYER[m.group(2)])
++                have.add((int(m.group(1)), m.group(2)))
++            elif name in GLOBAL:
++                ck = GLOBAL[name]
++            else:
++                unknown.append(name)
++                continue
++            shape = list(reversed(dims))     # ggml ne0 innermost -> torch order, outermost first
++            base = g.data_start + off
++            if ck.endswith((".experts.w1", ".experts.w2", ".experts.w3")):
++                if shape[0] != n_exp:
++                    raise SystemExit("%s: %s holds %d experts, not %d" % (g.path.name, name, shape[0], n_exp))
++                part = nbytes // n_exp
++                pre, role = ck.rsplit(".", 1)
++                for i in range(n_exp):
++                    tensors.append(("%s.%d.%s.weight" % (pre, i, role), tname, fi, base + i * part, part, shape[1:]))
++                continue
++            tensors.append((ck, tname, fi, base, nbytes, shape))
++    if unknown:
++        raise SystemExit("tensors the pack does not map (%d): %s" % (len(unknown), ", ".join(unknown[:12])))
++    lacking = [li for li in range(nl) if any((li, n) not in have for n in INDEXER)]
++    if lacking:
++        raise SystemExit(
++            "the sparse-attention indexer of layer%s %s is not in the set%s: MiniMax-M3.1 runs it in every layer. The "
++            "Maya sets keep layers 0-2's in <name>-maya-indexers.bin beside the shards - download it into %s (or name "
++            "it with --indexers)" % ("s" if len(lacking) > 1 else "", ", ".join(map(str, lacking[:8])),
++                                      "" if sg is None else " nor in " + side.name, model))
++    # the EXL3 repo's vision tower and DSpark draft beside the GGUF's weights (the same files, any quant)
++    comp = None if a.text_only else find_companions(model, a.companions)
++    vision, dcfg = {}, None
++    if comp is not None:
++        comp = metadata.checked_path(comp)
++        if not comp.is_relative_to(root):
++            raise SystemExit("companions leave --model-root")
++        try:
++            cfiles, ctensors, vision, dcfg = companion_parts(comp, rel, kv["tokenizer.ggml.tokens"], len(files))
++        except ValueError as error:
++            raise SystemExit("invalid MiniMax companions: " + str(error)) from None
++        if any(" " in f for f in cfiles):
++            raise SystemExit("the companions' path relative to the model has a space: %s" % cfiles[0])
++        files += cfiles
++        tensors += ctensors
++    if a.require_dspark and dcfg is None:
++        raise SystemExit("the requested MiniMax DSpark draft is absent; no silent fallback")
++    embd = next(t for t in tensors if t[0] == GLOBAL["token_embd.weight"])
++    shexp = next((t for t in tensors if t[0].endswith("shared_experts.gate_proj.weight")), None)
++    geo = geometry(kv, embd[5][0], shexp[5][0] if shexp else 0)
++    if dcfg is not None:
++        validate_draft(geo, dcfg)
++    for key, item in geo.items():
++        values = item if isinstance(item, list) else [item]
++        if item is None or any(not isinstance(x, (int, float)) or not math.isfinite(x) for x in values):
++            raise SystemExit("invalid numeric MiniMax geometry: " + key)
++    quant_name = str(kv.get("general.name", model.name)).replace(" ", "-")
++    if any(ord(c) < 32 for c in quant_name):
++        raise SystemExit("control character in model name")
++
++    with metadata.output_directory(out) as staging:
++        special = write_tokenizer(staging / "tokenizer", kv)
++        dense = sorted({t[1] for t in tensors if ".experts." not in t[0] and t[1] != "F32"})
++        exp_types = {}   # (each layer and role once: its expert 0's entry)
++        for t in tensors:
++            if ".experts.0." in t[0]:
++                exp_types[t[1]] = exp_types.get(t[1], 0) + 1
++        recipe = {}
++        try:
++            recipe = json.loads(kv.get("maya.recipe", "{}"))
++        except ValueError:
++            pass
++        with (staging / "mm3.txt").open("w", newline="\n") as f:
++            for k, v in geo.items():
++                if v is None:
++                    continue
++                if isinstance(v, bool):
++                    v = int(v)
++                f.write("%s %s\n" % (k, ",".join(str(x) for x in v) if isinstance(v, list) else v))
++            f.write("bos_token_id %d\n" % special["bos"])
++            f.write("eos_token_id %d\n" % special["eos"])
++            for k, v in special.items():
++                f.write("special.%s %d\n" % (k, v))
++            f.write("format gguf\n")
++            f.write("quant_name %s\n" % quant_name)
++            if recipe.get("tier"):
++                f.write("maya.tier %s\n" % recipe["tier"])
++            f.write("gguf.dense %s\n" % ",".join(dense))
++            f.write("gguf.experts %s\n" % ",".join("%sx%d" % (k, v) for k, v in sorted(exp_types.items())))
++            f.write("gguf.indexers %s\n" % (rel(side) if sg else "-"))
++            f.write("gguf.identity_expert_scales %d\n" % identity_scales)
++            if vision:   # (pack.py's keys: the tower's geometry, its preprocessor's, the picture span's tokens)
++                for k, v in vision["_ids"].items():
++                    f.write("%s %d\n" % (k, v))
++                metadata.flat(f, "vision.", vision["_vc"])
++                metadata.flat(f, "vision.", vision["_comp"])
++                metadata.flat(f, "vision.", vision["_extra"])
++            if dcfg is not None:
++                metadata.flat(f, "dspark.", {k: v for k, v in dcfg.items() if k not in ("text_config", "vision_config")})
++                metadata.flat(f, "dspark.dflash.", dcfg.get("dflash_config") or {})
++                metadata.flat(f, "dspark.cfg.", dcfg.get("dspark_config") or {})
++            f.write("model_dir %s\n" % root)
++        with (staging / "tensors.txt").open("w", newline="\n") as f:
++            for i, name in enumerate(files):
++                f.write("file %d %s\n" % (i, name))
++            for name, dt, fi, off, nb, shape in tensors:
++                f.write("t %s %s %d %d %d %s\n" % (name, dt, fi, off, nb, " ".join(map(str, shape))))
++    by = {}
++    for t in tensors:
++        by[t[1]] = by.get(t[1], 0) + t[4]
++    print("%s: %d tensors in %d files (%s)%s -> %s" %
++          (model.name, len(tensors), len(files), ", ".join("%s %.1f GB" % (k, v / 1e9) for k, v in sorted(by.items())),
++           ", the dense layers' indexers from " + side.name if sg else "", out))
++    print("  experts (layer x role): %s" % ", ".join("%s %d" % (k, v) for k, v in sorted(exp_types.items())))
++    print("  special ids: %s" % special)
++    print("  vision tower: %s; DSpark draft: %s" % (
++        "from %s" % comp if vision else "none (text only)",
++        "%d tensors from %s" % (sum(1 for t in tensors if t[0].startswith("dspark.")), comp) if dcfg else "none"))
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/tools/minimax/test_pack.py b/tools/minimax/test_pack.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..bc5953fb7b384881aa46d5016781da0c7bf988b4
+--- /dev/null
++++ b/tools/minimax/test_pack.py
+@@ -0,0 +1,135 @@
++"""Metadata/safety delta only; tiny fixtures are not real-model qualification."""
++import io
++import json
++from pathlib import Path
++import struct
++import sys
++import tempfile
++from types import SimpleNamespace
++import unittest
++from unittest.mock import patch
++from tools.minimax import metadata as m
++from tools.minimax import pack_gguf as p
++from tools.strata_tokenizer import BYTE_TO_UNICODE, Tokenizer
++
++ROOT = Path(__file__).resolve().parents[2]
++
++
++def st(path, header, payload=b'12345678'):
++    raw = json.dumps(header).encode()
++    raw += b' ' * (-len(raw) % 8)
++    path.write_bytes(struct.pack('<Q', len(raw)) + raw + payload)
++
++
++class MiniMaxPack(unittest.TestCase):
++    def setUp(self):
++        self.tmp = tempfile.TemporaryDirectory(prefix='.minimax-test-', dir=ROOT)
++        self.root = Path(self.tmp.name)
++
++    def tearDown(self):
++        self.tmp.cleanup()
++
++    def test_bounded_safetensors_and_exact_index(self):
++        st(self.root / 'a.safetensors', {'a': {'dtype': 'F32', 'shape': [2], 'data_offsets': [0, 8]}})
++        (self.root / 'model.safetensors.index.json').write_text(json.dumps({'weight_map': {'a': 'a.safetensors'}}))
++        result = m.SafeTensors(self.root)
++        self.assertEqual(result.files, ['a.safetensors'])
++        self.assertEqual(result.t['a'][1:3], ('F32', (2,)))
++        self.assertEqual(result.t['a'][4], 8)
++        (self.root / 'model.safetensors.index.json').write_text(json.dumps({'weight_map': {'missing': 'a.safetensors'}}))
++        with self.assertRaises(ValueError):m.SafeTensors(self.root)
++
++    def test_invalid_offsets_dtype_and_duplicate_keys(self):
++        for item in ({'dtype': 'F32', 'shape': [2], 'data_offsets': [0, 9]},
++                     {'dtype': 'F32', 'shape': [2], 'data_offsets': [18446744073709551612, 18446744073709551620]},
++                     {'dtype': ['F32'], 'shape': [2], 'data_offsets': [0, 8]}):
++            st(self.root / 'bad.safetensors', {'a': item})
++            with self.assertRaises(ValueError):m.safetensor_header(self.root / 'bad.safetensors')
++        with self.assertRaises(ValueError):json.loads('{"a":1,"a":2}', object_pairs_hook=m.unique_object)
++
++    def test_traversal_ads_and_external_file_are_rejected(self):
++        for name in ('../outside.safetensors', 'a:stream', '/absolute'):
++            with self.assertRaises(ValueError):m.contained_file(self.root, name)
++        with self.assertRaises(ValueError):m.relative_file(self.root, self.root.parent / 'outside')
++        self.assertEqual(m.relative_file(self.root, self.root / 'inside.gguf'), 'inside.gguf')
++
++    def test_tensor_size_and_alignment(self):
++        path = self.root / 'data.gguf';path.write_bytes(b'0' * 40)
++        g = SimpleNamespace(path=path, data_start=32, tensors=[('x', 0, [2], 0)])
++        self.assertIsNone(m.short(g))
++        path.write_bytes(b'0' * 39)
++        self.assertIn('39 of 40', m.short(g))
++        g.tensors = [('x', 0, [1], 1)]
++        self.assertIn('alignment', m.short(g))
++
++    def test_only_exact_identity_expert_scales_can_be_omitted(self):
++        path = self.root / 'scales.bin';path.write_bytes(struct.pack('<2f', 1, 1))
++        g = SimpleNamespace(path=path, data_start=0)
++        self.assertEqual(p.identity_expert_scale(g, 0, [2], 0, 2), 8)
++        path.write_bytes(struct.pack('<2f', 1, 0.999999))
++        with self.assertRaises(ValueError):p.identity_expert_scale(g, 0, [2], 0, 2)
++        path.write_bytes(b'1234')
++        with self.assertRaises(ValueError):p.identity_expert_scale(g, 0, [2], 0, 2)
++
++    def test_output_transaction_and_existing_pack(self):
++        target = self.root / 'pack'
++        with self.assertRaises(RuntimeError):
++            with m.output_directory(target) as staged:
++                (staged / 'mm3.txt').write_text('partial')
++                raise RuntimeError('fixture failure')
++        self.assertFalse(target.exists())
++        with m.output_directory(target) as staged:(staged / 'mm3.txt').write_text('complete')
++        self.assertEqual((target / 'mm3.txt').read_text(), 'complete')
++        with self.assertRaises(ValueError):
++            with m.output_directory(target):pass
++        self.assertEqual((target / 'mm3.txt').read_text(), 'complete')
++
++    def test_canonical_minimax_tokenizer_export(self):
++        tokens = [BYTE_TO_UNICODE[i] for i in range(256)] + [']~b]', '[e~[', '<mm:think>', '</mm:think>', ']<]minimax[>[']
++        kv = {'general.architecture': 'minimax-m3', 'tokenizer.ggml.model': 'gpt2', 'tokenizer.ggml.pre': 'minimax-m2',
++              'tokenizer.ggml.tokens': tokens, 'tokenizer.ggml.token_type': [1] * 256 + [3] * 5,
++              'tokenizer.ggml.bos_token_id': 256, 'tokenizer.ggml.eos_token_id': 257}
++        out = self.root / 'tok';p.write_tokenizer(out, kv)
++        self.assertEqual(json.loads((out / 'tokenizer.json').read_text())['pre'], 'minimax')
++        tok = Tokenizer.from_dir(out)
++        self.assertEqual(tok.decode(tok.encode('e\u0301')), 'é')
++        self.assertEqual(tok.encode(']~b]', parse_special=True), [256])
++        kv['tokenizer.ggml.bos_token_id'] = 1
++        with self.assertRaises(SystemExit):p.write_tokenizer(self.root / 'bad-tok', kv)
++        self.assertFalse((self.root / 'bad-tok').exists())
++
++    def test_partial_and_missing_shards_leave_no_output(self):
++        out = self.root / 'pack'
++        (self.root / 'a.gguf.part').write_bytes(b'GGUF')
++        with patch.object(sys, 'argv', ['pack', '--model', str(self.root), '--out', str(out), '--shards', 'a.gguf.part']):
++            with self.assertRaises(SystemExit):p.main()
++        self.assertFalse(out.exists())
++        with patch.object(sys, 'argv', ['pack', '--model', str(self.root), '--out', str(out), '--shards', 'missing.gguf']):
++            with self.assertRaises(SystemExit):p.main()
++        self.assertFalse(out.exists())
++
++    def test_geometry_rejects_nonfinite_and_line_injection(self):
++        for data in ({'x': float('nan')}, {'x\nmodel_dir': 1}, {'x': [1, float('inf')]}):
++            with self.assertRaises(ValueError):m.flat(io.StringIO(), '', data)
++
++    def test_draft_target_geometry_is_bound(self):
++        geo = {'hidden_size': 6144, 'vocab_size': 200064, 'num_hidden_layers': 60}
++        cfg = {'hidden_size': 6144, 'vocab_size': 200064, 'num_hidden_layers': 5,
++               'dflash_config': {'num_target_layers': 60, 'target_layer_ids': [3, 17, 31, 45, 59]}}
++        p.validate_draft(geo, cfg)
++        for change in ({'hidden_size': 4096}, {'vocab_size': 200061},
++                       {'dflash_config': {'num_target_layers': 60, 'target_layer_ids': [60]}}):
++            with self.assertRaises(ValueError):p.validate_draft(geo, {**cfg, **change})
++
++    def test_split_indexes_and_shared_metadata(self):
++        base = {'general.architecture': 'minimax-m3', 'general.name': 'fixture', 'split.count': 2,
++                'split.no': 0, 'split.tensors.count': 2, 'minimax-m3.rope.freq_base': 1e7}
++        first = SimpleNamespace(kv=base, tensors=[1])
++        second = SimpleNamespace(kv={**base, 'split.no': 1}, tensors=[2])
++        p.validate_shards([first, second], base)
++        for change in ({'split.no': 0}, {'minimax-m3.rope.freq_base': 1e6}, {'split.tensors.count': 3}):
++            with self.assertRaises(ValueError):
++                p.validate_shards([first, SimpleNamespace(kv={**second.kv, **change}, tensors=[2])], base)
++
++
++if __name__ == '__main__':unittest.main()
+diff --git a/tools/minimax/test_validate_pack.py b/tools/minimax/test_validate_pack.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..8fb65518a9748e47b0e851f6bce428ebdc7408d6
+--- /dev/null
++++ b/tools/minimax/test_validate_pack.py
+@@ -0,0 +1,92 @@
++import tempfile
++import hashlib
++import json
++import struct
++import unittest
++from pathlib import Path
++from types import SimpleNamespace
++from unittest.mock import patch
++from tools.minimax import validate_pack as v
++
++
++class PackLayoutValidation(unittest.TestCase):
++    def test_complete_receipt_flow_then_sealed_wrong_offset_is_rejected(self):
++        root=Path(__file__).resolve().parents[2]
++        with tempfile.TemporaryDirectory(prefix='layout-flow-',dir=root) as directory:
++            project=Path(directory);weights=project/'weights';weights.mkdir();pack=project/'pack';pack.mkdir()
++            tok=pack/'tokenizer';tok.mkdir()
++            native=[];raw=[]
++            names=[(name,native) for name,native in v.p.GLOBAL.items()]
++            names += [(f'blk.{l}.{role}',v.p.P+f'layers.{l}.'+v.p.LAYER[role]) for l in range(60) for role in v.p.INDEXER]
++            for i,(name,mapped) in enumerate(names):
++                raw.append((name,0,[1],i*32));native.append(f't {mapped} F32 0 {i*32} 4 1')
++            model=weights/'main.gguf';model.write_bytes(bytes(len(names)*32))
++            # Only the GGUF header object is mocked. Safetensors, receipt, native text and sealing are real tiny files.
++            name='language_model.model.dspark.fc.weight';header=json.dumps({name:{'dtype':'BF16','shape':[1],'data_offsets':[0,2]}}).encode()
++            draft=weights/'draft.safetensors';draft.write_bytes(struct.pack('<Q',len(header))+header+b'\0\0')
++            index=weights/'model.safetensors.index.json';index.write_text(json.dumps({'weight_map':{name:draft.name}}))
++            native.append(f't dspark.{name} BF16 1 {8+len(header)} 2 1')
++            tensor_file=pack/'tensors.txt';tensor_file.write_text('file 0 main.gguf\nfile 1 draft.safetensors\n'+'\n'.join(native)+'\n')
++            tokens=['a','b',']~b]','[e~[','<mm:think>','</mm:think>',']<]minimax[>[']
++            (pack/'mm3.txt').write_text(f'format gguf\nmodel_dir {weights}\nhidden_size 4\nnum_hidden_layers 60\nvocab_size {len(tokens)}\ngguf.identity_expert_scales 0\n')
++            kv={'general.architecture':'minimax-m3','minimax-m3.block_count':60,'minimax-m3.embedding_length':4,
++                'tokenizer.ggml.tokens':tokens,'tokenizer.ggml.token_type':[1,1,3,3,3,3,3],
++                'tokenizer.ggml.model':'gpt2','tokenizer.ggml.pre':'minimax-m2',
++                'tokenizer.ggml.bos_token_id':2,'tokenizer.ggml.eos_token_id':3}
++            v.p.write_tokenizer(tok,kv)
++            g=SimpleNamespace(path=model,data_start=0,alignment=32,tensors=raw,kv=kv)
++            receipt=project/'receipt.json'
++            def seal():
++                data={'status':'pack_prepared_native_qualification_pending','output':'pack',
++                    'verified_inputs':{str(p):{'size':p.stat().st_size,'mtime_ns':p.stat().st_mtime_ns} for p in (model,draft,index)},
++                    'files':{str(p.relative_to(pack)):{'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in pack.rglob('*') if p.is_file()}}
++                receipt.write_text(json.dumps(data))
++            seal()
++            with patch.object(v.m,'Gguf',return_value=g):
++                result=v.verify(project,pack,weights,receipt)
++                self.assertTrue(result['layout_only']);self.assertFalse(result['model_GPU_qualified'])
++                vocab=tok/'vocab.json';valid=vocab.read_text()
++                for invalid in (tokens,dict(zip(tokens,[1,0,2,3,4,5,6])),dict(zip(tokens,[0,True,2,3,4,5,6]))):
++                    vocab.write_text(json.dumps(invalid));seal()
++                    with self.assertRaisesRegex(ValueError,'Tokenizer vocabulary'):v.verify(project,pack,weights,receipt)
++                vocab.write_text(valid);seal()
++                tensor_file.write_text(tensor_file.read_text().replace(' F32 0 0 4 1',' F32 0 1 4 1',1));seal()
++                with self.assertRaisesRegex(ValueError,'offset'):v.verify(project,pack,weights,receipt)
++
++    def test_native_roles_resolve_to_exact_source_names(self):
++        self.assertEqual(v.origin('language_model.lm_head.weight'),('output.weight',None))
++        self.assertEqual(v.origin('language_model.model.layers.59.block_sparse_moe.experts.127.w2.weight'),
++                         ('blk.59.ffn_down_exps.weight',127))
++        self.assertEqual(v.origin('language_model.model.layers.0.self_attn.index_q_proj.weight'),
++                         ('blk.0.indexer.q_proj.weight',None))
++        self.assertEqual(v.origin('dspark.language_model.model.dspark.fc.weight'),
++                         ('language_model.model.dspark.fc.weight',None))
++        with self.assertRaises(ValueError):v.origin('language_model.model.layers.0.invented.weight')
++        with self.assertRaises(ValueError):v.origin('language_model.model.layers.3.block_sparse_moe.experts.w1')
++
++    def test_offsets_dtype_shape_and_expert_partition_are_bound_to_header(self):
++        raw=('F32',64,128,(2,4,4));value=('F32',0,128,64,(4,4))
++        v.check_tensor(value,raw,1)
++        for bad in [('BF16',0,128,64,(4,4)),('F32',0,129,64,(4,4)),
++                    ('F32',0,128,63,(4,4)),('F32',0,128,64,(16,))]:
++            with self.assertRaises(ValueError):v.check_tensor(bad,raw,1)
++        with self.assertRaises(ValueError):v.check_tensor(value,raw,2)
++        with self.assertRaises(ValueError):v.check_tensor(value,raw,-1)
++        with self.assertRaises(ValueError):v.check_tensor(('F32',0,72,8,(2,)),('F32',64,16,(2,2)),1)
++        v.check_tensor(('F32',0,64,16,(2,2)),('F32',64,16,(2,2)),None)
++
++    def test_duplicate_geometry_files_and_tensor_names_are_rejected(self):
++        root=Path(__file__).resolve().parents[2]
++        with tempfile.TemporaryDirectory(prefix='pack-validation-',dir=root) as directory:
++            p=Path(directory);(p/'mm3.txt').write_text('format gguf\nmodel_dir weights\n')
++            line='t language_model.lm_head.weight F32 0 64 16 2 2\n'
++            (p/'tensors.txt').write_text('file 0 a.gguf\n'+line)
++            self.assertEqual(len(v.parse(p)[2]),1)
++            for text in ('file 0 a.gguf\nfile 0 b.gguf\n'+line,'file 1 a.gguf\n'+line,'file 0 a.gguf\n'+line+line):
++                (p/'tensors.txt').write_text(text)
++                with self.assertRaises(ValueError):v.parse(p)
++            (p/'mm3.txt').write_text('format gguf\nformat gguf\n')
++            with self.assertRaises(ValueError):v.parse(p)
++
++
++if __name__=='__main__':unittest.main()
+diff --git a/tools/minimax/validate_pack.py b/tools/minimax/validate_pack.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..8dd1254f8ac80683eb0c7a2da4cdf0c44668c5eb
+--- /dev/null
++++ b/tools/minimax/validate_pack.py
+@@ -0,0 +1,151 @@
++"""Read-only MiniMax pack/header correspondence; producer SHA receipts replace duplicate weight hashing."""
++import argparse
++import hashlib
++import importlib.util
++import json
++import math
++from pathlib import Path
++import re
++import sys
++
++HERE=Path(__file__).resolve().parent
++spec=importlib.util.spec_from_file_location('_mm3_pack_tables',HERE/'pack_gguf.py')
++p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
++m=p.metadata
++sha=lambda path:hashlib.sha256(path.read_bytes()).hexdigest()
++
++def lines(path):
++    if path.stat().st_size>16<<20:raise ValueError('Pack metadata exceeds16MiB')
++    return path.read_text('utf-8').splitlines()
++
++def parse(pack):
++    geo={}
++    for line in lines(pack/'mm3.txt'):
++        key,sep,value=line.partition(' ')
++        if not sep or not re.fullmatch(r'[A-Za-z0-9_.]+',key) or key in geo:raise ValueError('Invalid/duplicate geometry key')
++        geo[key]=value
++    files={};tensors={}
++    for line in lines(pack/'tensors.txt'):
++        a=line.split()
++        if len(a)==3 and a[0]=='file':
++            i=int(a[1])
++            if i<0 or i in files:raise ValueError('Invalid/duplicate file index')
++            files[i]=a[2]
++        elif len(a)>=6 and a[0]=='t':
++            name,dtype,fi,off,nb=a[1:6];dims=tuple(map(int,a[6:]))
++            if name in tensors or any(x<=0 for x in dims):raise ValueError('Duplicate tensor or invalid shape')
++            fi,off,nb=map(int,(fi,off,nb))
++            if fi<0 or off<0 or nb<=0:raise ValueError('Invalid tensor extent')
++            tensors[name]=(dtype,fi,off,nb,dims)
++        else:raise ValueError('Invalid native pack line')
++    if set(files)!=set(range(len(files))) or not tensors:raise ValueError('Noncontiguous files or empty pack')
++    return geo,files,tensors
++
++def origin(name):
++    if name.startswith('dspark.'):return name[len('dspark.'):],None
++    reverse={v:k for k,v in p.GLOBAL.items()}
++    if name in reverse:return reverse[name],None
++    match=re.fullmatch(re.escape(p.P)+r'layers\.(\d+)\.(.+)',name)
++    if not match:raise ValueError('Unmapped native name: '+name)
++    layer,role=match.groups()
++    expert=re.fullmatch(r'block_sparse_moe\.experts\.(\d+)\.(w[123])\.weight',role)
++    if expert:
++        eid,which=expert.groups();raw={'w1':'gate','w2':'down','w3':'up'}[which]
++        return f'blk.{layer}.ffn_{raw}_exps.weight',int(eid)
++    reverse={v:k for k,v in p.LAYER.items()}
++    if role not in reverse or reverse[role].endswith('_exps.weight'):raise ValueError('Unmapped native layer role')
++    return f'blk.{layer}.'+reverse[role],None
++
++def check_tensor(value,raw,expert):
++    dtype,fi,offset,nbytes,shape=value
++    rdtype,begin,size,rshape=raw
++    expected_shape=tuple(rshape)
++    if expert is not None:
++        if len(rshape)!=3 or not 0<=expert<rshape[0] or size%rshape[0]:raise ValueError('Expert index/partition invalid')
++        size//=rshape[0];begin+=expert*size;expected_shape=tuple(rshape[1:])
++    if (dtype,offset,nbytes,shape)!=(rdtype,begin,size,expected_shape):
++        raise ValueError('Tensor dtype/offset/bytes/shape differs from source header')
++
++def verify(project,pack,model_root,receipt):
++    project=m.checked_path(project);pack=m.checked_path(pack);model_root=m.checked_path(model_root)
++    for path in (pack,model_root,receipt):m.relative_file(project,path)
++    proof=json.loads(receipt.read_text('utf-8'))
++    if proof.get('status')!='pack_prepared_native_qualification_pending':raise ValueError('No completed producer/pack receipt')
++    if m.checked_path(project/proof['output'])!=pack:raise ValueError('Pack receipt names another output')
++    actual={str(x.relative_to(pack)) for x in pack.rglob('*') if x.is_file()}
++    if actual!=set(proof['files']):raise ValueError('Pack inventory changed')
++    for rel,item in proof['files'].items():
++        path=m.contained_file(pack,rel)
++        if path.stat().st_size!=item['bytes'] or sha(path)!=item['sha256']:raise ValueError('Prepared metadata bytes changed')
++    for name,item in proof['verified_inputs'].items():
++        path=Path(name);m.relative_file(model_root,path);s=path.stat()
++        if (s.st_size,s.st_mtime_ns)!=(item['size'],item['mtime_ns']):raise ValueError('Verified model input changed')
++    geo,files,tensors=parse(pack)
++    if geo.get('format')!='gguf' or m.checked_path(geo.get('model_dir',''))!=model_root:raise ValueError('Wrong format/model root')
++    paths={i:m.contained_file(model_root,name) for i,name in files.items()}
++    if len(set(paths.values()))!=len(paths):raise ValueError('Duplicate weight file path')
++    expected={Path(x) for x in proof['verified_inputs'] if Path(x).suffix in ('.gguf','.safetensors')}
++    if set(paths.values())!=expected:raise ValueError('Pack data file set differs from pinned inputs')
++    catalogs={};source_keys=set();scales=0;kv=None
++    for i,path in paths.items():
++        cat={}
++        if path.suffix=='.gguf':
++            g=m.Gguf(path)
++            if m.short(g):raise ValueError('Incomplete GGUF')
++            if kv is None and 'general.architecture' in g.kv:kv=g.kv
++            for name,typ,dims,off in g.tensors:
++                if re.fullmatch(r'blk\.\d+\.ffn_(gate|up|down)_exps\.scale',name):scales+=1;continue
++                if name in cat:raise ValueError('Duplicate source tensor')
++                dtype,per,bpb=m.TYPES[typ]
++                cat[name]=(dtype,g.data_start+off,math.prod(dims)//per*bpb,tuple(reversed(dims)))
++        elif path.suffix=='.safetensors':
++            st=m.SafeTensors(path.parent)
++            for name,(file,dtype,shape,off,nb) in st.t.items():
++                if file==path.name:cat[name]=(dtype,off,nb,tuple(shape))
++        else:raise ValueError('Unexpected weight file type')
++        catalogs[i]=cat;source_keys.update((i,k) for k in cat)
++    covered={}
++    for name,value in tensors.items():
++        raw_name,expert=origin(name);fi=value[1]
++        if fi not in catalogs or raw_name not in catalogs[fi]:raise ValueError('Native role references wrong source file/name')
++        check_tensor(value,catalogs[fi][raw_name],expert)
++        seen=covered.setdefault((fi,raw_name),set())
++        if expert in seen:raise ValueError('Duplicate source tensor/slice')
++        seen.add(expert)
++    if set(covered)!=source_keys:raise ValueError('Source tensor missing from native pack')
++    for (fi,name),ids in covered.items():
++        if ids!={None}:
++            n=catalogs[fi][name][3][0]
++            if len(ids)!=n or min(ids)!=0 or max(ids)!=n-1:raise ValueError('Incomplete expert slices')
++    if not kv or kv['general.architecture']!='minimax-m3':raise ValueError('Architecture identity mismatch')
++    layers=int(kv['minimax-m3.block_count'])
++    if layers!=60:raise ValueError('This prepared target requires the MiniMax-M3.1 depth')
++    raw_names={name for cat in catalogs.values() for name in cat}
++    if not set(p.GLOBAL).issubset(raw_names):raise ValueError('Main embedding/norm/head missing')
++    if any(f'blk.{layer}.{role}' not in raw_names for layer in range(layers) for role in p.INDEXER):
++        raise ValueError('Sparse indexer missing; dense substitution is forbidden')
++    if not any(name.startswith('dspark.') for name in tensors):raise ValueError('Requested DSpark absent')
++    expected={'hidden_size':int(kv['minimax-m3.embedding_length']),'num_hidden_layers':layers,
++              'vocab_size':len(kv['tokenizer.ggml.tokens'])}
++    if any(int(geo[key])!=value for key,value in expected.items()):raise ValueError('Target geometry differs from headers')
++    if int(geo.get('gguf.identity_expert_scales','-1'))!=scales:raise ValueError('Identity-scale proof count differs')
++    tok=json.loads((pack/'tokenizer/tokenizer.json').read_text('utf-8'))
++    if tok.get('pre')!='minimax' or tok.get('model_arch')!='minimax-m3':raise ValueError('Tokenizer identity mismatch')
++    expected_tokens=kv['tokenizer.ggml.tokens']
++    expected_vocab={token:i for i,token in enumerate(expected_tokens)}
++    vocab=json.loads((pack/'tokenizer/vocab.json').read_text('utf-8'))
++    if (not isinstance(vocab,dict) or len(expected_vocab)!=len(expected_tokens) or vocab!=expected_vocab or
++        any(type(i) is not int for i in vocab.values()) or
++        json.loads((pack/'tokenizer/token_type.json').read_text('utf-8'))!=kv.get('tokenizer.ggml.token_type',[1]*len(expected_tokens)) or
++        (pack/'tokenizer/merges.txt').read_text('utf-8').splitlines()!=kv.get('tokenizer.ggml.merges',[])):
++        raise ValueError('Tokenizer vocabulary/types/merges differ from source')
++    return {'status':'passed','native_tensors':len(tensors),'source_tensors':len(source_keys),'weight_files':len(files),
++            'all_role_offsets_types_shapes_verified':True,'all_expert_slices_covered':True,'identity_scale_count':scales,
++            'layout_only':True,'matrix_payload_read':False,'full_weights_rehashed':False,'model_GPU_qualified':False}
++
++def main():
++    ap=argparse.ArgumentParser(description=__doc__)
++    for flag in ('project-root','pack','model-root','receipt'):ap.add_argument('--'+flag,type=Path,required=True)
++    a=ap.parse_args();print(json.dumps(verify(a.project_root,a.pack,a.model_root,a.receipt)))
++
++if __name__=='__main__':main()
