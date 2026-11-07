@@ -25,3 +25,5 @@ Retained applied source/dependency changes and currently used build/startup safe
 - [45. windows-numa-arena](45-windows-numa-arena/README.md)
 - [46. windows-preflight-json-bom](46-windows-preflight-json-bom/README.md)
 - [47. Pascal exact logical warp](47-pascal-exact-warp-5476/README.md)
+- [48. Full Swift Windows Setup](48-full-swift-setup/README.md)
+- [49. Publication checks follow I64/I128](49-publication-i64-case-gate/README.md)

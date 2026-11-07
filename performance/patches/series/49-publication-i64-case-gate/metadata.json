@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "status": "used_workspace_recipe",
+  "patch_sha256": "9b9569bdc64a2c1f80638ddd1a0b67ad3648aaf254aafd63aef67ca3cd15d5e8",
+  "I64_actual_cases": 26,
+  "I128_actual_cases": 27,
+  "source_encoding": "UTF-8 LF logical pre/postimages",
+  "native_changed": false
+}
