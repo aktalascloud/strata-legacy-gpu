@@ -26,6 +26,10 @@
 #include <vector>
 #include <stdexcept>
 
+#if defined(__AVX__) && !defined(__AVX2__)
+#include <immintrin.h>
+#endif
+
 #if defined(_WIN32)
 // `PrefetchVirtualMemory` (memoryapi.h, Windows 8+) is the whole point of the change in `gather` below.
 #define WIN32_LEAN_AND_MEAN
@@ -114,11 +118,29 @@ void iq4nl_dequant_row(const uint8_t* row, float* out160) {
         std::memcpy(&dbits, blk, 2);
         const float d = f32_from_f16(dbits);
         const uint8_t* qs = blk + 2;
+        // The halves use the same scalar multiply order, including signed zero and non-finite scales.
+#if defined(__AVX__) && !defined(__AVX2__)
+        const __m128i table = _mm_loadu_si128(reinterpret_cast<const __m128i*>(kIq4Nl));
+        const __m128i mask = _mm_set1_epi8(15);
+        const __m128i codes = _mm_loadu_si128(reinterpret_cast<const __m128i*>(qs));
+        __m128i lo = _mm_shuffle_epi8(table, _mm_and_si128(codes, mask));
+        __m128i hi = _mm_shuffle_epi8(table, _mm_and_si128(_mm_srli_epi16(codes, 4), mask));
+        const __m128 scale = _mm_set1_ps(d);
+        for (int j = 0; j < 16; j += 4) {
+            _mm_storeu_ps(out160 + b * 32 + j,
+                          _mm_mul_ps(scale, _mm_cvtepi32_ps(_mm_cvtepi8_epi32(lo))));
+            _mm_storeu_ps(out160 + b * 32 + j + 16,
+                          _mm_mul_ps(scale, _mm_cvtepi32_ps(_mm_cvtepi8_epi32(hi))));
+            lo = _mm_srli_si128(lo, 4);
+            hi = _mm_srli_si128(hi, 4);
+        }
+#else
         // SPLIT HALVES: qs[j] holds elements j and j+16, not 2j and 2j+1.
         for (int j = 0; j < 16; ++j) {
             out160[b * 32 + j] = d * (float) kIq4Nl[qs[j] & 0x0F];
             out160[b * 32 + j + 16] = d * (float) kIq4Nl[qs[j] >> 4];
         }
+#endif
     }
 }
 
@@ -154,6 +176,16 @@ void bf16_dequant_row(const uint8_t* row, float* out160) {
         std::memcpy(&v, &wide, sizeof v);
         out160[j] = v;
     }
+}
+
+// Strata #4688 uses the same boundary as the PLE diagnostic.
+static bool ple_invalid_value(float value) {
+    return !std::isfinite(value) || std::fabs(value) > 1e5f;
+}
+
+void ple_sanitize_row(float* out160) {
+    for (int j = 0; j < PLE_HEAD_DIM; ++j)
+        if (ple_invalid_value(out160[j])) out160[j] = 0.0f;
 }
 
 // NVIDIA's FP4-Local table: a row of 160 values is 80 bytes of E2M1 codes (element 2i in the low nibble, 2i+1 in the
@@ -245,7 +277,11 @@ struct PleTable::Impl {
     uint8_t prefetch_raw[kMaxPrefetch][PLE_N_HEADS * PLE_ROW_BYTES_MAX] = {};
     float scale = 1.0f;               // the FP8 table's one scale
     uint32_t rb = PLE_ROW_BYTES;      // bytes per row
-    void decode(const uint8_t* row, float* out160) const { fmt->dequant(row, scale, out160); }
+    void decode(const uint8_t* raw, float* out160, const char* where = nullptr, uint32_t row = 0) const {
+        fmt->dequant(raw, scale, out160);
+        if (where && check_on()) check_row(where, row, raw, out160);
+        ple_sanitize_row(out160);
+    }
     // STRATA_PLE_CHECK=1 (a diagnostic for #3602, off by default): the file and the table's offset, to re-read a row whose decoded
     // values are not plausible and compare the bytes the direct reader delivered with the file's own
     std::string path;
@@ -261,7 +297,7 @@ struct PleTable::Impl {
         if (check_reports >= 8 || row >= n_rows) return;
         int bad = -1;
         for (int j = 0; j < PLE_HEAD_DIM; ++j)
-            if (!std::isfinite(out160[j]) || std::fabs(out160[j]) > 1e5f) { bad = j; break; }
+            if (ple_invalid_value(out160[j])) { bad = j; break; }
         if (bad < 0) return;
         ++check_reports;
         const uint64_t at = table_offset + (uint64_t) row * rb;
@@ -564,8 +600,7 @@ void PleTable::read_row(uint32_t row, float* out160) const {
             std::memset(out160, 0, (size_t) PLE_HEAD_DIM * sizeof(float));
             return;
         }
-        impl_->decode(raw, out160);
-        if (Impl::check_on()) impl_->check_row("read_row", row, raw, out160);
+        impl_->decode(raw, out160, "read_row", row);
         impl_->bytes_read += impl_->rb;
         return;
     }
@@ -611,10 +646,8 @@ bool PleTable::collect(float* out2560, std::string& err) {
     if (impl_->mode == PleIo::Direct) {
         if (!impl_->reader.collect(impl_->ticket, err)) return false;
         for (int h = 0; h < PLE_N_HEADS; ++h)
-            impl_->decode(impl_->raw + (size_t) h * impl_->rb, out2560 + (size_t) h * PLE_HEAD_DIM);
-        if (Impl::check_on())
-            for (int h = 0; h < PLE_N_HEADS; ++h)
-                impl_->check_row("collect", impl_->rows[h], impl_->raw + (size_t) h * impl_->rb, out2560 + (size_t) h * PLE_HEAD_DIM);
+            impl_->decode(impl_->raw + (size_t) h * impl_->rb, out2560 + (size_t) h * PLE_HEAD_DIM,
+                          "collect", impl_->rows[h]);
         impl_->bytes_read += (uint64_t) PLE_N_HEADS * impl_->rb;
         return true;
     }
@@ -651,12 +684,9 @@ bool PleTable::gather_batch(const uint32_t* rows, size_t n_tokens, float* out, s
                 if (!collect_ok) return false;
                 for (size_t t = 0; t < n_tokens; ++t) {
                     for (int h = 0; h < PLE_N_HEADS; ++h) {
+                        const size_t i = t * PLE_N_HEADS + (size_t) h;
                         impl_->decode(impl_->prefetch_raw[matched[t]] + (size_t) h * impl_->rb,
-                                      out + (t * PLE_N_HEADS + (size_t) h) * PLE_HEAD_DIM);
-                        if (Impl::check_on())
-                            impl_->check_row("gather_batch (prefetched)", rows[t * PLE_N_HEADS + (size_t) h],
-                                             impl_->prefetch_raw[matched[t]] + (size_t) h * impl_->rb,
-                                             out + (t * PLE_N_HEADS + (size_t) h) * PLE_HEAD_DIM);
+                                      out + i * PLE_HEAD_DIM, "gather_batch (prefetched)", rows[i]);
                     }
                 }
                 impl_->bytes_read += (uint64_t) n * impl_->rb;
@@ -668,8 +698,7 @@ bool PleTable::gather_batch(const uint32_t* rows, size_t n_tokens, float* out, s
         const auto ticket = impl_->reader.issue(rows, n, raw.data());
         if (!impl_->reader.collect(ticket, err)) return false;
         for (size_t i = 0; i < n; ++i) {
-            impl_->decode(raw.data() + i * impl_->rb, out + i * PLE_HEAD_DIM);
-            if (Impl::check_on()) impl_->check_row("gather_batch", rows[i], raw.data() + i * impl_->rb, out + i * PLE_HEAD_DIM);
+            impl_->decode(raw.data() + i * impl_->rb, out + i * PLE_HEAD_DIM, "gather_batch", rows[i]);
         }
         impl_->bytes_read += (uint64_t) n * impl_->rb;
         return true;

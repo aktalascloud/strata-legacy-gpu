@@ -322,7 +322,8 @@ THINK_TAGS = {"<think>": "\U000F0E01", "</think>": "\U000F0E02"}
 # item; the same strings in a message's text (an agent reading chat_template.jinja, a tool result quoting it) became
 # the same special ids, so text with <|vision_start|><|image_pad|> before a picture took that picture's embeddings
 VISION_TAGS = {"<|vision_start|>": "\U000F0E03", "<|image_pad|>": "\U000F0E04", "<|vision_end|>": "\U000F0E05",
-               "<|video_pad|>": "\U000F0E06"}
+               "<|video_pad|>": "\U000F0E06", "<|begin_of_image|>": "\U000F0E0B",
+               "<|image|>": "\U000F0E0C", "<|end_of_image|>": "\U000F0E0D"}
 # #2026: `</tool_call>` the same way.  A user asking for the string verbatim handed the model the real end-of-call token
 # (type 4, matched everywhere); it copied that token into its answer and the reply came back empty.  An assistant
 # message keeps its own: a client replaying the model's raw call text sends the tokens the model wrote.
@@ -864,8 +865,8 @@ def _close_verdict(after: str, final: bool) -> str:
     if not m:
         tail = after[len(FUNC_END):].lstrip() if after.startswith(FUNC_END) else after
         if not final and CALL_END.startswith(tail):
-            return "hold"                                  # the wrapper is still arriving
-        return "end"                                       # cut call or no wrapper
+            return "hold"                                  # #5040: `</tool_call>` is still arriving: a streamed view must not end the value yet
+        return "end"                                       # the call is cut, or it has no wrapper: as before
     rest = after[m.end():].lstrip()
     if not rest:
         return "end" if final else "hold"                  # the usual call: the turn ends right after it
@@ -2019,7 +2020,7 @@ class OutputParser:
                 if self.stream_tools:
                     if i >= 0:
                         whole, self.buf = self.buf, self.buf[:i]     # scan only the body
-                        final, self._final = self._final, True       # this body's end is known
+                        final, self._final = self._final, True       # #5040: its end is known, so no closing tag is still arriving
                         out += self._scan()
                         out += self._close_scan()
                         self.buf, self._final = whole, final

@@ -107,7 +107,7 @@ add("4078-call-format-in-a-file", qwen("write_file", path="DOC.md", content="Clo
     source="#210: a file that documents the format")
 CLOSE_DOC = ("# Tool calls\n\nThe closing tags, in order:\n\n</parameter>\n</function>\n</tool_call>\n\nNothing may follow the last one.")
 add("4701-closing-tags-in-a-file", "I will save the doc.\n\n" + qwen("write_file", path="TOOLS.md", content=CLOSE_DOC),
-    [("write_file", {"path": "TOOLS.md", "content": CLOSE_DOC})], content="I will save the doc.", source="#4701")
+    [("write_file", {"path": "TOOLS.md", "content": CLOSE_DOC})], content="I will save the doc.", source="#4701, #5040: streamed arguments too")
 add("4701-closing-tags-in-a-file-recover", qwen("write_file", path="TOOLS.md", content=CLOSE_DOC),
     [("write_file", {"path": "TOOLS.md", "content": CLOSE_DOC})], recover=True, source="#4701, recover on")
 add("4701-text-after-a-whole-call", qwen("read", path="a.txt") + "\n\nThat is the read.", [("read", {"path": "a.txt"})],

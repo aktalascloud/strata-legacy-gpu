@@ -1,10 +1,5 @@
-# Current build
+# Current engine overlay
 
-Official source `ffa80d73133ea5c548aefe57889a16e8085a938f`.
+Official Strata 54828c7e, engine0.1.57. [Changes, retained patches, model settings and measured limits](../docs/SWIFT_AVX1_PLE.md).
 
-- Fix Windows inherited log handles (#5175): engine and CPU vision output now appends instead of overwriting earlier log lines.
-- Retain qualified AVX1/Pascal classic E4 and locked CPUvision99 bytes; no native rebuild or new generation-speed claim.
-- PR5040 streaming tool fix was already included in C5; 1553 exact-byte parser schedules are retained, not rerun.
-- Experimental DeepSeek/C7 source is separate; this classic-only release contains no model weights or additional backend runtime.
-
-Measured performance is independently source-pinned in BENCHMARKS.md.
+New: exact AVX1 IQ4_NL PLE shuffle decode, operator2.14–3.14x. Whole-model speedup is unconfirmed. Fresh upstream merged with real ancestry; original CUDA and CPUvision qualification reused by byte identity. This update is an engine overlay, not a replacement full portable installer.

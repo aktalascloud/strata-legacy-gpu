@@ -1,6 +1,64 @@
 """Explicit optional-engine profiles; never feed Qwen-only switches to another CLI."""
 from __future__ import annotations
 import math
+import io
+import struct
+import tempfile
+from pathlib import Path
+
+
+class GlmPictures:
+    """Pack bounded RGB frames for the worker's CPU projector."""
+    def __init__(self, tokenizer, load, directory):
+        self.markers = tokenizer.encode("<|begin_of_image|><|image|><|end_of_image|>", parse_special=True)
+        if len(self.markers) != 3:
+            raise ValueError("GLM tokenizer is missing its image markers")
+        self.load = load
+        self.directory = Path(directory)
+
+    def encode(self, src):
+        from PIL import Image, ImageOps
+        from serve.ds_pictures import PICTURE_FORMATS
+        blob = self.load(src) if isinstance(src, str) else src
+        if len(blob) > 32 * 1024 * 1024:
+            raise ValueError("GLM image exceeds 32 MiB")
+        with Image.open(io.BytesIO(blob), formats=PICTURE_FORMATS) as image:
+            if image.width * image.height > 16 * 1024 * 1024 or max(image.size) > 4096:
+                raise ValueError("GLM image exceeds the pixel limit")
+            rgb = ImageOps.exif_transpose(image).convert("RGB")
+            return *rgb.size, rgb.tobytes()
+
+    def build(self, ids, sources):
+        starts = [i for i in range(len(ids) - 2) if ids[i:i+3] == self.markers]
+        if len(starts) != len(sources) or not 1 <= len(starts) <= 8:
+            raise ValueError("GLM prompt and its images do not match")
+        self.directory.mkdir(parents=True, exist_ok=True)
+        total = 0
+        stream = tempfile.NamedTemporaryFile(dir=self.directory, suffix=".rgb", delete=False)
+        path = Path(stream.name)
+        try:
+            with stream:
+                stream.write(struct.pack("<4sI", b"GRB1", len(starts)))
+                for start, src in zip(starts, sources):
+                    width, height, rgb = self.encode(src)
+                    total += len(rgb)
+                    if total > 48 * 1024 * 1024:
+                        raise ValueError("GLM request exceeds the combined image limit")
+                    stream.write(struct.pack("<III", start, width, height))
+                    stream.write(rgb)
+        except BaseException:
+            path.unlink(missing_ok=True)
+            raise
+        return ids, path
+
+    def close(self):
+        # The projector's lifetime belongs to the worker.
+        pass
+
+
+def glm_cpu_mmproj(cfg):
+    return (cfg.get("engine_kind") == "ggml" and cfg.get("arch") == "glm5-next" and
+            "--glm-mmproj" in cfg.get("args", ()))
 
 def checked_bind(cfg, cli_port, argv):
     """Honor profile ports; using the native API port requires an explicit CLI choice."""
@@ -29,6 +87,8 @@ def checked_args(cfg):
     if cfg.get('drafting')=='off' and policy=='require' or cfg.get('drafting')=='mtp' and policy=='off' or cfg.get('mtp') is True and policy=='off':
         raise ValueError('Drafting override contradicts the prepared MTP policy; regenerate the profile')
     if cfg.get('vision'):raise ValueError('A family-matched vision encoder is not qualified by this optional profile')
+    if '--glm-mmproj' in args and (not glm_cpu_mmproj(cfg) or backend != 'cuda' or policy != 'require'):
+        raise ValueError('The CPU projector is available only in the CUDA GLM5Next MTP profile')
     return list(args)
 
 def sampling_keys(sampling):

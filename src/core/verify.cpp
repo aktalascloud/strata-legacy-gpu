@@ -257,6 +257,26 @@ inline cudaError_t prio_node_deps(cudaGraphNode_t node, cudaGraphNode_t* deps, s
 #endif
 }
 #endif
+bool pcie_fetch_overlap_on() {
+#if defined(STRATA_USE_HIP) || defined(STRATA_GPU_METAL)
+    return false;
+#else
+    static const bool enabled = [] {
+        const char* value = std::getenv("STRATA_PCIE_FETCH_OVERLAP");
+        return value != nullptr && std::strcmp(value, "1") == 0;
+    }();
+    return enabled;
+#endif
+}
+
+bool pcie_static_stage_on() {
+    static const bool enabled = [] {
+        const char* value = std::getenv("STRATA_PCIE_STATIC_STAGE");
+        return value != nullptr && std::strcmp(value, "1") == 0;
+    }();
+    return enabled && pcie_fetch_overlap_on();
+}
+
 // fork 34a35db + b063c13 (Eddoursul), STRATA_SIDE_MIXER=1 / =2: the mixer's work that reads only the layer's input on
 // branches of the window's graph (bitwise the same outputs); 0 = in line, and no branch stream is created.  Unset: 2 on a
 // compute capability 12.0 card (sm120_series.hpp; STRATA_SM120_PERF=0 turns it off), 0 elsewhere.
@@ -713,6 +733,7 @@ Verifier::~Verifier() {
     }
     if (cs_) cudaStreamSynchronize(cs_);
     if (sh_cs_) cudaStreamSynchronize(sh_cs_);
+    if (side2_ && pcie_fetch_overlap_on()) cudaStreamSynchronize(side2_);
     for (auto& row : exec_)
         for (auto& e : row)
             if (e) cudaGraphExecDestroy(e);
@@ -1063,6 +1084,10 @@ bool Verifier::init(const WeightTable& wt, const ModelGeometry& g, SessionState&
         for (size_t l = 0; lay.native && l < lay.fmt.size(); ++l) had_gu_any = had_gu_any || lay.fmt[l].had_gu;
     }
     // ---- the device arena: the same sequence counted, then carved
+    const auto& expert_layout = strata::kernels::cpu::expert_layout();
+    const uint64_t staging_bytes = static_cast<uint64_t>(kStagingBlobs) * expert_layout.max_blob;
+    const size_t static_stage_count = pcie_static_stage_on() && expert_layout.native
+        ? static_cast<size_t>(le_ - lb_) * kStagingBlobs : 0;
     auto carve = [&](Bump& b) {
         tok_ = b.take<int32_t>(T); step_ = b.take<int32_t>(T * strata::kernels::kStepCount);
         pos_ = b.take<int32_t>(T * (NH + NKV + IQ)); commit_ = b.take<int32_t>(2 + T);
@@ -1091,7 +1116,7 @@ bool Verifier::init(const WeightTable& wt, const ModelGeometry& g, SessionState&
         shared_ = b.take<float>(T * N); parts_ = b.take<float>(T * K * N); hit_out_ = b.take<float>(T * K * N);
         hit_slot_ = b.take<int32_t>(T * K); hit_dst_ = b.take<int32_t>(T * K); hit_count_ = b.take<int32_t>(4);
         plan_ = b.take<int32_t>(2 * ((uint64_t) plan_i32_ + 16));
-        staging_ = b.take<uint8_t>((uint64_t) kStagingBlobs * strata::kernels::cpu::expert_layout().max_blob);
+        staging_ = b.take<uint8_t>(staging_bytes + static_stage_count * sizeof(unsigned long long));
         hit_xq_ = b.take<uint8_t>(T * (N / 32) * 34); hit_xs_ = b.take<float>(T * (N / 32));
         nat_xq_ = b.take<uint8_t>(T * (N / 32) * 36);
         nat_xr_ = had_gu_any ? b.take<float>(T * N) : nullptr;
@@ -1157,6 +1182,24 @@ bool Verifier::init(const WeightTable& wt, const ModelGeometry& g, SessionState&
     Bump real;
     real.base = (uint8_t*) arena_;
     carve(real);
+    if (static_stage_count) {
+        std::vector<unsigned long long> pointers(static_stage_count);
+        for (int64_t layer = lb_; layer < le_; ++layer) {
+            const auto bytes = expert_layout.blob_bytes(layer);
+            if (!bytes || bytes > expert_layout.max_blob || bytes % 16 != 0) {
+                err = "verify: invalid static PCIe staging layout";
+                return false;
+            }
+            for (int64_t slot = 0; slot < kStagingBlobs; ++slot)
+                pointers[(layer - lb_) * kStagingBlobs + slot] =
+                    reinterpret_cast<unsigned long long>(staging_ + slot * bytes);
+        }
+        if (cudaMemcpy(staging_ + staging_bytes, pointers.data(),
+                       pointers.size() * sizeof(pointers[0]), cudaMemcpyHostToDevice) != cudaSuccess) {
+            err = "verify: static PCIe staging table upload failed";
+            return false;
+        }
+    }
     {
         const int32_t one = 1;
         if (cudaMemcpy(one_, &one, sizeof one, cudaMemcpyHostToDevice) != cudaSuccess) {
@@ -1288,6 +1331,13 @@ bool Verifier::init(const WeightTable& wt, const ModelGeometry& g, SessionState&
         cudaEventCreateWithFlags(&pfork_, cudaEventDisableTiming) != cudaSuccess ||
         cudaEventCreateWithFlags(&pjoin_, cudaEventDisableTiming) != cudaSuccess)) {
         err = "verify: the mixer branch's stream / events could not be created";
+        return false;
+    }
+    if (g_side_mixer() == 0 && pcie_fetch_overlap_on() &&
+        (make_stream(&side2_, gp_hi) != cudaSuccess ||
+         cudaEventCreateWithFlags(&pfork_, cudaEventDisableTiming) != cudaSuccess ||
+         cudaEventCreateWithFlags(&pjoin_, cudaEventDisableTiming) != cudaSuccess)) {
+        err = "verify: PCIe fetch branch setup failed";
         return false;
     }
     // E-6: a layer whose routed experts are all resident is planned on the device (STRATA_VERIFY_DEVICE_PLAN=1: on;
@@ -2400,23 +2450,64 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                 copy_i32_from_mapped(pl, m_plan_ + (size_t) grp * (size_t) plan_i32_, plan_i32_, cs);
                 }
             }
+            const bool overlap_fetch = pcie_fetch_overlap_on() && !side_mixer && !batch_rec_ &&
+                G == 1 && !prof_on_ && !device_plan_ && m_bal_ == nullptr && remote_opt_ == nullptr &&
+                sink_.pcie_mode == 2 && side2_ != nullptr;
+            const int64_t per = G == 2 ? kStagingBlobs / 2 : kStagingBlobs;
+            uint8_t* stage = sink_.pcie_mode == 2 ? staging_ + (size_t) (grp * per) * lay.max_blob : nullptr;
+            const auto fetch = [&](cudaStream_t stream) {
+                fetch_blobs(p_ptr2, p_counts + 2, stage, (int64_t) lay.blob_bytes(l), (int) per, stream);
+            };
+            if (overlap_fetch) {
+                static std::atomic<bool> logged{false};
+                if (!logged.exchange(true, std::memory_order_relaxed))
+                    std::fprintf(stderr, "strata verify: PCIe fetch overlap active\n");
+                // The side stream consumes the published device plan. Rebase only after its copy joins.
+                if (cudaEventRecord(pfork_, cs) != cudaSuccess ||
+                    cudaStreamWaitEvent(side2_, pfork_, 0) != cudaSuccess) {
+                    err = "verify: PCIe fetch branch fork failed";
+                    return false;
+                }
+                wait_flag_ge(m_flagB_, ring, side2_);
+                fetch(side2_);
+                if (cudaEventRecord(pjoin_, side2_) != cudaSuccess) {
+                    err = "verify: PCIe fetch branch record failed";
+                    return false;
+                }
+            }
             stamp(l, 19, grp);
             grouped(p_ptr, p_start, p_counts, 0, hit_out, true);
             stamp(l, 20, grp);
-            if (device_plan_) wait_flag_ge_or(m_flagB_, ring, skip_ + grp, cs);
+            if (overlap_fetch) {
+                if (cudaStreamWaitEvent(cs, pjoin_, 0) != cudaSuccess) {
+                    err = "verify: PCIe fetch branch join failed";
+                    return false;
+                }
+            } else if (device_plan_) wait_flag_ge_or(m_flagB_, ring, skip_ + grp, cs);
             else if (m_bal_ != nullptr)   // set_pcie_balance: the PCIe part starts
                 wait_flag_ge_stamped(m_flagB_, ring, m_bal_ + ((l - lb_) * 2 + grp) * 4 + 1, nullptr, cs);
             else wait_flag_ge(m_flagB_, ring, cs);                 // the PCIe share is in staging (DMA) or mapped
+            const unsigned long long* staged_ptrs = p_ptr2;
             if (sink_.pcie_mode == 2) {                            // stage it with a copy kernel, then point at staging
-                const int64_t per = G == 2 ? kStagingBlobs / 2 : kStagingBlobs;
-                uint8_t* stage = staging_ + (size_t) (grp * per) * lay.max_blob;
-                fetch_blobs(p_ptr2, p_counts + 2, stage, (int64_t) lay.blob_bytes(l), (int) per, cs);
-                rebase_ptrs((unsigned long long*) p_ptr2, p_counts + 2, stage, (int64_t) lay.blob_bytes(l), cs);
+                if (!overlap_fetch) fetch(cs);
+                if (overlap_fetch && pcie_static_stage_on() && lay.native) {
+                    // The original source addresses remain in the routed plan for the side-stream copy.
+                    const auto* table = reinterpret_cast<const unsigned long long*>(
+                        staging_ + static_cast<uint64_t>(kStagingBlobs) * lay.max_blob);
+                    staged_ptrs = table + (l - lb_) * kStagingBlobs;
+                    static const bool announced = [] {
+                        std::fprintf(stderr, "strata verify: static PCIe staging addresses active\n");
+                        return true;
+                    }();
+                    (void) announced;
+                } else {
+                    rebase_ptrs((unsigned long long*) p_ptr2, p_counts + 2, stage, (int64_t) lay.blob_bytes(l), cs);
+                }
             }
             stamp(l, 21, grp);
             // the PCIe share is pcie_frac of the misses: a few groups when the cache is cold, usually none (always none at
             // pcie_frac 0), so its launch is kPcieGroupRows block rows striding over the groups, not cap of them
-            grouped(p_ptr2, p_start2, p_counts + 2, kPcieGroupRows, hit_out, false);
+            grouped(staged_ptrs, p_start2, p_counts + 2, kPcieGroupRows, hit_out, false);
             stamp(l, 22, grp);
             if (device_plan_) {   // no CPU share when the device planned the group: its rows are zeros
                 wait_flag_ge_or(m_flag_, ring, skip_ + grp, cs);
