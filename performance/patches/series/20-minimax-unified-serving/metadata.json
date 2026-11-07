@@ -1,0 +1,11 @@
+{
+  "id": 20,
+  "directory": "20-minimax-unified-serving",
+  "title": "minimax-unified-serving",
+  "status": "retained_optional_model_history",
+  "scope": "Additional-model source/history; that model is retired from the local installation. No current model startup or new throughput qualification is claimed.",
+  "patch": "20-minimax-unified-serving/change.patch",
+  "sha256": "6dce05a47a342d207a4e2557821eed907e0003e1afb4a5ca3bf5652ea512fd38",
+  "original_context_required": true,
+  "apply_as_series": false
+}

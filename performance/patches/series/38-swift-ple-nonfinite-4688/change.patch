@@ -1,0 +1,105 @@
+diff --git a/include/strata/kernels/ngram.hpp b/include/strata/kernels/ngram.hpp
+index 680631afe6a13042adeca631ca5227da181c7add..607326d07ac8b8fcffa895bf6b44dd6a4c38224f 100644
+--- a/include/strata/kernels/ngram.hpp
++++ b/include/strata/kernels/ngram.hpp
+@@ -138,6 +138,9 @@ void fp8_e4m3_dequant_row(const uint8_t* row, float scale, float* out160);
+ /// There is no scale, because BF16 values are the values.
+ void bf16_dequant_row(const uint8_t* row, float* out160);
+ 
++/// Replace non-finite or implausibly large PLE values before they reach the model.
++void ple_sanitize_row(float* out160);
++
+ /// How the table's rows are read (plan v0.3 P2). `Direct` is the default: unbuffered 4 KiB reads from the SSD,
+ /// so the table never occupies RAM or the OS file cache. `Mmap` is the earlier memory-mapped path, kept as the
+ /// A/B arm; it returns the same bytes.
+diff --git a/src/kernels/ngram.cpp b/src/kernels/ngram.cpp
+index a81e34d66520a5e11522077faa2c8ee7428202c0..c86cad9e4da22a5dc6fca810471246e49307bc52 100644
+--- a/src/kernels/ngram.cpp
++++ b/src/kernels/ngram.cpp
+@@ -156,6 +156,16 @@ void bf16_dequant_row(const uint8_t* row, float* out160) {
+     }
+ }
+ 
++// Strata #4688 uses the same boundary as the PLE diagnostic.
++static bool ple_invalid_value(float value) {
++    return !std::isfinite(value) || std::fabs(value) > 1e5f;
++}
++
++void ple_sanitize_row(float* out160) {
++    for (int j = 0; j < PLE_HEAD_DIM; ++j)
++        if (ple_invalid_value(out160[j])) out160[j] = 0.0f;
++}
++
+ // NVIDIA's FP4-Local table: a row of 160 values is 80 bytes of E2M1 codes (element 2i in the low nibble, 2i+1 in the
+ // high one) followed by 10 E4M3 block scales (one per 16 values, sign bit always 0); one F32 scales the whole table.
+ // value = e2m1(code) * e4m3(block scale) * table scale, exactly what vLLM's nvfp4 PLE lookup computes.
+@@ -245,7 +255,11 @@ struct PleTable::Impl {
+     uint8_t prefetch_raw[kMaxPrefetch][PLE_N_HEADS * PLE_ROW_BYTES_MAX] = {};
+     float scale = 1.0f;               // the FP8 table's one scale
+     uint32_t rb = PLE_ROW_BYTES;      // bytes per row
+-    void decode(const uint8_t* row, float* out160) const { fmt->dequant(row, scale, out160); }
++    void decode(const uint8_t* raw, float* out160, const char* where = nullptr, uint32_t row = 0) const {
++        fmt->dequant(raw, scale, out160);
++        if (where && check_on()) check_row(where, row, raw, out160);
++        ple_sanitize_row(out160);
++    }
+     // STRATA_PLE_CHECK=1 (a diagnostic for #3602, off by default): the file and the table's offset, to re-read a row whose decoded
+     // values are not plausible and compare the bytes the direct reader delivered with the file's own
+     std::string path;
+@@ -261,7 +275,7 @@ struct PleTable::Impl {
+         if (check_reports >= 8 || row >= n_rows) return;
+         int bad = -1;
+         for (int j = 0; j < PLE_HEAD_DIM; ++j)
+-            if (!std::isfinite(out160[j]) || std::fabs(out160[j]) > 1e5f) { bad = j; break; }
++            if (ple_invalid_value(out160[j])) { bad = j; break; }
+         if (bad < 0) return;
+         ++check_reports;
+         const uint64_t at = table_offset + (uint64_t) row * rb;
+@@ -564,8 +578,7 @@ void PleTable::read_row(uint32_t row, float* out160) const {
+             std::memset(out160, 0, (size_t) PLE_HEAD_DIM * sizeof(float));
+             return;
+         }
+-        impl_->decode(raw, out160);
+-        if (Impl::check_on()) impl_->check_row("read_row", row, raw, out160);
++        impl_->decode(raw, out160, "read_row", row);
+         impl_->bytes_read += impl_->rb;
+         return;
+     }
+@@ -611,10 +624,8 @@ bool PleTable::collect(float* out2560, std::string& err) {
+     if (impl_->mode == PleIo::Direct) {
+         if (!impl_->reader.collect(impl_->ticket, err)) return false;
+         for (int h = 0; h < PLE_N_HEADS; ++h)
+-            impl_->decode(impl_->raw + (size_t) h * impl_->rb, out2560 + (size_t) h * PLE_HEAD_DIM);
+-        if (Impl::check_on())
+-            for (int h = 0; h < PLE_N_HEADS; ++h)
+-                impl_->check_row("collect", impl_->rows[h], impl_->raw + (size_t) h * impl_->rb, out2560 + (size_t) h * PLE_HEAD_DIM);
++            impl_->decode(impl_->raw + (size_t) h * impl_->rb, out2560 + (size_t) h * PLE_HEAD_DIM,
++                          "collect", impl_->rows[h]);
+         impl_->bytes_read += (uint64_t) PLE_N_HEADS * impl_->rb;
+         return true;
+     }
+@@ -651,12 +662,9 @@ bool PleTable::gather_batch(const uint32_t* rows, size_t n_tokens, float* out, s
+                 if (!collect_ok) return false;
+                 for (size_t t = 0; t < n_tokens; ++t) {
+                     for (int h = 0; h < PLE_N_HEADS; ++h) {
++                        const size_t i = t * PLE_N_HEADS + (size_t) h;
+                         impl_->decode(impl_->prefetch_raw[matched[t]] + (size_t) h * impl_->rb,
+-                                      out + (t * PLE_N_HEADS + (size_t) h) * PLE_HEAD_DIM);
+-                        if (Impl::check_on())
+-                            impl_->check_row("gather_batch (prefetched)", rows[t * PLE_N_HEADS + (size_t) h],
+-                                             impl_->prefetch_raw[matched[t]] + (size_t) h * impl_->rb,
+-                                             out + (t * PLE_N_HEADS + (size_t) h) * PLE_HEAD_DIM);
++                                      out + i * PLE_HEAD_DIM, "gather_batch (prefetched)", rows[i]);
+                     }
+                 }
+                 impl_->bytes_read += (uint64_t) n * impl_->rb;
+@@ -668,8 +676,7 @@ bool PleTable::gather_batch(const uint32_t* rows, size_t n_tokens, float* out, s
+         const auto ticket = impl_->reader.issue(rows, n, raw.data());
+         if (!impl_->reader.collect(ticket, err)) return false;
+         for (size_t i = 0; i < n; ++i) {
+-            impl_->decode(raw.data() + i * impl_->rb, out + i * PLE_HEAD_DIM);
+-            if (Impl::check_on()) impl_->check_row("gather_batch", rows[i], raw.data() + i * impl_->rb, out + i * PLE_HEAD_DIM);
++            impl_->decode(raw.data() + i * impl_->rb, out + i * PLE_HEAD_DIM, "gather_batch", rows[i]);
+         }
+         impl_->bytes_read += (uint64_t) n * impl_->rb;
+         return true;

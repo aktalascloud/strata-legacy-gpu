@@ -1,0 +1,94 @@
+diff --git a/src/core/verify.cpp b/src/core/verify.cpp
+index cba13c9f68d2f6141f4b49cbddb1b91566c13b59..55f63da921f80fccbcd3c160243e8d3cc268aa0f 100644
+--- a/src/core/verify.cpp
++++ b/src/core/verify.cpp
+@@ -269,6 +269,14 @@ bool pcie_fetch_overlap_on() {
+ #endif
+ }
+ 
++bool pcie_static_stage_on() {
++    static const bool enabled = [] {
++        const char* value = std::getenv("STRATA_PCIE_STATIC_STAGE");
++        return value != nullptr && std::strcmp(value, "1") == 0;
++    }();
++    return enabled && pcie_fetch_overlap_on();
++}
++
+ // fork 34a35db + b063c13 (Eddoursul), STRATA_SIDE_MIXER=1 / =2: the mixer's work that reads only the layer's input on
+ // branches of the window's graph (bitwise the same outputs); 0 = in line, and no branch stream is created.  Unset: 2 on a
+ // compute capability 12.0 card (sm120_series.hpp; STRATA_SM120_PERF=0 turns it off), 0 elsewhere.
+@@ -1076,6 +1084,10 @@ bool Verifier::init(const WeightTable& wt, const ModelGeometry& g, SessionState&
+         for (size_t l = 0; lay.native && l < lay.fmt.size(); ++l) had_gu_any = had_gu_any || lay.fmt[l].had_gu;
+     }
+     // ---- the device arena: the same sequence counted, then carved
++    const auto& expert_layout = strata::kernels::cpu::expert_layout();
++    const uint64_t staging_bytes = static_cast<uint64_t>(kStagingBlobs) * expert_layout.max_blob;
++    const size_t static_stage_count = pcie_static_stage_on() && expert_layout.native
++        ? static_cast<size_t>(le_ - lb_) * kStagingBlobs : 0;
+     auto carve = [&](Bump& b) {
+         tok_ = b.take<int32_t>(T); step_ = b.take<int32_t>(T * strata::kernels::kStepCount);
+         pos_ = b.take<int32_t>(T * (NH + NKV + IQ)); commit_ = b.take<int32_t>(2 + T);
+@@ -1104,7 +1116,7 @@ bool Verifier::init(const WeightTable& wt, const ModelGeometry& g, SessionState&
+         shared_ = b.take<float>(T * N); parts_ = b.take<float>(T * K * N); hit_out_ = b.take<float>(T * K * N);
+         hit_slot_ = b.take<int32_t>(T * K); hit_dst_ = b.take<int32_t>(T * K); hit_count_ = b.take<int32_t>(4);
+         plan_ = b.take<int32_t>(2 * ((uint64_t) plan_i32_ + 16));
+-        staging_ = b.take<uint8_t>((uint64_t) kStagingBlobs * strata::kernels::cpu::expert_layout().max_blob);
++        staging_ = b.take<uint8_t>(staging_bytes + static_stage_count * sizeof(unsigned long long));
+         hit_xq_ = b.take<uint8_t>(T * (N / 32) * 34); hit_xs_ = b.take<float>(T * (N / 32));
+         nat_xq_ = b.take<uint8_t>(T * (N / 32) * 36);
+         nat_xr_ = had_gu_any ? b.take<float>(T * N) : nullptr;
+@@ -1170,6 +1182,24 @@ bool Verifier::init(const WeightTable& wt, const ModelGeometry& g, SessionState&
+     Bump real;
+     real.base = (uint8_t*) arena_;
+     carve(real);
++    if (static_stage_count) {
++        std::vector<unsigned long long> pointers(static_stage_count);
++        for (int64_t layer = lb_; layer < le_; ++layer) {
++            const auto bytes = expert_layout.blob_bytes(layer);
++            if (!bytes || bytes > expert_layout.max_blob || bytes % 16 != 0) {
++                err = "verify: invalid static PCIe staging layout";
++                return false;
++            }
++            for (int64_t slot = 0; slot < kStagingBlobs; ++slot)
++                pointers[(layer - lb_) * kStagingBlobs + slot] =
++                    reinterpret_cast<unsigned long long>(staging_ + slot * bytes);
++        }
++        if (cudaMemcpy(staging_ + staging_bytes, pointers.data(),
++                       pointers.size() * sizeof(pointers[0]), cudaMemcpyHostToDevice) != cudaSuccess) {
++            err = "verify: static PCIe staging table upload failed";
++            return false;
++        }
++    }
+     {
+         const int32_t one = 1;
+         if (cudaMemcpy(one_, &one, sizeof one, cudaMemcpyHostToDevice) != cudaSuccess) {
+@@ -2457,14 +2487,27 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
+             else if (m_bal_ != nullptr)   // set_pcie_balance: the PCIe part starts
+                 wait_flag_ge_stamped(m_flagB_, ring, m_bal_ + ((l - lb_) * 2 + grp) * 4 + 1, nullptr, cs);
+             else wait_flag_ge(m_flagB_, ring, cs);                 // the PCIe share is in staging (DMA) or mapped
++            const unsigned long long* staged_ptrs = p_ptr2;
+             if (sink_.pcie_mode == 2) {                            // stage it with a copy kernel, then point at staging
+                 if (!overlap_fetch) fetch(cs);
+-                rebase_ptrs((unsigned long long*) p_ptr2, p_counts + 2, stage, (int64_t) lay.blob_bytes(l), cs);
++                if (overlap_fetch && pcie_static_stage_on() && lay.native) {
++                    // The original source addresses remain in the routed plan for the side-stream copy.
++                    const auto* table = reinterpret_cast<const unsigned long long*>(
++                        staging_ + static_cast<uint64_t>(kStagingBlobs) * lay.max_blob);
++                    staged_ptrs = table + (l - lb_) * kStagingBlobs;
++                    static const bool announced = [] {
++                        std::fprintf(stderr, "strata verify: static PCIe staging addresses active\n");
++                        return true;
++                    }();
++                    (void) announced;
++                } else {
++                    rebase_ptrs((unsigned long long*) p_ptr2, p_counts + 2, stage, (int64_t) lay.blob_bytes(l), cs);
++                }
+             }
+             stamp(l, 21, grp);
+             // the PCIe share is pcie_frac of the misses: a few groups when the cache is cold, usually none (always none at
+             // pcie_frac 0), so its launch is kPcieGroupRows block rows striding over the groups, not cap of them
+-            grouped(p_ptr2, p_start2, p_counts + 2, kPcieGroupRows, hit_out, false);
++            grouped(staged_ptrs, p_start2, p_counts + 2, kPcieGroupRows, hit_out, false);
+             stamp(l, 22, grp);
+             if (device_plan_) {   // no CPU share when the device planned the group: its rows are zeros
+                 wait_flag_ge_or(m_flag_, ring, skip_ + grp, cs);

@@ -1,0 +1,11 @@
+{
+  "id": 40,
+  "directory": "40-swift-q2-three-columns",
+  "title": "swift-q2-three-columns",
+  "status": "not_selected",
+  "scope": "Historical experiment, rejected or not confirmed in the selected runtime. Original inputs and measured limits are retained; no activation implied.",
+  "patch": "40-swift-q2-three-columns/change.patch",
+  "sha256": "6c91c3bd8327ba47d1ba83515429935521c120c4930e2c9a44cd273fb39d1110",
+  "original_context_required": true,
+  "apply_as_series": false
+}

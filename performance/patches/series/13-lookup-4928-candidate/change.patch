@@ -1,0 +1,453 @@
+diff --git a/include/strata/spec/draft_policy.hpp b/include/strata/spec/draft_policy.hpp
+index 6bf82d7aeb98ee8674f03e47476045373c4cfcab..de4a043edf3dba8568d54add08cec5e83cea8f6c 100644
+--- a/include/strata/spec/draft_policy.hpp
++++ b/include/strata/spec/draft_policy.hpp
+@@ -24,7 +24,10 @@ namespace strata::spec {
+ 
+ class DraftPolicy {
+ public:
+-    static constexpr int kMaxT = 8;
++    // The widest window the policy prices. Up to 8 rows every build has always run; sizes 9..16 exist only in a
++    // wide-window build (kWindowMaxT = 16) - the long lookup windows of STRATA_LOOKUP, or a plain --batch wider
++    // than 8 slots - where they carry the kShape prior until they are measured.
++    static constexpr int kMaxT = 16;
+     static constexpr int kBuckets = 4;
+     static constexpr int kCtxBuckets = 3;   // STRATA_SPEC_COST: row costs per context length (< 6K, < 24K, longer)
+ 
+diff --git a/src/program/generate.cpp b/src/program/generate.cpp
+index 687cc9fb6f39e412d34f364da925dd52c25233d1..597ae7675b289f6fb7e80a8b1942af072df69813 100644
+--- a/src/program/generate.cpp
++++ b/src/program/generate.cpp
+@@ -366,6 +366,25 @@ bool slot_copy_batchsync_env() {
+     }();
+     return on;
+ }
++// STRATA_LOOKUP=1 (opt-in): while the request reproduces an earlier stretch of its own context (a document, a list,
++// a file, its own recent code), the prompt lookup - which the engine already keeps for --suffix-draft and
++// --lookup-chain - may propose its whole continuation as the round's block, up to this build's window limit
++// (kWindowMaxT rows) instead of --spec's 8, and the verify decides every token exactly as it decides the drafter's:
++// greedy against its own argmax, sampled through the point-mass rejection the drafter's argmax drafts already go
++// through, so the answers stay the model's own.  Drafting a round from the request's own history is what the
++// community's context-lookup drafters do (HyperQwen's block-15 trigger, PR #4619's DS4_LOOKUP round loop); the
++// guards are DS4_LOOKUP's: a fresh copy must match 12 tokens or more before it is worth a wide window, 16 after
++// two rounds that kept nothing, 4 once a copy runs - prose that merely repeats a phrase never pays for one.
++// A narrow build (windows of 8 rows: CUDA's default) ignores the knob and says so once at the start; unset, not
++// one line of the long path runs and nothing is allocated for it.
++const bool strata_lookup_on() {
++    static const bool on = [] {
++        const char* v = std::getenv("STRATA_LOOKUP");
++        return v != nullptr && std::atoi(v) != 0 &&
++               strata::kernels::kWindowMaxT > strata::kernels::kVerifyNarrowT;   // a 8-row build has nothing to widen to
++    }();
++    return on;
++}
+ 
+ // perf-review D-4: the lent slots are refilled with queued copies and one wait; STRATA_REFILL_BLOCKING=1 waits on each
+ // A file-backed arena on AMD (STRATA_ARENA_MMAP; the engine raises ROCclr's pin-in-place threshold, see main): an
+@@ -3833,6 +3852,23 @@ int main(int argc, char** argv) {
+     }
+     // A speculative (solo) window holds at most kVerifyNarrowT rows: the hand-offs, the penalty history and the drafters'
+     // buffers are sized for that.  Only a plain --batch forms the wider windows of a build with kVerifyMaxT > 8.
++    // STRATA_LOOKUP: a long window exists only in a single-slot server.  A batch window of 9..16 rows over several
++    // sessions hits an illegal memory access on Pascal (sm_60/61, the Tesla P40; from testing, root cause not chased),
++    // and on the modern cards it loses anyway (-5..-10 % measured on an RTX 5090, where the verify is the cheap part).
++    // So a server that decodes several sessions at once (--batch 2 or more) keeps every window at 8 rows: the knob is
++    // inert there, byte for byte as if it were off.
++    const bool lk_wide = strata_lookup_on() && o.batch <= 1;
++    if (std::getenv("STRATA_LOOKUP") != nullptr && std::atoi(std::getenv("STRATA_LOOKUP")) != 0 &&
++        strata::kernels::kWindowMaxT <= strata::kernels::kVerifyNarrowT)
++        std::fprintf(stderr, "strata: STRATA_LOOKUP=1: this engine's windows hold %d rows, so the long lookup windows are off "
++                             "(build it with -DSTRATA_WINDOW_MAX_T=16)\n", (int) strata::kernels::kWindowMaxT);
++    if (strata_lookup_on() && !lk_wide)
++        std::fprintf(stderr, "strata: STRATA_LOOKUP=1: --batch %d: the long lookup windows stay off while the server decodes "
++                             "several sessions at once (they are for a single-stream server)\n", o.batch);
++    if (lk_wide)
++        std::fprintf(stderr, "strata: STRATA_LOOKUP=1: the prompt lookup may take a window of up to %d rows while the request "
++                             "copies its context (a fresh copy needs a match of 12 tokens, 16 after two empty rounds, "
++                             "4 once a copy runs)\n", (int) strata::kernels::kWindowMaxT);
+     if (o.spec > (int) strata::kernels::kVerifyNarrowT) {
+         std::fprintf(stderr, "strata generate: --spec %d: a speculative window holds 2..%d tokens\n", o.spec,
+                      (int) strata::kernels::kVerifyNarrowT);
+@@ -6123,11 +6159,17 @@ int main(int argc, char** argv) {
+     auto batch_max_t = [&]() -> int {
+         // (--batch-mtp and STRATA_PIPED_MTP draft with the draft layer's kernels, built for the narrow window: their windows
+         // stay at most kVerifyNarrowT rows; only the plain batch windows are wide)
+-        if (batch_mtp && !piped_mtp) return (int) strata::kernels::kVerifyNarrowT;
++        // STRATA_LOOKUP: the serial decode loop's long lookup windows are this build's wide limit - the verifier sizing
++        // follows max_t and windows of up to 8 rows keep their 0.2.7 code, so only the sizing changes here; the
++        // batch-mtp loops' own windows stay narrow (their win_cap is untouched).
++        if (batch_mtp && !piped_mtp)
++            return lk_wide ? (int) strata::kernels::kWindowMaxT : (int) strata::kernels::kVerifyNarrowT;
+         const int plain = std::max(o.spec, std::min(o.batch, (int) strata::kernels::kVerifyMaxT));
+         const int group_rows = (piped_mtp && o.batch_groups > 1 && o.batch > 0)
+             ? std::min<int>(strata::kernels::kVerifyNarrowT, (o.batch / o.batch_groups) * (1 + pm_drafts)) : 0;
+-        return std::max(plain, group_rows);
++        int mt = std::max(plain, group_rows);
++        if (lk_wide) mt = std::max(mt, (int) strata::kernels::kWindowMaxT);
++        return mt;
+     };
+     // The most slots, up to n, whose windows hold at most kVerifyMaxT rows each: n itself up to that, more only as
+     // pipelined groups on a layer split - the groups as resolved below (a number given, auto, or the default's one
+@@ -9998,9 +10040,11 @@ int main(int argc, char** argv) {
+         // the widest window; a request without penalties gets a null buffer and takes the byte-for-byte
+         // neutral path (no upload, no buffer handed to the sampler).
+         constexpr int kPenaltyWindowCap = 4096;
+-        // (the widest window the run can have: a batch of more than kVerifyNarrowT slots is the only way to a wider one)
++        // (the widest window the run can have: a batch of more than kVerifyNarrowT slots, or a STRATA_LOOKUP long
++        // lookup window, is the way to a wider one)
+         const size_t kHistSlots = (size_t) kPenaltyWindowCap *
+-            (size_t) (o.batch > strata::kernels::kVerifyNarrowT ? strata::kernels::kVerifyMaxT : strata::kernels::kVerifyNarrowT);
++            (size_t) (o.batch > strata::kernels::kVerifyNarrowT || lk_wide
++                          ? strata::kernels::kVerifyMaxT : strata::kernels::kVerifyNarrowT);
+         int32_t* d_hist = nullptr;
+         std::vector<int32_t> hist_stage(kHistSlots, -1);
+         const int hist_dev = last_st ? last_st->dev : -1;   // with the head: the last stage's device
+@@ -12388,6 +12432,18 @@ int main(int argc, char** argv) {
+         }
+         strata::core::pin_sim_report("at READY");
+         strata::core::pin_reserve_release_hard();   // the load is over: nothing else needs the headroom
++        // STRATA_LOOKUP: the long windows (9..kWindowMaxT rows) capture their graphs here, while nothing is in flight -
++        // the same discipline --pipeline-windows uses (capture_all). A capture in the middle of a request, with the
++        // expert cache's I/O thread moving blobs, is the old lazy-capture race; without the knob nothing runs here.
++        if (lk_wide && !pipe) {
++            std::string ce;
++            if (!ver.capture_all(ce)) {
++                std::fprintf(stderr, "strata serve: STRATA_LOOKUP: graph initialization failed (%s); refusing READY\n",
++                             ce.c_str());
++                return 1;
++            } else
++                std::fprintf(stderr, "strata serve: STRATA_LOOKUP: windows 1..%d captured at start\n", ver.max_t());
++        }
+         std::printf("READY %lld stop\n", (long long) o.max_context);   // "stop": this engine honours STOP
+         std::fflush(stdout);
+         std::string line;
+@@ -12398,7 +12454,9 @@ int main(int argc, char** argv) {
+         // --pipeline-windows 2 loads the drafter with 8 rows: the serial loop's chain keeps its own length
+         else if (use_mtp && mtp.max_t() > S_mtp) mtp.set_max_drafts(S_mtp - 1);
+         strata::spec::SuffixDrafter sfx(std::max(1, o.suffix_draft), 64, (size_t) o.max_context + 4096);
+-        strata::spec::DraftPolicy policy(S);   // MTP or lookup window, learned over the whole process
++        // STRATA_LOOKUP: the policy learns the wide sizes too (their cost is measured, not guessed - the first
++        // rounds of a copy probe them); without the knob the policy is exactly the one the run had.
++        strata::spec::DraftPolicy policy(lk_wide ? std::max(S, (int) strata::kernels::kWindowMaxT) : S);
+         const bool spec_cost = [] { const char* v = std::getenv("STRATA_SPEC_COST"); return v != nullptr && v[0] == '1'; }();   // cost-aware MTP window (A/B arm)
+         strata::spec::DraftPolicy::ChainState chain_st;
+         int chain_rows = 1;   // the window the cost-aware rule kept in the MTP chain just drafted
+@@ -15836,7 +15894,9 @@ int main(int argc, char** argv) {
+             ver.set_sampling(req_sp);
+             if (pipe) ver_b.set_sampling(req_sp);   // (reaches the later stage's odd verifier)
+             if (use_mtp) mtp.set_draft_sampling(req_sp);   // STRATA_SPEC_COUPLED=1: sampled drafts (a no-op otherwise)
+-            const bool gated_proposal = use_mtp && mtp.prob() && strata::core::spec_gate_pick() &&
++            // STRATA_LOOKUP: the gated producer keeps windows at gated::kRows (8); the long lookup windows take the
++            // plain proposal path, so the knob turns the gated path off rather than half-widening it.
++            const bool gated_proposal = use_mtp && mtp.prob() && strata::core::spec_gate_pick() && !lk_wide &&
+                 gated_proposal_usable(o.pipeline_windows < 2 && o.batch == 0 && n_stages == 1 && !multi_gpu && drive.d.remote_count == 0,
+                                       o.lookup_chain, o.adapt_swaps, req_pcie_frac != 0.0 || o.pcie_frac_auto, spec_cost, S,
+                                       req_spec_min_p);
+@@ -16059,13 +16119,31 @@ int main(int argc, char** argv) {
+             int64_t p = merge_T > 0 ? merge_at : n - 1;
+             int32_t x = (int32_t) ids[(size_t) p];
+             // (the drafter writes max_t - 1 drafts: 8 rows with --pipeline-windows 2)
++            // STRATA_LOOKUP: a long lookup block reaches this build's wide limit, so the round's arrays do too -
++            // a few dozen int32's a request, only when the knob is on; the drafter's arrays stay as they were.
++            const int LK = lk_wide ? (int) strata::kernels::kWindowMaxT : 0;
++            // Sampled requests retain the policy fixed before their draws; round timings can depend on uncommitted rows.
++            const bool lk_calibrate = req_sp.greedy || req_sp.temperature <= 0.0f;
+             const size_t DS = (size_t) std::max(S, use_mtp ? mtp.max_t() : 0);
+-            const size_t WS = (size_t) std::max(S, merge_T);
++            const size_t WS = (size_t) std::max(merge_T, std::max(S, LK));
+             std::vector<int32_t> drafts(DS, 0), window(WS), outv(WS);
+             std::vector<float> dprob(DS, 0.0f);
+             std::array<float, 8> dwin_s{};   // the probabilities the current window was chosen from (STRATA_SPEC_COST)
+-            std::vector<int32_t> sbuf((size_t) S, 0);
++            std::vector<int32_t> sbuf((size_t) std::max(S, LK), 0);
+             const bool sfx_on = o.suffix_draft > 0 || o.lookup_chain > 0;
++            bool lk_hot = false;   // the last lookup round kept a whole long block: a copy is running (DS4_LOOKUP)
++            int lk_misses = 0;     // lookup rounds that proposed and kept nothing: the bar for a new copy rises
++            int64_t lk_rounds = 0, lk_off = 0, lk_acc = 0;   // (the long windows' own stats, printed with the run's)
++            // STRATA_LOOKUP's own calibration: the first long rounds are probes.  A card where the verify is the cheap
++            // part (a modern GPU) loses tokens per ms to the 16-row rounds (measured -9 % on an RTX 5090); a card where
++            // the decode is memory-bound wins (measured +21..23 % on a Tesla P40).  Rather than guess by card, measure
++            // both rates on the running machine: after 10 probes, if the long rounds kept under 95 % of the ordinary
++            // rounds' tokens per ms, this card does not want long windows - stay narrow for the rest of the request.
++            double lk_rate = 0.0, nw_rate = 0.0;
++            int lk_probe = 10, nw_probe = 10;
++            bool lk_cal_off = false;
++            auto lk_ms_of = [](Clock::time_point t0) {
++                return std::max(1.0, std::chrono::duration<double, std::milli>(Clock::now() - t0).count()); };
+             if (sfx_on) {
+                 sfx.reset();
+                 for (int64_t t : ids) sfx.append((int32_t) t);
+@@ -16777,6 +16855,7 @@ int main(int argc, char** argv) {
+                 }
+             }
+             while (!pl_ran && !cancelled && produced_n < max_new) {
++                const Clock::time_point lk_rt0 = LK > 0 && lk_calibrate ? Clock::now() : Clock::time_point{};
+                 int T = 1;
+                 policy.set_context(p);
+                 const bool merged = first_window && merge_T > 0;   // the prompt's last tokens and the first token
+@@ -16804,14 +16883,23 @@ int main(int argc, char** argv) {
+                     // a repeat of earlier context (prompt lookup) where the MTP's own first guess agrees: the policy takes it
+                     // when its expected tokens per ms, from the measured acceptance and window costs, beat the MTP window's
+                     if (o.suffix_draft > 0 && !first_window) {
+-                        const int k = sfx.propose(S - 1, sbuf.data());
++                        // STRATA_LOOKUP (DS4_LOOKUP's guards, PR #4619): a fresh copy must match 12 tokens before it is
++                        // worth a wide window, 16 after two rounds that kept nothing; a running copy only 4 - prose
++                        // tails match 4-8 tokens and never earn one.  A long match wins the block on its own, without
++                        // the drafter's first-guess agreement the short ones need (HyperQwen's _AGREE: one token
++                        // agrees too often by chance, the length is the cheap confidence signal).
++                        const bool lk_on = LK > S;
++                        const int lk_floor = lk_hot ? 4 : (lk_misses >= 2 ? 16 : 12);
++                        const int k = sfx.propose(lk_on ? LK - 1 : S - 1, sbuf.data());
+                         sfx_match = sfx.last_match();
++                        const bool lk_long = lk_on && !lk_cal_off && sfx_match >= lk_floor && k >= (lk_hot ? 2 : 5);
++                        const int k_eff = lk_long ? k : std::min(k, S - 1);
+                         // a probabilistic window must not condition the source on the draw: the policy copy fixed at the request's start
+                         // chooses, and the lookup is taken without asking whether the MTP's first guess agrees
+                         const bool probabilistic = use_mtp && mtp.prob();
+-                        if (k > 0 && (probabilistic || !use_mtp || sbuf[0] == drafts[0])) {
++                        if (k_eff > 0 && (lk_long || probabilistic || !use_mtp || sbuf[0] == drafts[0])) {
+                             const strata::spec::DraftPolicy::Pick pk = probabilistic
+-                                ? source_policy.choose(S_mtp, k, sfx_match) : policy.choose(T, k, sfx_match);
++                                ? source_policy.choose(S_mtp, k_eff, sfx_match) : policy.choose(T, k_eff, sfx_match);
+                             if (pk.lookup) { T = pk.t; from_sfx = true; }
+                         }
+                     }
+@@ -17044,6 +17132,31 @@ int main(int argc, char** argv) {
+                 int a = merged ? T - 1 : 0;   // a merged window commits every row, as the prompt windows do
+                 while (a < T - 1 && window[(size_t) a + 1] == outv[(size_t) a]) ++a;
+                 if (from_sfx) { ++sfx_windows; sfx_drafts += T - 1; sfx_ok += a; }
++                if (LK > 0 && from_sfx) {   // (DS4_LOOKUP's guard state: a round that kept nothing raises the bar,
++                                            //  a whole long block kept says the copy is running)
++                    ++lk_rounds; lk_off += T - 1; lk_acc += a;
++                    if (a == 0) ++lk_misses; else lk_misses = 0;
++                    lk_hot = a >= 5 && a == T - 1;
++                    if (lk_calibrate && T > (int) strata::kernels::kVerifyNarrowT && lk_probe > 0 && !lk_cal_off) {
++                        const double r = (double) (a + 1) * 1000.0 / lk_ms_of(lk_rt0);
++                        lk_rate = lk_probe == 10 ? r : lk_rate * 0.7 + r * 0.3;
++                        if (--lk_probe == 0 && nw_probe == 0 && lk_rate < nw_rate * 0.95) {
++                            lk_cal_off = true;
++                            std::printf("strata serve: STRATA_LOOKUP: the long rounds kept %.0f tok/s against %.0f for the "
++                                        "8-row rounds on this card: staying at 8 rows for this request\n", lk_rate, nw_rate);
++                        }
++                    }
++                }
++                if (LK > 0 && lk_calibrate && !from_sfx && !first_window && nw_probe > 0) {
++                    const double r = (double) (a + 1) * 1000.0 / lk_ms_of(lk_rt0);
++                    nw_rate = nw_probe == 10 ? r : nw_rate * 0.7 + r * 0.3;
++                    --nw_probe;
++                    if (lk_probe == 0 && !lk_cal_off && lk_rate > 0.0 && lk_rate < nw_rate * 0.95) {
++                        lk_cal_off = true;
++                        std::printf("strata serve: STRATA_LOOKUP: the long rounds kept %.0f tok/s against %.0f for the "
++                                    "8-row rounds on this card: staying at 8 rows for this request\n", lk_rate, nw_rate);
++                    }
++                }
+                 if (chain_n > 0) { ++chain_windows; chain_drafts += chain_n; chain_ok += std::max(0, a - (T_mtp - 1)); }
+                 if (!from_sfx && !first_window)
+                     for (int d = 0; d < T_mtp - 1 && d < 8 && d <= a; ++d) { ++dp_tested[d]; dp_ok[d] += d < a; }
+@@ -17105,9 +17218,27 @@ int main(int argc, char** argv) {
+                     mtp.set_draft_history(consumed.data(), (int64_t) consumed.size(), outv[(size_t) a]);
+                 generation = {};   // a skipped or failed production must not expose an older q view
+                 const GatedDraftLimit draft_limit(mtp, gated_proposal, S_mtp, p + a + 1, o.max_context);
+-                const bool drafted = !use_mtp || eos || produced_n >= max_new ||
+-                                     mtp.draft(T, outv.data(), p, a, drafts.data(), err, dprob.data(), (float) req_spec_min_p,
+-                                               nullptr, gated_proposal ? &generation : nullptr);
++                // The drafter's own window is mtp.max_t() rows: when the verify window was wider (a long
++                // STRATA_LOOKUP block), its committed rows are replayed to the drafter chunk by chunk, each chunk
++                // staged from the verify's residual rows at its own offset. The tokens are what the verify
++                // decided; the replay only keeps the drafter's K/V current, so it can only change speed.
++                bool drafted = true;
++                if (use_mtp && !eos && produced_n < max_new) {
++                    if (T <= mtp.max_t()) {
++                        drafted = mtp.draft(T, outv.data(), p, a, drafts.data(), err, dprob.data(),
++                                            (float) req_spec_min_p, nullptr, gated_proposal ? &generation : nullptr);
++                    } else {
++                        const size_t rstride = (size_t) g.hc * (size_t) g.n_embd;
++                        for (int off = 0; off <= a; off += mtp.max_t()) {
++                            const int len = std::min(mtp.max_t(), a + 1 - off);
++                            if (off > 0) mtp.set_source_R(ver.final_R_all() + (size_t) off * rstride);
++                            drafted = mtp.draft(len, outv.data() + off, p + off, len - 1, drafts.data(), err,
++                                                dprob.data(), (float) req_spec_min_p, nullptr, nullptr);
++                            if (!drafted) break;
++                        }
++                        mtp.set_source_R(ver.final_R_all());   // the next window's rows start at row 0 again
++                    }
++                }
+                 {
+                     const Clock::time_point tw3 = Clock::now();
+                     auto msd = [](Clock::time_point a0, Clock::time_point b0) { return std::chrono::duration<double, std::milli>(b0 - a0).count(); };
+@@ -17665,6 +17796,9 @@ int main(int argc, char** argv) {
+             if (sfx_windows > 0)
+                 std::fprintf(stderr, "strata serve: suffix drafts: %lld windows, %lld of %lld drafts accepted\n",
+                              (long long) sfx_windows, (long long) sfx_ok, (long long) sfx_drafts);
++            if (lk_rounds > 0)
++                std::fprintf(stderr, "strata serve: lookup long windows: %lld, %lld of %lld drafts accepted\n",
++                             (long long) lk_rounds, (long long) lk_acc, (long long) lk_off);
+             if (o.lookup_chain > 0)
+                 std::fprintf(stderr, "strata serve: lookup chain: %lld of %lld windows, %lld of %lld chained drafts accepted\n",
+                              (long long) chain_windows, (long long) dec_windows, (long long) chain_ok, (long long) chain_drafts);
+@@ -18157,7 +18291,10 @@ int main(int argc, char** argv) {
+ #if defined(STRATA_HAVE_DFLASH2)
+         if (use_df2) ver.set_taps(df2.tap_layers());
+ #endif
+-        if (!ver.init(wt, g, ss, vh, native_head.loaded() ? &native_head : nullptr, o.spec, err)) {
++        // STRATA_LOOKUP: with the knob on, the verifier is sized for this build's wide windows (sizing only - a
++        // window of up to 8 rows runs exactly the code it ran before); unset, max_t is --spec as it was.
++        const int LK = lk_wide ? (int) strata::kernels::kWindowMaxT : 0;
++        if (!ver.init(wt, g, ss, vh, native_head.loaded() ? &native_head : nullptr, std::max(o.spec, LK), err)) {
+             std::fprintf(stderr, "strata generate: %s\n", err.c_str());
+             return 1;
+         }
+@@ -18404,7 +18541,7 @@ int main(int argc, char** argv) {
+         int32_t x = (int32_t) tok;
+         std::vector<int32_t> drafts((size_t) o.spec, 0);
+         std::vector<float> dprob((size_t) o.spec, 1.0f);
+-        std::vector<int64_t> window_hist((size_t) o.spec + 1, 0);
++        std::vector<int64_t> window_hist((size_t) std::max(o.spec, LK) + 1, 0);   // (STRATA_LOOKUP: long blocks reach LK)
+         // STRATA_SPEC_T_CYCLE=1,2,3,4,5,6,7,8 (bench only, off by default): the window size cycles through the list, so one run
+         // measures the cost of each verify width (with --spec-oracle drafts every row is accepted); the first round of a
+         // width (its graph capture) is not counted
+@@ -18436,7 +18573,9 @@ int main(int argc, char** argv) {
+ #else
+         const bool spec_uses_df2 = false;   // no DFlash2 drafter in this build (Metal)
+ #endif
+-        const bool gated_proposal = use_mtp && mtp.prob() && strata::core::spec_gate_pick() &&
++        // STRATA_LOOKUP: the gated producer keeps windows at gated::kRows (8); the long lookup windows take the
++        // plain proposal path, so the knob turns the gated path off rather than half-widening it.
++        const bool gated_proposal = use_mtp && mtp.prob() && strata::core::spec_gate_pick() && !lk_wide &&
+             gated_proposal_usable(o.pipeline_windows < 2 && o.batch == 0 && !multi_gpu && drive.d.remote_count == 0,
+                                   o.lookup_chain, o.adapt_swaps, o.pcie_frac != 0.0 || o.pcie_frac_auto,
+                                   spec_cost || spec_uses_df2 || !t_cycle.empty() || o.spec_corrupt > 0, o.spec, o.spec_min_p);
+@@ -18453,19 +18592,20 @@ int main(int argc, char** argv) {
+                 return 1;
+             }
+         }
+-        std::vector<int32_t> window((size_t) o.spec), outv((size_t) o.spec);
+-        std::vector<uint8_t> fdiff((size_t) o.spec, 0);
++        std::vector<int32_t> window((size_t) std::max(o.spec, LK)), outv((size_t) std::max(o.spec, LK));   // (STRATA_LOOKUP: LK rows when the knob is on)
++        std::vector<uint8_t> fdiff((size_t) std::max(o.spec, LK), 0);
+         std::FILE* hashes = o.window_hashes.empty() ? nullptr : std::fopen(o.window_hashes.c_str(), "w");
+         if (!o.window_hashes.empty() && hashes == nullptr) {
+             std::fprintf(stderr, "strata generate: cannot write %s\n", o.window_hashes.c_str());
+             return 1;
+         }
+         std::vector<float> hash_rows;
+-        std::vector<int64_t> accepted_hist((size_t) o.spec, 0);
++        std::vector<int64_t> accepted_hist((size_t) std::max(o.spec, LK), 0);   // (STRATA_LOOKUP: a long block accepts up to LK-1 drafts)
+         int64_t rounds = 0, drafts_total = 0, drafts_ok = 0, corrupt_counter = 0;
+         if (use_mtp && S_mtp < o.spec) mtp.set_max_drafts(S_mtp - 1);
+         strata::spec::SuffixDrafter sfx(std::max(1, o.suffix_draft), 64, (size_t) o.max_context + 4096);
+-        strata::spec::DraftPolicy policy(o.spec);   // MTP or lookup window (see draft_policy.hpp)
++        // STRATA_LOOKUP: with the knob on, the policy learns the wide sizes (measured, not guessed); off, it is --spec as before
++        strata::spec::DraftPolicy policy(std::max(o.spec, LK));   // MTP or lookup window (see draft_policy.hpp)
+         auto source_policy = policy;   // this generation's: committed outcomes only (observe_committed)
+         strata::spec::DraftPolicy::ChainState chain_st;
+         int chain_rows = 1;   // STRATA_SPEC_COST: the window the cost-aware rule kept in the MTP chain just drafted
+@@ -18491,8 +18631,11 @@ int main(int argc, char** argv) {
+                 chain_rows = chain_st.best_rows;
+                 return k;
+             });
+-        std::vector<int32_t> sbuf((size_t) o.spec, 0);
++        std::vector<int32_t> sbuf((size_t) std::max(o.spec, LK), 0);
+         int64_t sfx_windows = 0, sfx_drafts = 0, sfx_ok = 0;
++        bool lk_hot = false;   // (the STRATA_LOOKUP guard state, as in the serve loop)
++        int lk_misses = 0;
++        int64_t lk_rounds = 0, lk_off = 0, lk_acc = 0;
+         int64_t chain_windows = 0, chain_drafts = 0, chain_ok = 0;   // --lookup-chain's own counts
+         std::vector<int32_t> cbuf((size_t) o.spec, 0), ctail;
+         strata::spec::PromptLookupSource lookup_src(sfx);
+@@ -18566,10 +18709,28 @@ int main(int argc, char** argv) {
+                 return true;
+             }
+ #endif
+-            return mtp.draft(T_, outv.data(), p, a_, drafts.data(), err, dprob.data(), (float) o.spec_min_p,
+-                             nullptr, gated_proposal ? &generation : nullptr);
++            // The drafter's own window is mtp.max_t() rows: replay a longer committed block (a long STRATA_LOOKUP
++            // window) to it chunk by chunk, staging each chunk from the verify's residual rows at its offset -
++            // same shape as the serve loop's draft below, and it can only change the next proposals' speed.
++            if (T_ <= mtp.max_t())
++                return mtp.draft(T_, outv.data(), p, a_, drafts.data(), err, dprob.data(), (float) o.spec_min_p,
++                                 nullptr, gated_proposal ? &generation : nullptr);
++            {
++                const size_t rstride = (size_t) g.hc * (size_t) g.n_embd;
++                for (int off = 0; off <= a_; off += mtp.max_t()) {
++                    const int len = std::min(mtp.max_t(), a_ + 1 - off);
++                    if (off > 0) mtp.set_source_R(ver.final_R_all() + (size_t) off * rstride);
++                    if (!mtp.draft(len, outv.data() + off, p + off, len - 1, drafts.data(), err, dprob.data(),
++                                   (float) o.spec_min_p, nullptr, nullptr))
++                        return false;
++                }
++                mtp.set_source_R(ver.final_R_all());   // the next window's rows start at row 0 again
++                return true;
++            }
+         };
+-        int win_cap = o.spec;   // the widest window the VRAM allows (lowered on an out-of-memory capture, see below)
++        // STRATA_LOOKUP: with the knob on, the long lookup blocks start at this build's wide limit and stay capped by
++        // VRAM (the out-of-memory retry below lowers win_cap); off, win_cap is --spec exactly as it was.
++        int win_cap = std::max(o.spec, LK);   // the widest window the VRAM allows (lowered on an out-of-memory capture, see below)
+         while ((int64_t) produced.size() < max_new) {
+             const Clock::time_point t0 = Clock::now();
+         retry_round:
+@@ -18606,14 +18767,20 @@ int main(int argc, char** argv) {
+             std::copy(dprob.begin(), dprob.begin() + (std::ptrdiff_t) o.spec, dwin.begin());
+             if (!t_cycle.empty() && !first_window) T = t_cycle[(size_t) (rounds % (int64_t) t_cycle.size())];
+             if (o.suffix_draft > 0 && !first_window) {
+-                const int k = sfx.propose(o.spec - 1, sbuf.data());
++                // STRATA_LOOKUP: the same guards as the serve loop - a fresh copy must match 12 tokens (16 after two
++                // empty rounds, 4 once a copy runs) before its block may reach the build's wide window limit.
++                const bool lk_on = LK > o.spec;
++                const int lk_floor = lk_hot ? 4 : (lk_misses >= 2 ? 16 : 12);
++                const int k = sfx.propose(lk_on ? LK - 1 : o.spec - 1, sbuf.data());
+                 sfx_match = sfx.last_match();
++                const bool lk_long = lk_on && sfx_match >= lk_floor && k >= (lk_hot ? 2 : 5);
++                const int k_eff = lk_long ? k : std::min(k, o.spec - 1);
+                 // a probabilistic window must not condition the source on the draw: the policy copy fixed at the start chooses, and the
+                 // lookup is taken without asking whether the MTP's first guess agrees
+                 const bool probabilistic = use_mtp && mtp.prob();
+-                if (k > 0 && (probabilistic || !use_mtp || sbuf[0] == drafts[0])) {
++                if (k_eff > 0 && (lk_long || probabilistic || !use_mtp || sbuf[0] == drafts[0])) {
+                     const strata::spec::DraftPolicy::Pick pk = probabilistic
+-                        ? source_policy.choose(S_mtp, k, sfx_match) : policy.choose(T, k, sfx_match);
++                        ? source_policy.choose(S_mtp, k_eff, sfx_match) : policy.choose(T, k_eff, sfx_match);
+                     if (pk.lookup) { T = pk.t; from_sfx = true; }
+                 }
+             }
+@@ -18736,6 +18903,11 @@ int main(int argc, char** argv) {
+             drafts_ok += a;
+             ++accepted_hist[(size_t) a];
+             if (from_sfx) { ++sfx_windows; sfx_drafts += T - 1; sfx_ok += a; }
++            if (LK > 0 && from_sfx) {   // (the STRATA_LOOKUP guard state, as in the serve loop)
++                ++lk_rounds; lk_off += T - 1; lk_acc += a;
++                if (a == 0) ++lk_misses; else lk_misses = 0;
++                lk_hot = a >= 5 && a == T - 1;
++            }
+             if (chain_n > 0) { ++chain_windows; chain_drafts += chain_n; chain_ok += std::max(0, a - (T_mtp - 1)); }
+             bool eos = false;
+             for (int i = 0; i <= a && (int64_t) produced.size() < max_new && !eos; ++i) {
+@@ -18804,6 +18976,9 @@ int main(int argc, char** argv) {
+         if (o.suffix_draft > 0)
+             std::printf("%-24s %lld windows, drafts accepted %lld of %lld\n", "suffix drafts", (long long) sfx_windows,
+                         (long long) sfx_ok, (long long) sfx_drafts);
++        if (lk_rounds > 0)
++            std::printf("%-24s %lld, drafts accepted %lld of %lld\n", "lookup long windows", (long long) lk_rounds,
++                        (long long) lk_acc, (long long) lk_off);
+         if (o.lookup_chain > 0)
+             std::printf("%-24s %lld windows, chained drafts accepted %lld of %lld\n", "lookup chain",
+                         (long long) chain_windows, (long long) chain_ok, (long long) chain_drafts);
+diff --git a/src/spec/draft_policy.cpp b/src/spec/draft_policy.cpp
+index bbcd883adee95ad7a85434135d909ecdee042ae7..d2a75137bacc147df99d1774c45dacd9f96a39ee 100644
+--- a/src/spec/draft_policy.cpp
++++ b/src/spec/draft_policy.cpp
+@@ -9,8 +9,11 @@ namespace {
+ 
+ // The shape of a round's cost by window size, relative to one token, used only for sizes not measured yet (the
+ // measured round times replace it). Between the RTX 5070's measured curves: +10 ms per token with every missed expert
+-// on the CPU (bench/results/2026-09-27-spec/window-cost), flatter with the default CPU/DMA split.
+-constexpr double kShape[DraftPolicy::kMaxT + 1] = {0.0, 1.0, 1.35, 1.7, 2.05, 2.45, 2.85, 3.25, 3.6};
++// on the CPU (bench/results/2026-09-27-spec/window-cost), flatter with the default CPU/DMA split. 9..16: the same
++// slope carried on (a prior, not a measurement - the wide sizes of a wide build measure themselves in their first
++// rounds, and cost_ms then uses the measured values).
++constexpr double kShape[DraftPolicy::kMaxT + 1] = {0.0, 1.0, 1.35, 1.7, 2.05, 2.45, 2.85, 3.25, 3.6,
++                                                   3.95, 4.3, 4.65, 5.0, 5.35, 5.7, 6.05, 6.4};
+ constexpr double kCostAlpha = 0.1;    // EMA weight of a new round time
+ constexpr double kTokAlpha = 0.05;    // EMA weight of a new MTP window outcome
+ constexpr double kCalDecay = 0.995;   // the MTP probability -> acceptance table fades slowly

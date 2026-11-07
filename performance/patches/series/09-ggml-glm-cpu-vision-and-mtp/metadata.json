@@ -1,0 +1,11 @@
+{
+  "id": 9,
+  "directory": "09-ggml-glm-cpu-vision-and-mtp",
+  "title": "ggml-glm-cpu-vision-and-mtp",
+  "status": "retained_optional_model_history",
+  "scope": "Additional-model source/history; that model is retired from the local installation. No current model startup or new throughput qualification is claimed.",
+  "patch": "09-ggml-glm-cpu-vision-and-mtp/change.patch",
+  "sha256": "6e460888dc6bec24bb549d8d4c4f59ce964bceed9273a0cfb65d666ae5117879",
+  "original_context_required": true,
+  "apply_as_series": false
+}

@@ -1,0 +1,11 @@
+{
+  "id": 37,
+  "directory": "37-swift-pcie-static-addresses",
+  "title": "swift-pcie-static-addresses",
+  "status": "selected_source_or_dependency",
+  "scope": "Retained in the selected source/runtime or dependency workflow. This catalogue does not reapply or rebuild unchanged bytes.",
+  "patch": "37-swift-pcie-static-addresses/change.patch",
+  "sha256": "2f8e3d875178e7a54d8fc1e184686d1c454663415f139c5ba34e65fa9069e9be",
+  "original_context_required": true,
+  "apply_as_series": false
+}

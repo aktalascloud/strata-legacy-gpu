@@ -1,0 +1,21 @@
+--- a/src/program/generate.cpp
++++ b/src/program/generate.cpp
+@@ -4383,9 +4383,15 @@
+                 strata::GgufFile pg(o.ple_gguf);
+                 if (const strata::MetaValue* v = pg.get("general.architecture")) ple_only = v->s == "strata-ple";
+             } catch (const std::exception&) {}
+-            if (!ple_only &&
+-                std::find(o.native_dense_gguf.begin(), o.native_dense_gguf.end(), o.ple_gguf) == o.native_dense_gguf.end())
+-                o.native_dense_gguf.push_back(o.ple_gguf);
++            if (!ple_only) {
++                const bool ple_present = std::any_of(o.native_dense_gguf.begin(), o.native_dense_gguf.end(),
++                    [&](const std::string& shard) {
++                        if (shard == o.ple_gguf) return true;
++                        std::error_code ec;
++                        return std::filesystem::equivalent(shard, o.ple_gguf, ec) && !ec;
++                    });
++                if (!ple_present) o.native_dense_gguf.push_back(o.ple_gguf);
++            }
+         }
+         // Plan v0.3 (24 Sep): the CPU experts stay on the VNNI kernel.  The llama.cpp-CPU-exact q8_0 contract
+         // cost 27.0 vs 17.2 ms/token of pool time and G-C does not need it; `--cpu-oracle-q8-0` still selects it.

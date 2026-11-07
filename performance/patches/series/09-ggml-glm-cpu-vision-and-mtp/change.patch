@@ -1,0 +1,443 @@
+--- a/backends/ggml/CMakeLists.txt
++++ b/backends/ggml/CMakeLists.txt
+@@ -14,6 +14,10 @@
+ set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+ set(LLAMA_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+ set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
++if(STRATA_LLAMA_PIN STREQUAL "781dbc5ac98921dbdb5e5b2ec5b7a50960e937d4" AND STRATA_DEVICE STREQUAL "cuda")
++  set(LLAMA_BUILD_MTMD ON CACHE BOOL "" FORCE)
++  set(MTMD_VIDEO OFF CACHE BOOL "" FORCE)
++endif()
+ set(LLAMA_CURL OFF CACHE BOOL "" FORCE)
+ set(LLAMA_OPENSSL OFF CACHE BOOL "" FORCE)
+ if(STRATA_DEVICE STREQUAL "cuda")
+@@ -50,6 +54,10 @@
+   target_compile_definitions(strata-ggml PRIVATE STRATA_LLAMA_PIN="${STRATA_LLAMA_PIN}")
+ endif()
+ target_link_libraries(strata-ggml PRIVATE llama-common llama ${CMAKE_THREAD_LIBS_INIT})
++if(TARGET mtmd AND STRATA_LLAMA_PIN STREQUAL "781dbc5ac98921dbdb5e5b2ec5b7a50960e937d4")
++  target_link_libraries(strata-ggml PRIVATE mtmd)
++  target_compile_definitions(strata-ggml PRIVATE STRATA_GLM_VISION=1)
++endif()
+ add_executable(strata-security-check security-check.cpp)
+ target_include_directories(strata-security-check PRIVATE "${STRATA_LLAMA_SOURCE}/src")
+ target_link_libraries(strata-security-check PRIVATE llama-common llama)
+--- a/backends/ggml/main.cpp
++++ b/backends/ggml/main.cpp
+@@ -8,6 +8,12 @@
+ #include "llama.h"
+ #include "gguf.h"
+ #include "ggml-backend.h"
++#ifdef STRATA_GLM_VISION
++#include "mtmd.h"
++#include "mtmd-helper.h"
++#include <array>
++#include <fstream>
++#endif
+ #include <algorithm>
+ #include <atomic>
+ #include <cmath>
+@@ -18,11 +24,13 @@
+ #include <limits>
+ #include <mutex>
+ #include <memory>
++#include <optional>
+ #include <regex>
+ #include <unordered_set>
+ #include <sstream>
+ #include <stdexcept>
+ #include <thread>
++#include <type_traits>
+ 
+ namespace {
+ std::mutex output;
+@@ -39,7 +47,7 @@
+             if (!s.empty() && s.back() == '\r') s.pop_back();
+             if (s == "STOP") { if (busy.load()) stop.store(true); continue; }
+             if (s == "QUIT" || s == "EXIT") break;
+-            if (s.rfind("GEN ", 0) != 0) { line("ERR only text GEN, STOP and QUIT are supported"); continue; }
++            if (s.rfind("GEN ", 0) != 0 && s.rfind("GENI ", 0) != 0) { line("ERR expected GEN, GENI, STOP or QUIT"); continue; }
+             bool expected = false;
+             if (!busy.compare_exchange_strong(expected, true)) { line("ERR request already active"); continue; }
+             { std::lock_guard<std::mutex> l(mutex); stop.store(false); request = std::move(s); }
+@@ -61,7 +69,7 @@
+ float number(const std::string & v) {
+     size_t n; auto x = std::stof(v, &n); if (n != v.size() || !std::isfinite(x)) throw std::runtime_error("invalid number"); return x;
+ }
+-struct Request { int limit; llama_tokens ids; common_params_sampling sampling; };
++struct Request { int limit; llama_tokens ids; common_params_sampling sampling; std::string media; };
+ void check_mtp_architecture(const std::string & path, const std::string & draft_path) {
+     gguf_init_params p{}; p.no_alloc=true;
+     auto * meta=gguf_init_from_file(path.c_str(),p);
+@@ -155,12 +163,25 @@
+     }
+ }
+ Request parse(const std::string & s, const common_params_sampling & defaults, int vocab, uint32_t ctx) {
+-    std::istringstream in(s); std::string word; in >> word >> word;
++    std::istringstream in(s); std::string cmd, word; in >> cmd >> word;
+     const int64_t lim = integer(word); if (lim < 1 || lim > ctx) throw std::runtime_error("invalid max_new");
+     Request r{int(lim), {}, defaults}; std::string tokens;
+     while (in >> word) {
+         auto at = word.find('=');
+-        if (at == std::string::npos) { tokens = word; if (in >> word) throw std::runtime_error("unexpected argument"); break; }
++        if (at == std::string::npos) {
++            if (cmd == "GENI") {
++                std::string rest;
++                std::getline(in, rest);
++                const auto split = rest.find_last_of(' ');
++                if (split == std::string::npos) throw std::runtime_error("GENI requires a media file and tokens");
++                r.media = word + rest.substr(0, split);
++                tokens = rest.substr(split + 1);
++            } else {
++                tokens = word;
++                if (in >> word) throw std::runtime_error("unexpected argument");
++            }
++            break;
++        }
+         auto k = word.substr(0, at), v = word.substr(at + 1);
+         if (k == "temperature") { r.sampling.temp = number(v); if(r.sampling.temp<0) throw std::runtime_error("negative temperature"); }
+         else if(k=="top_p") {r.sampling.top_p=number(v);if(r.sampling.top_p<=0||r.sampling.top_p>1)throw std::runtime_error("invalid top_p");}
+@@ -210,8 +231,96 @@
+ #endif
+     if(spec&&!common_speculative_process(spec,batch.value))throw std::runtime_error("draft state update failed");
+ }
++#ifdef STRATA_GLM_VISION
++struct GlmImage {
++    size_t start;
++    mtmd::input_chunks_ptr chunks;
++};
++std::vector<GlmImage> glm_images(Request & r, mtmd_context * projector, const llama_vocab * vocab, size_t context) {
++    if (r.media.empty()) return {};
++    if (!projector) throw std::runtime_error("CPU mmproj is unavailable");
++    std::ifstream file(std::filesystem::u8path(r.media), std::ios::binary);
++    auto bytes = [&](char * dst, size_t n) {
++        if (!file.read(dst, n)) throw std::runtime_error("Incomplete GLM image request");
++    };
++    auto u32 = [&] {
++        std::array<unsigned char, 4> b;
++        bytes(reinterpret_cast<char *>(b.data()), b.size());
++        return uint32_t(b[0]) | uint32_t(b[1]) << 8 | uint32_t(b[2]) << 16 | uint32_t(b[3]) << 24;
++    };
++    char magic[4];
++    bytes(magic, sizeof(magic));
++    if (std::string(magic, 4) != "GRB1") throw std::runtime_error("Invalid GLM image request");
++    const auto count = u32();
++    if (count < 1 || count > 8) throw std::runtime_error("Invalid GLM image count");
++    auto markers = common_tokenize(vocab, "<|begin_of_image|><|image|><|end_of_image|>", false, true);
++    if (markers.size() != 3) throw std::runtime_error("Invalid GLM image tokens");
++    std::vector<GlmImage> images;
++    size_t expanded = r.ids.size(), next = 0, pixel_bytes = 0;
++    for (uint32_t i = 0; i < count; ++i) {
++        const size_t start = u32(), width = u32(), height = u32();
++        if (start < next || start + 3 >= r.ids.size() ||
++            !std::equal(markers.begin(), markers.end(), r.ids.begin() + start) ||
++            !width || !height || width > 4096 || height > 4096 ||
++            (pixel_bytes += width * height * 3) > 48 * 1024 * 1024)
++            throw std::runtime_error("GLM image does not match prompt or image limits");
++        std::vector<unsigned char> rgb(width * height * 3);
++        bytes(reinterpret_cast<char *>(rgb.data()), rgb.size());
++        mtmd::bitmap image(width, height, rgb.data());
++        mtmd::input_chunks_ptr chunks(mtmd_input_chunks_init());
++        const mtmd_bitmap * bitmap = image.ptr.get();
++        const std::string marker = mtmd_default_marker();
++        const mtmd_input_text input{marker.data(), marker.size(), false, true};
++        if (mtmd_tokenize(projector, chunks.get(), &input, &bitmap, 1) != 0)
++            throw std::runtime_error("GLM image preprocessing failed");
++        expanded = expanded - 3 + mtmd_helper_get_n_tokens(chunks.get());
++        if (expanded + r.limit > context) throw std::runtime_error("GLM image prompt exceeds context");
++        images.push_back({start, std::move(chunks)});
++        next = start + 3;
++    }
++    if (file.peek() != EOF) throw std::runtime_error("Unexpected data after GLM images");
++    return images;
++}
++int mtp_image_batch(const mtmd_helper_embd_batch * image, void * user) {
++    auto & state = *static_cast<std::pair<llama_context *, common_speculative *> *>(user);
++    if (!state.second) return 0;
++    if (image->n_pos < 1 || image->n_pos > 4) return 1;
++    common_batch batch(state.first);
++    for (int i = 0; i < image->n_tokens; ++i) {
++        llama_pos positions[4]{};
++        for (int j = 0; j < image->n_pos; ++j) positions[j] = image->pos[j * image->n_tokens + i];
++        batch.add_embd({image->embd + size_t(i) * image->n_embd, 1, size_t(image->n_embd)},
++                       positions, image->seq_id, false);
++    }
++    return common_speculative_process(state.second, batch) ? 0 : 1;
++}
++#endif
++bool needs_checkpoint(llama_context * ctx, std::optional<bool> & saved) {
++    if (saved) return *saved;
++    const auto support = common_context_can_seq_rm(ctx);
++    const bool full = support == COMMON_CONTEXT_SEQ_RM_TYPE_FULL;
++    // A failed probe may be transient. Cache only a successfully identified memory mode.
++    if (support != COMMON_CONTEXT_SEQ_RM_TYPE_NO) saved = full;
++    return full;
++}
++
++template <typename Restore>
++void restore_checkpoint(Restore restore, const char * error) {
++    // The older pinned library reported restore failures internally and returned void.
++    if constexpr (std::is_same_v<decltype(restore()), bool>) {
++        if (!restore()) throw std::runtime_error(error);
++    } else {
++        restore();
++    }
++}
++
+ void generate(Request & r, common_params & p, llama_context * ctx, llama_model * model,
+-              common_speculative_init_result * spec_init, Inbox & inbox) {
++              common_speculative_init_result * spec_init, Inbox & inbox,
++              std::optional<bool> & target_checkpoint, std::optional<bool> & draft_checkpoint
++#ifdef STRATA_GLM_VISION
++              , mtmd_context * projector
++#endif
++              ) {
+     auto * dft=spec_init->context();const llama_seq_id seq=0;
+     llama_memory_clear(llama_get_memory(ctx),true);
+     if(dft)llama_memory_clear(llama_get_memory(dft),true);
+@@ -220,23 +329,87 @@
+     common_sampler_ptr smpl(common_sampler_init(model,r.sampling));
+     if(!smpl)throw std::runtime_error("cannot initialize sampler");
+     auto * vocab=llama_model_get_vocab(model);const int nv=llama_vocab_n_tokens(vocab);
+-    const bool ck_t=common_context_can_seq_rm(ctx)==COMMON_CONTEXT_SEQ_RM_TYPE_FULL;
+-    const bool ck_d=dft&&common_context_can_seq_rm(dft)==COMMON_CONTEXT_SEQ_RM_TYPE_FULL;
++    const bool ck_t=needs_checkpoint(ctx,target_checkpoint);
++    const bool ck_d=dft&&needs_checkpoint(dft,draft_checkpoint);
+     const int cap=int(llama_n_batch(ctx));
+     Batch b(ctx,cap);
+     auto t0=ggml_time_us();size_t pos=0;
++    llama_tokens prompt;
++#ifdef STRATA_GLM_VISION
++    auto images = glm_images(r, projector, vocab, llama_n_ctx(ctx));
++    size_t next_image = 0;
++    size_t image_tokens = 0;
++#else
++    if (!r.media.empty()) throw std::runtime_error("CPU mmproj is unavailable");
++#endif
+     while(pos+1<r.ids.size()&&!inbox.stop.load()){
+-        b.clear();size_t n=std::min(size_t(cap),r.ids.size()-pos-1);
+-        for(size_t j=0;j<n;++j)b.add(r.ids[pos+j],llama_pos(pos+j),seq,false);
++        size_t end = r.ids.size() - 1;
++#ifdef STRATA_GLM_VISION
++        if (next_image < images.size()) {
++            auto & image = images[next_image];
++            if (pos == image.start) {
++                auto callback_data = std::make_pair(ctx, spec.get());
++                for (size_t j = 0; j < mtmd_input_chunks_size(image.chunks.get()); ++j) {
++                    const auto * chunk = mtmd_input_chunks_get(image.chunks.get(), j);
++                    const size_t n = mtmd_input_chunk_get_n_tokens(chunk);
++                    if (mtmd_input_chunk_get_type(chunk) == MTMD_INPUT_CHUNK_TYPE_TEXT) {
++                        size_t count = 0;
++                        const auto * tokens = mtmd_input_chunk_get_tokens_text(chunk, &count);
++                        for (size_t first = 0; first < count;) {
++                            b.clear();
++                            const size_t n_batch = std::min(size_t(cap), count - first);
++                            for (size_t k = 0; k < n_batch; ++k)
++                                b.add(tokens[first + k], llama_pos(prompt.size() + k), seq, false);
++                            decode(ctx, b, spec.get());
++                            prompt.insert(prompt.end(), tokens + first, tokens + first + n_batch);
++                            first += n_batch;
++                        }
++                    } else {
++                        if (mtmd_input_chunk_get_type(chunk) != MTMD_INPUT_CHUNK_TYPE_IMAGE ||
++                            mtmd_input_chunk_get_n_pos(chunk) != n || mtmd_encode_chunk(projector, chunk) != 0)
++                            throw std::runtime_error("GLM CPU projection failed");
++                        llama_pos past = llama_pos(prompt.size()), next = past;
++                        if (mtmd_helper_decode_image_chunk(projector, ctx, chunk, mtmd_get_output_embd(projector),
++                                past, seq, cap, &next, mtp_image_batch, &callback_data) != 0 ||
++                            next != past + llama_pos(n))
++                            throw std::runtime_error("GLM image target/MTP prefill failed");
++                        prompt.insert(prompt.end(), n, LLAMA_TOKEN_NULL);
++                        image_tokens += n;
++                    }
++                }
++                pos += 3;
++                ++next_image;
++                continue;
++            }
++            end = image.start;
++        }
++#endif
++        b.clear();size_t n=std::min(size_t(cap),end-pos);
++        for(size_t j=0;j<n;++j)b.add(r.ids[pos+j],llama_pos(prompt.size()+j),seq,false);
+         decode(ctx,b,spec.get());pos+=n;
++        prompt.insert(prompt.end(),r.ids.begin()+pos-n,r.ids.begin()+pos);
+         line("PP "+std::to_string(pos)+" "+std::to_string(r.ids.size())+" "+std::to_string((ggml_time_us()-t0)/1000.0));
+     }
++#ifdef STRATA_GLM_VISION
++    if (image_tokens && next_image == images.size())
++        std::cerr << "GLM CPU vision: " << image_tokens << " image tokens submitted to target and CPU MTP\n";
++#endif
+     const auto t1=ggml_time_us();int produced=0,drafted=0,accepted=0;std::string finish="length";
+-    llama_tokens prompt(r.ids.begin(),r.ids.begin()+pos),draft;
+-    llama_token last=r.ids[pos];int past=int(pos);common_prompt_checkpoint ckpt;
++    llama_tokens draft;
++    llama_token last=r.ids[pos];int past=int(prompt.size());common_prompt_checkpoint ckpt;
++    auto rewind_draft = [&] {
++        if (!dft) return;
++        if (ck_d) restore_checkpoint([&] { return ckpt.load_dft(dft,seq,LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY); },
++                                     "draft checkpoint restore failed");
++        if (!llama_memory_seq_rm(llama_get_memory(dft),seq,ckpt.pos_max+1,-1))
++            throw std::runtime_error("draft rollback failed");
++    };
++    const size_t prompt_count = inbox.stop.load() ? std::max(r.ids.size(), prompt.size() + 1) : prompt.size() + 1;
++    size_t prompt_read = prompt.size();
+     common_speculative_begin(spec.get(),seq,prompt);
+     // Repetition penalties include the actual prompt, without consuming RNG draws.
+-    for(auto t:r.ids)common_sampler_accept(smpl.get(),t,false);
++    for(auto t:prompt) if (t != LLAMA_TOKEN_NULL) common_sampler_accept(smpl.get(),t,false);
++    if (!inbox.stop.load()) common_sampler_accept(smpl.get(),last,false);
+     while(produced<r.limit&&!inbox.stop.load()){
+         if(draft.empty()){
+             ckpt.update_pos(prompt.size(),llama_memory_seq_pos_min(llama_get_memory(ctx),seq),llama_memory_seq_pos_max(llama_get_memory(ctx),seq));
+@@ -244,18 +417,21 @@
+             int maximum=std::max(0,std::min({r.limit-produced-1,int(llama_n_ctx(ctx))-past-2,cap-1}));
+             if(spec){common_speculative_get_draft_params(spec.get(),seq)={true,maximum,past,last,&prompt,&draft};common_speculative_draft(spec.get());}
+             if(!draft.empty()&&ck_t)ckpt.update_tgt(ctx,seq,LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY);
+-            if(dft){if(ck_d)ckpt.load_dft(dft,seq,LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY);if(!llama_memory_seq_rm(llama_get_memory(dft),seq,ckpt.pos_max+1,-1))throw std::runtime_error("draft rollback failed");}
++            rewind_draft();
+         }
+         b.clear();b.add(last,past++,seq,true);
+         for(size_t j=0;j<draft.size();++j)b.add(draft[j],past+int(j),seq,true);
+         decode(ctx,b,spec.get());check_logits(ctx,b.size(),nv);
++        if (prompt_read < prompt_count) ++prompt_read; // The deferred final prompt token.
+         common_sampler_ptr saved;if(ck_t)saved.reset(common_sampler_clone(smpl.get()));
+         size_t nd=draft.size();auto chosen=common_sampler_sample_and_accept_n(smpl.get(),ctx,draft);
+         if(chosen.empty())throw std::runtime_error("empty verification result");
+         if(ck_t&&chosen.size()-1<nd){
+-            draft=std::move(chosen);ckpt.load_tgt(ctx,seq,LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY);
++            draft=std::move(chosen);
++            restore_checkpoint([&] { return ckpt.load_tgt(ctx,seq,LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY); },
++                               "target checkpoint restore failed");
+             if(!llama_memory_seq_rm(llama_get_memory(ctx),seq,ckpt.pos_max+1,-1))throw std::runtime_error("target rollback failed");
+-            if(dft){if(ck_d)ckpt.load_dft(dft,seq,LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY);if(!llama_memory_seq_rm(llama_get_memory(dft),seq,ckpt.pos_max+1,-1))throw std::runtime_error("draft rollback failed");}
++            rewind_draft();
+             prompt.resize(ckpt.n_tokens);smpl=std::move(saved);past=int(prompt.size());continue;
+         }
+         if(spec)common_speculative_accept(spec.get(),seq,uint16_t(chosen.size()-1));
+@@ -273,7 +449,7 @@
+     }
+     if(inbox.stop.load())finish="cancel";
+     auto t2=ggml_time_us();
+-    std::ostringstream done;done<<"DONE "<<produced<<' '<<r.ids.size()<<' '<<(t1-t0)/1000.0<<' '<<(t2-t1)/1000.0<<' '<<finish<<' '<<accepted<<' '<<drafted<<" 0 0 0 0 0 0 0 0";
++    std::ostringstream done;done<<"DONE "<<produced<<' '<<prompt_count<<' '<<(t1-t0)/1000.0<<' '<<(t2-t1)/1000.0<<' '<<finish<<' '<<accepted<<' '<<drafted<<" 0 0 0 0 0 0 "<<prompt_read<<" 0";
+     // Publish completion only after admission is free for the client's next serial GEN.
+     inbox.busy.store(false);line(done.str());
+ }
+@@ -299,6 +475,9 @@
+     if(argc==2&&std::string(argv[1])=="--version"){line("strata-ggml adapter 0.1 (" STRATA_DEVICE_NAME ")");return 0;}
+     if(argc==2&&std::string(argv[1])=="--capabilities"){
+         std::string cap="{\"backend\":\"" STRATA_DEVICE_NAME "\",\"trained_mtp\":true,\"universal_mtp\":false,\"model_downloads\":false,\"images\":false,\"cache_reuse\":false";
++#ifdef STRATA_GLM_VISION
++        cap += ",\"glm_cpu_mmproj\":true";
++#endif
+         cap+=",\"native_mtp_architectures\":[\"deepseek2\",\"deepseek4\",\"glm-dsa\",\"qwen35\",\"qwen35moe\",\"qwen3next\",\"qwen4exp\"";
+ #ifdef STRATA_GLM5_NEXT
+         cap+=",\"glm5-next\"";
+@@ -322,6 +501,10 @@
+         line("PASS 15 protocol boundary cases");return 0;
+     }
+     bool serve=false,require=false;int draft_tokens=-1;float mtp_min_p=-1;std::vector<char*> args{argv[0]};
++#ifdef STRATA_GLM_VISION
++    std::string mmproj;
++    bool check_config_only = false;
++#endif
+     for(int i=1;i<argc;++i){std::string a=argv[i];if(a=="--serve")serve=true;else if(a=="--require-mtp")require=true;
+         else if(a=="--mtp-draft-tokens"||a=="--mtp-min-p"){
+             if(i+1>=argc){std::cerr<<a<<" needs a value"<<std::endl;return 2;}
+@@ -330,23 +513,54 @@
+                 else{auto v=number(value);if(v<0||v>1)throw std::runtime_error("expected probability 0..1");mtp_min_p=v;}
+             }catch(const std::exception & e){std::cerr<<a<<": "<<e.what()<<std::endl;return 2;}
+         }
++#ifdef STRATA_GLM_VISION
++        else if(a=="--check-config-only"){check_config_only=true;}
++        else if(a=="--glm-mmproj"){
++            if(!mmproj.empty() || i+1>=argc){std::cerr<<"Expected one local GLM mmproj"<<std::endl;return 2;}
++            mmproj=argv[++i];
++        }
++#endif
+         else if(a.find("hf-")!=std::string::npos||a.find("url")!=std::string::npos||a=="--rpc"){std::cerr<<"remote model sources are disabled"<<std::endl;return 2;}else args.push_back(argv[i]);}
+     common_params p;p.sampling.temp=0;p.speculative.draft.n_max=2;common_init();
+     try{
++#ifdef STRATA_GLM_VISION
++        p.offline = true;
++#endif
+         if(!common_params_parse(int(args.size()),args.data(),p,LLAMA_EXAMPLE_SPECULATIVE))return 1;
+         if(draft_tokens>=0)p.speculative.draft.n_max=draft_tokens;
+         if(mtp_min_p>=0)p.speculative.draft.p_min=mtp_min_p;
+         for(auto type:p.speculative.types)if(type!=COMMON_SPECULATIVE_TYPE_NONE&&type!=COMMON_SPECULATIVE_TYPE_DRAFT_MTP)
+             throw std::runtime_error("this adapter supports explicit native MTP or off; other draft methods need separate qualification");
+         if(!serve)throw std::runtime_error("--serve is required; no separate HTTP server is installed");
+-        auto remote=[](const common_params_model & m){return !m.url.empty()||!m.hf_repo.empty()||!m.hf_file.empty()||!m.docker_repo.empty();};
+-        if(remote(p.model)||remote(p.speculative.draft.mparams))throw std::runtime_error("remote model sources are disabled, including environment overrides");
++        auto remote=[](const common_params_model & m, bool local_draft_alias){
++            return !m.url.empty() || !m.hf_repo.empty() || !m.docker_repo.empty() ||
++                   (!m.hf_file.empty() && (!local_draft_alias || m.hf_file != m.path));
++        };
++        bool local_draft_alias = false;
++#ifdef STRATA_GLM_VISION
++        // The pinned parser copies --model-draft into hf_file for optional HF lookup.
++        local_draft_alias = p.offline && std::filesystem::is_regular_file(p.speculative.draft.mparams.path);
++#endif
++        if(remote(p.model,false)||remote(p.speculative.draft.mparams,local_draft_alias))throw std::runtime_error("remote model sources are disabled, including environment overrides");
+         if(!std::filesystem::is_regular_file(p.model.path))throw std::runtime_error("a local --model GGUF is required; downloads are disabled");
+         if(require)p.speculative.types={COMMON_SPECULATIVE_TYPE_DRAFT_MTP};
+         require=require||std::find(p.speculative.types.begin(),p.speculative.types.end(),COMMON_SPECULATIVE_TYPE_DRAFT_MTP)!=p.speculative.types.end();
+         if(!p.speculative.draft.mparams.path.empty()&&!require)throw std::runtime_error("a draft GGUF requires explicit --require-mtp in this adapter");
+         if(require)check_mtp_architecture(p.model.path,p.speculative.draft.mparams.path);
+         if(!p.speculative.draft.mparams.path.empty()&&!std::filesystem::is_regular_file(p.speculative.draft.mparams.path))throw std::runtime_error("draft GGUF is not a local file");
++#ifdef STRATA_GLM_VISION
++        if (!mmproj.empty() && (!std::filesystem::is_regular_file(std::filesystem::u8path(mmproj)) ||
++                !require || p.speculative.draft.mparams.path.empty() || p.speculative.draft.n_gpu_layers != 0 ||
++                p.speculative.draft.devices != std::vector<ggml_backend_dev_t>{nullptr} ||
++                p.load_mode != LLAMA_LOAD_MODE_NONE || p.lazy_mode != LLAMA_LAZY_MODE_OFF))
++            throw std::runtime_error("GLM CPU vision requires a local projector and a fully loaded CPU MTP");
++        if (check_config_only) {
++            if (mmproj.empty() || !p.offline) throw std::runtime_error("Expected an offline GLM CPU-projector profile");
++            line("{\"valid_worker_arguments\":true,\"model_loaded\":false,\"context\":" + std::to_string(p.n_ctx) +
++                 ",\"fit_target_mib\":" + std::to_string(p.fit_params_target[0] >> 20) + "}");
++            return 0;
++        }
++#endif
+         auto limits=common_speculative_get_output_limits(p.n_batch,1,common_speculative_n_max(&p.speculative));p.n_outputs_max=limits.total;p.n_outputs_max_per_seq=limits.per_seq;
+         llama_backend_init(); // No affinity/NUMA/power policy is installed by this adapter.
+         auto target=common_init_from_params(p);auto * model=target->model();auto * ctx=target->context();
+@@ -354,12 +568,37 @@
+         auto dp=common_base_params_to_speculative(p);auto si=common_speculative_init_from_params(dp,model,ctx);
+         p.speculative.draft.ctx_tgt=ctx;p.speculative.draft.ctx_dft=si->context();
+         if(require&&!si->context())throw std::runtime_error("MTP_REQUIRED: compatible trained NextN head/context unavailable");
++#ifdef STRATA_GLM_VISION
++        mtmd::context_ptr projector;
++        if (!mmproj.empty()) {
++            auto vision = mtmd_context_params_default();
++            vision.use_gpu = false;
++            vision.n_threads = p.cpuparams.n_threads;
++            projector.reset(mtmd_init_from_file(mmproj.c_str(), model, vision));
++            if (!projector || !mtmd_support_vision(projector.get()) || mtmd_decode_use_mrope(projector.get()))
++                throw std::runtime_error("GLM CPU projector could not initialize with scalar positions");
++            if (p.devices.size() != 2 || !p.devices[0] || p.devices[1] ||
++                    ggml_backend_dev_type(p.devices[0]) != GGML_BACKEND_DEVICE_TYPE_GPU ||
++                    llama_n_ctx(ctx) != p.n_ctx || llama_n_ctx(si->context()) != p.n_ctx)
++                throw std::runtime_error("GLM GPU device or target/MTP context differs from the profile");
++            size_t free = 0, total = 0;
++            ggml_backend_dev_memory(p.devices[0], &free, &total);
++            line("INFO vision=cpu mtp_device=cpu weights=resident vram_free_mib=" + std::to_string(free >> 20));
++            if (free < p.fit_params_target[0])
++                throw std::runtime_error("GLM GPU reserve after initialization is below the requested target");
++        }
++#endif
+         Inbox inbox;std::thread reader([&]{inbox.read();});
+         line("INFO engine_kind=ggml backend=" STRATA_DEVICE_NAME " mtp="+std::to_string(require&&si->context()!=nullptr));
+         line("READY "+std::to_string(llama_n_ctx(ctx))+" stop");
+         std::string s;
++        std::optional<bool> target_checkpoint, draft_checkpoint;
+         while(inbox.next(s)){
+-            try{auto request=parse(s,p.sampling,llama_vocab_n_tokens(llama_model_get_vocab(model)),llama_n_ctx(ctx));generate(request,p,ctx,model,si.get(),inbox);}
++            try{auto request=parse(s,p.sampling,llama_vocab_n_tokens(llama_model_get_vocab(model)),llama_n_ctx(ctx));generate(request,p,ctx,model,si.get(),inbox,target_checkpoint,draft_checkpoint
++#ifdef STRATA_GLM_VISION
++                , projector.get()
++#endif
++                );}
+             catch(const std::exception & e){inbox.busy.store(false);line(std::string("ERR ")+e.what());}
+         }
+         reader.join();return 0;

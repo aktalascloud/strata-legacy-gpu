@@ -1,0 +1,11 @@
+{
+  "id": 2,
+  "directory": "02-avx1-q2-bitplane-pair-4854",
+  "title": "avx1-q2-bitplane-pair-4854",
+  "status": "source_present_optional_off",
+  "scope": "CPU operation qualified; optional bit-plane mode is off in the measured Swift profile. No model TPS gain is inferred.",
+  "patch": "02-avx1-q2-bitplane-pair-4854/change.patch",
+  "sha256": "a5cbd0e73b603d6bb3627c844ce50accd964412d7ae2957a4703df44fdcdf198",
+  "original_context_required": true,
+  "apply_as_series": false
+}

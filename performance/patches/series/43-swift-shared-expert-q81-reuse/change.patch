@@ -1,0 +1,40 @@
+diff --git a/src/core/verify.cpp b/src/core/verify.cpp
+index 55f63da921f80fccbcd3c160243e8d3cc268aa0f..d6e5b3d2c2a954cbf6c7cd1bb458252e829050a9 100644
+--- a/src/core/verify.cpp
++++ b/src/core/verify.cpp
+@@ -2326,6 +2326,17 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
+         }
+         stamp(l, 17, grp);
+         bool qdedup = false;   // STRATA_VERIFY_QDEDUP took effect: the experts' q8_1 image of xm is already made
++        const auto& expert_layout = strata::kernels::cpu::expert_layout();
++        // Both fork events follow the Q8_1 producer; the join precedes the next layer's writes.
++        // A folded gate/up rewrites nat_xq_ before the join, so that case still needs private scratch.
++        const bool share_ffn_q8 = sh_fork && q8_ffn && expert_layout.native && !expert_layout.fmt[(size_t) l].had_gu;
++        if (share_ffn_q8) {
++            static const bool noted = [] {
++                std::fprintf(stderr, "strata verify: shared expert reuses produced Q8_1 across fork\n");
++                return true;
++            }();
++            (void) noted;
++        }
+         {
+             const WeightRef *wgi = need(v, "ffn_gate_inp_shexp.weight", err), *wsg = need(v, "ffn_gate_shexp.weight", err),
+                             *wsu = need(v, "ffn_up_shexp.weight", err), *wsd = need(v, "ffn_down_shexp.weight", err);
+@@ -2341,7 +2352,7 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
+             // STRATA_VERIFY_QDEDUP=1 (not with the forked shared-expert stream, which quantizes into its own buffer): the
+             // experts' q8_1 image of xm is made first and the shared expert's gate/up read it (quantize_q8_1_rows and
+             // native_quantize_q8_1 write the same bytes)
+-            qdedup = g_qdedup() && !sh_fork && strata::kernels::cpu::expert_layout().native;
++            qdedup = g_qdedup() && !sh_fork && expert_layout.native;
+             if (qdedup && !q8_ffn) quantize_q8_1_rows(xm, n, N, nat_xq_ + (size_t) tb * (N / 32) * 36, cs);
+             if (!shared_expert_native_bf16_enabled()) {
+                 if (dec_batch) f32_to_bf16_bulk(mixed_ + tb * N, sh_bf16_ + tb * N, (int64_t) n * N, sh_stream);   // contiguous rows
+@@ -2350,7 +2361,7 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
+             try {
+                 shared_expert_multi(n, xm, sh_bf16_ + tb * N, nsw, (const uint16_t*) wgi->data, sh_gate_ + (size_t) tb * g.n_ff,
+                                     sh_up_ + (size_t) tb * g.n_ff, sh_g_ + tb, shared_ + tb * N, N, g.n_ff, sh_stream,
+-                                    qdedup ? (const void*) (nat_xq_ + (size_t) tb * (N / 32) * 36) : nullptr,
++                                    qdedup || share_ffn_q8 ? (const void*) (nat_xq_ + (size_t) tb * (N / 32) * 36) : nullptr,
+                                     (sg_ready ? 1 : 0) | (lfuse_on(n) && g_lfuse_pair() ? 2 : 0));
+                 sg_gated_[grp] = sg_ready;
+             } catch (const std::exception& e) {

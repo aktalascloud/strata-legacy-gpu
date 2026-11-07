@@ -1,0 +1,55 @@
+diff --git a/src/mm3/mm3_host.cpp b/src/mm3/mm3_host.cpp
+index 2feb4e0d62fadeb8daa001b3b527633dfd499fa3..050e25702d77efb2326b2c729c2c841d89d78cf5 100644
+--- a/src/mm3/mm3_host.cpp
++++ b/src/mm3/mm3_host.cpp
+@@ -9,16 +9,17 @@
+ namespace mm3::host {
+ 
+ #if defined(__GNUC__) || defined(__clang__)
+-__attribute__((target("avx2,fma")))
++__attribute__((target("avx")))
+ #endif
+ float dot(const float* a, const float* b, int n) {
+     __m256 s0 = _mm256_setzero_ps(), s1 = s0, s2 = s0, s3 = s0;
+     int i = 0;
+     for (; i + 32 <= n; i += 32) {
+-        s0 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i), s0);
+-        s1 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 8), _mm256_loadu_ps(b + i + 8), s1);
+-        s2 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 16), _mm256_loadu_ps(b + i + 16), s2);
+-        s3 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 24), _mm256_loadu_ps(b + i + 24), s3);
++        // Ivy Bridge: preserve the reduction order with separate, strictly rounded AVX operations.
++        s0 = _mm256_add_ps(s0, _mm256_mul_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i)));
++        s1 = _mm256_add_ps(s1, _mm256_mul_ps(_mm256_loadu_ps(a + i + 8), _mm256_loadu_ps(b + i + 8)));
++        s2 = _mm256_add_ps(s2, _mm256_mul_ps(_mm256_loadu_ps(a + i + 16), _mm256_loadu_ps(b + i + 16)));
++        s3 = _mm256_add_ps(s3, _mm256_mul_ps(_mm256_loadu_ps(a + i + 24), _mm256_loadu_ps(b + i + 24)));
+     }
+     alignas(32) float l[8];
+     _mm256_store_ps(l, _mm256_add_ps(_mm256_add_ps(s0, s1), _mm256_add_ps(s2, s3)));
+@@ -28,7 +29,7 @@ float dot(const float* a, const float* b, int n) {
+ }
+ 
+ #if defined(__GNUC__) || defined(__clang__)
+-__attribute__((target("avx2,fma")))
++__attribute__((target("avx")))
+ #endif
+ void rms_rows(const float* x, const float* w, int rows, int D, float eps, float* y) {
+     for (int r = 0; r < rows; ++r) {
+@@ -42,7 +43,7 @@ void rms_rows(const float* x, const float* w, int rows, int D, float eps, float*
+ }
+ 
+ #if defined(__GNUC__) || defined(__clang__)
+-__attribute__((target("avx2")))
++__attribute__((target("avx")))
+ #endif
+ void sum_into(float* h, const float* const* p, int np, const float* extra, size_t n) {
+     for (size_t i = 0; i < n; i += 8) {
+diff --git a/src/mm3/mm3_host.hpp b/src/mm3/mm3_host.hpp
+index 10e4fc8aea34174abf5d0ae012881f5461ad518a..30f09c841d017ccf93123171532388238d6e5535 100644
+--- a/src/mm3/mm3_host.hpp
++++ b/src/mm3/mm3_host.hpp
+@@ -1,4 +1,4 @@
+-// src/mm3/mm3_host.hpp - maya-mm3's x86 host helpers (AVX2), in a .cpp of their own: nvcc's front end cannot read
++// src/mm3/mm3_host.hpp - maya-mm3's x86 host helpers (AVX1), in a .cpp of their own: nvcc's front end cannot read
+ // <immintrin.h> with every host compiler (CUDA 12.4 with GCC 13: the AMX intrinsics' builtins are unknown to it), so
+ // the .cu files call these instead of including it.
+ #pragma once

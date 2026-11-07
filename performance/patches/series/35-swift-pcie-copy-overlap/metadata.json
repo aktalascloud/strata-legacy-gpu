@@ -1,0 +1,11 @@
+{
+  "id": 35,
+  "directory": "35-swift-pcie-copy-overlap",
+  "title": "swift-pcie-copy-overlap",
+  "status": "selected_source_or_dependency",
+  "scope": "Retained in the selected source/runtime or dependency workflow. This catalogue does not reapply or rebuild unchanged bytes.",
+  "patch": "35-swift-pcie-copy-overlap/change.patch",
+  "sha256": "507f617c104c7baf9e016ec564e116990bf02e1297c4ada72266db308ed4a0fa",
+  "original_context_required": true,
+  "apply_as_series": false
+}

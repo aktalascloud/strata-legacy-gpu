@@ -1,3 +1,5 @@
+[Нумерованный каталог всех собственных дельт](../performance/patches/series/README.md)
+
 # Reviewed patches
 
 `native-ivybridge-p40.patch` preserves the native AVX1/Pascal, API, no-pin, NUMA and lifetime fixes on the exact upstream revision.

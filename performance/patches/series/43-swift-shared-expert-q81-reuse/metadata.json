@@ -1,0 +1,11 @@
+{
+  "id": 43,
+  "directory": "43-swift-shared-expert-q81-reuse",
+  "title": "swift-shared-expert-q81-reuse",
+  "status": "not_selected",
+  "scope": "Historical experiment, rejected or not confirmed in the selected runtime. Original inputs and measured limits are retained; no activation implied.",
+  "patch": "43-swift-shared-expert-q81-reuse/change.patch",
+  "sha256": "f41b9bb31e209b0a2c54ef9a614c705b2784447aa37eba3b3b7d75514c31dad6",
+  "original_context_required": true,
+  "apply_as_series": false
+}

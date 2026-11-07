@@ -1,0 +1,11 @@
+{
+  "id": 39,
+  "directory": "39-swift-ple-shard-identity-5326",
+  "title": "swift-ple-shard-identity-5326",
+  "status": "selected_source_or_dependency",
+  "scope": "Retained in the selected source/runtime or dependency workflow. This catalogue does not reapply or rebuild unchanged bytes.",
+  "patch": "39-swift-ple-shard-identity-5326/change.patch",
+  "sha256": "16686b4ea6c7074b6cc0190eac1241c1b12dacc16b51e76ee16f30893ede7a97",
+  "original_context_required": true,
+  "apply_as_series": false
+}
