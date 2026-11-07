@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "status": "selected_source_or_dependency",
+  "source_PR": "https://github.com/Niko1221/Strata/pull/5476",
+  "source_head": "ca4a88d6c4b72543ef6d72790ec90a89d15cefbd",
+  "official_source_sha": "146df3c468739147f520ac3816de806f71232571",
+  "engine_sha256": "62b147b072b50e50832086ddd4f06103fdf24c1ac7e29449a743e49d977667d8",
+  "patch_sha256": "189229bd3be4dd6f9d5dd0d6e180cb7b0e3e6aa4d5ec8d552757293bfff04cba",
+  "input_native_sha256": "344e28d206d05d6ae51923378818b301e575b45de703b7862b5d06581b049e57",
+  "output_native_sha256": "7292618577cee89f271032c9ecaf2e2b7967c7270e1010ca3da7a23321e742bc",
+  "qualification": {
+    "final_direct_Graph_comparisons": 72,
+    "Q8_cases": 130,
+    "required_package_cases": 26,
+    "model_observed_gain_percent": 0.5319148936170137,
+    "model_TPS_gain_confirmed": false
+  },
+  "original_context_required": true,
+  "apply_as_series": false
+}
