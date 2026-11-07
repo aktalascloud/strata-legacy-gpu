@@ -3,7 +3,7 @@
   "kind": "selected_applied_patch_catalogue",
   "source_binding": {
     "official_source_sha": "146df3c468739147f520ac3816de806f71232571",
-    "native_engine_sha256": "6c51f44c32ca8033fb5e67749abbf7511770e530eeb538d52383b4493d1b86da",
+    "native_engine_sha256": "8cc3edf048b71fc0ab8b184887716c279980d0e0203d3956ebcb3e1947105fc1",
     "commit_binding": "Source commit is the containing Git revision; historical deltas retain their own stated bases."
   },
   "application_order": [],
@@ -281,6 +281,28 @@
       "scope": "Keeps every required check and allows one known declared extra actual receipt; no speed claim.",
       "patch": null,
       "sha256": "afb3f16f93ed58e644806581c1fe3ab6e636c0eb93b8e2e8cf5d48a8285e7a67",
+      "original_context_required": true,
+      "apply_as_series": false
+    },
+    {
+      "id": 52,
+      "directory": "52-pascal-fused-expert-halfwarp",
+      "title": "Exact P40 fused expert half-warps",
+      "status": "selected_source_or_dependency",
+      "scope": "Exact P40 fused expert half-warps",
+      "patch": "52-pascal-fused-expert-halfwarp/change.patch",
+      "sha256": "945a659ba8310c42987e172b869fd2ee792cd17c6d81581a27568e8b6244f456",
+      "original_context_required": true,
+      "apply_as_series": false
+    },
+    {
+      "id": 53,
+      "directory": "53-swift-lookup-graph-window-set",
+      "title": "Keep five useful Swift graph sizes",
+      "status": "selected_source_or_dependency",
+      "scope": "Keep five useful Swift graph sizes",
+      "patch": "53-swift-lookup-graph-window-set/change.patch",
+      "sha256": "ce085a0c7079e1d238ad80c3fe7825ee7dbcd57b6ff4c01d2827a8233af259de",
       "original_context_required": true,
       "apply_as_series": false
     }

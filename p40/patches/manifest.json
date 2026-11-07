@@ -1,11 +1,12 @@
 {
-  "source_sha": "ffa80d73133ea5c548aefe57889a16e8085a938f",
+  "source_sha": "146df3c468739147f520ac3816de806f71232571",
   "ggml_sha": "3cf03257f219afbe7334045ff7c6a06ac68c627d",
   "pascallama_sha": "e6a28bcba735f702584520362a96f670224ae5ea",
   "patches": [
     {
       "path": "p40/patches/native-ivybridge-p40.patch",
-      "sha256": "170e86120643e48e3ab25f8f71235c16aad605db67bc99e64b6245e778af14ac"
+      "sha256": "6a5d8d7cea0153169d4eab9ab1f10f0cd1424b0705af50a934924e61af718760",
+      "scope": "Current public reviewed postimages on the exact official base; already integrated in this checkout, not reapplied by p40/build.ps1."
     },
     {
       "path": "p40/patches/pascallama-sm61.patch",
@@ -16,5 +17,14 @@
       "sha256": "b3de43fa33117eaf6947f9d6e920022c29ec30e48df8f1a021d9359dc15bf28a",
       "scope": "dependency-only rebuild overlay; bundled runtime already fixed"
     }
+  ],
+  "qualified_native_engine_sha256": "8cc3edf048b71fc0ab8b184887716c279980d0e0203d3956ebcb3e1947105fc1",
+  "private_compiled_aggregate_sha256": "843ce321fe954a8f9547a5e52b177aac51f30f61bdd11a3061f33d51ed39b7e8",
+  "public_aggregate_reviewed_paths": 165,
+  "optional_DS4_sources_retained_not_bundled": [
+    "src/dsv41/ds4_gg_cpu.cpp",
+    "src/dsv41/ds4_main.cpp",
+    "src/dsv41/ds4_model.cu",
+    "src/dsv41/ds4_model.hpp"
   ]
 }

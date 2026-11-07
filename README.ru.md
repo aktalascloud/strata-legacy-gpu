@@ -4,7 +4,7 @@
 
 Локальный OpenAI-совместимый сервер для Windows/Ivy Bridge/P40. Один пользовательский `strata.json`; модель выбирается данными и совместимым backend, а не названием приложения.
 
-**Движок 0.1.58**, официальный source `146df3c46873`, native `6c51f44c`. [Полный Setup.exe и portable ZIP](https://github.com/aktalascloud/strata-legacy-gpu/releases/tag/v0.1.58-swift-p40-6c51f44c-setup-r1) включают Python, P40 engine, CPU vision и WebUI. При первом запуске готовится Swift IQ3_S с совместимым Q2 MTP; веса, личные настройки и SDK не включены. [Патч, замеры и границы review](docs/PASCAL_EXACT_WARP_20261107.md).
+**Движок 0.1.58**, официальный source `146df3c46873`, native `8cc3edf0`. [Полный Setup.exe и portable ZIP](https://github.com/aktalascloud/strata-legacy-gpu/releases/tag/v0.1.58-swift-p40-8cc3edf0-setup-r1) включают Python, P40 engine, CPU vision и WebUI. При первом запуске готовится Swift IQ3_S с совместимым Q2 MTP; веса, личные настройки и SDK не включены. [Патч, замеры и границы review](docs/PASCAL_EXACT_WARP_20261107.md).
 
 1. Проверьте SHA256SUMS и запустите Setup.exe в новую папку либо распакуйте ZIP и запустите `INSTALL.cmd`.
 2. Укажите папку Swift. Недостающие закреплённые файлы загружаются с докачкой. Setup сохраняет существующие config/runtime; рабочую установку обновляет её штатный updater.
@@ -19,3 +19,5 @@ API: `/v1/models`, `/v1/chat/completions`, `/v1/responses`, `/v1/messages`. Ад
 [Изменения](p40/CHANGES.md) · [Рецепт](p40/build-profile.json) · [Проверки](p40/INSTALLATION-VERIFICATION.md) · [Лицензии](THIRD_PARTY_NOTICES.md) · [Оригинальный проект](https://github.com/Niko1221/Strata)
 
 [Expert dispatch patch and measurements](docs/PASCAL_EXPERT_TABLE_20261107.md) · [Follow-up PR dispositions](docs/REVIEW_FOLLOWUP_20261107.md).
+
+[Exact fused experts and graph memory](docs/PASCAL_FUSED_H2_20261108.md) · [Latest PR review](docs/REVIEW_FOLLOWUP_20261108.md).

@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "status": "selected_source_or_dependency",
+  "base_commit": "9b5c9057ed256363d670c0a2e6c50f97d8207fb4",
+  "official_source_sha": "146df3c468739147f520ac3816de806f71232571",
+  "engine_sha256": "8cc3edf048b71fc0ab8b184887716c279980d0e0203d3956ebcb3e1947105fc1",
+  "patch_sha256": "945a659ba8310c42987e172b869fd2ee792cd17c6d81581a27568e8b6244f456",
+  "previous_private_patch_sha256": "ec2b2219703601f9b504efd3284cfba897f1dd0a5ae0ac094ba9ddd3ec525bea",
+  "original_context_required": true,
+  "apply_as_series": false,
+  "source_equivalence": {
+    "private_sha256": "f4b171ebe37e7843e5c66c9395be28357cd220f604f6bcda5c1f0d04a067be15",
+    "public_sha256": "0af6a634da7de3a226097ab6d868cc4ad0ab9eaa263c063d5305452f77981006",
+    "LF_identical": true
+  },
+  "qualification": {
+    "raw_and_Q8_direct_Graph_cases": 240,
+    "final_native_layout_T_grid_pairs": 56,
+    "Q8_cases": 130,
+    "package_cases": 27,
+    "model_TPS_gain_established": false
+  }
+}
