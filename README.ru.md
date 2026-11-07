@@ -4,7 +4,9 @@
 
 Локальный OpenAI-совместимый сервер для Windows/Ivy Bridge/P40. Один пользовательский `strata.json`; модель выбирается данными и совместимым backend, а не названием приложения.
 
-**Движок 0.1.58**, официальный source `146df3c46873`, native `8cc3edf0`. [Полный Setup.exe и portable ZIP](https://github.com/aktalascloud/strata-legacy-gpu/releases/tag/v0.1.58-swift-p40-8cc3edf0-setup-r1) включают Python, P40 engine, CPU vision и WebUI. При первом запуске готовится Swift IQ3_S с совместимым Q2 MTP; веса, личные настройки и SDK не включены. [Патч, замеры и границы review](docs/PASCAL_EXACT_WARP_20261107.md).
+**Движок 0.1.58**, официальный source `146df3c46873`, native `8cc3edf0`. [Полный Setup.exe и portable ZIP](https://github.com/aktalascloud/strata-legacy-gpu/releases/tag/v0.1.58-swift-p40-8cc3edf0-setup-r1) включают Python, P40 engine, CPU vision и WebUI. При первом запуске готовится Swift IQ3_S с совместимым Q2 MTP; веса, личные настройки и SDK не включены. [Патч, замеры и границы review](docs/PASCAL_FUSED_H2_20261108.md).
+
+Новое относительно stock: точная H2-адаптация слитного GU и набор пяти lookup-графов. В замере GU Graph +10,8–13,2%; Swift39,3/39,1ток/с — в пределах шума, общий TPS-прирост не подтверждён. AVX1/P40, RAM-резидентность/CPUvision, API и исправления описаны в [27 выбранных source/workflow-патчах](performance/patches/series/README.md); это не27 ускорений. Приведённые ниже прежние замеры — исторические.
 
 1. Проверьте SHA256SUMS и запустите Setup.exe в новую папку либо распакуйте ZIP и запустите `INSTALL.cmd`.
 2. Укажите папку Swift. Недостающие закреплённые файлы загружаются с докачкой. Setup сохраняет существующие config/runtime; рабочую установку обновляет её штатный updater.
