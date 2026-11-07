@@ -1,4 +1,4 @@
-[Нумерованный каталог всех собственных дельт](../performance/patches/series/README.md)
+[Каталог применённых изменений](../performance/patches/series/README.md)
 
 # Reviewed patches
 
