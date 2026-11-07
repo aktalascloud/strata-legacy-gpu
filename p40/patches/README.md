@@ -1,12 +1,9 @@
-# Separately reviewed patches
+# Applied patches
 
-- [PCIe copy overlap](native-pcie-copy-overlap/README.md): overlap transfers and verification while keeping stream dependencies.
-- [Stable PCIe staging addresses](native-pcie-static-addresses/README.md): remove repeated address rebasing from verification windows.
-- [Exact AVX1 IQ4_NL PLE decode](avx1-ple-iq4nl-shuffle/README.md): one format-specific CPU improvement, separately labelled as operator-only.
+[Complete selected patch catalogue](../../performance/patches/series/README.md).
 
-The first two affect the shared native verifier and are not selected by a model name or quant type. Their historical model measurements are scoped to Swift/P40. No universal throughput claim or new other-model benchmark is made. Experimental candidates are published only with an explicit status; failed candidates are not silently enabled.
+- [PCIe copy overlap](native-pcie-copy-overlap/README.md).
+- [Stable PCIe staging addresses](native-pcie-static-addresses/README.md).
+- [Exact AVX1 IQ4_NL PLE decode](avx1-ple-iq4nl-shuffle/README.md).
 
-Additional measured candidates:
-
-- [Transposed native matvec](native-mmvq-transposed-reduction/README.md): numerical checks passed; no confirmed model speed benefit.
-- [Vectorized table staging](cuda-staged-table-copy/README.md): isolated operation improvement; no confirmed model A/B benefit.
+Each measurement retains its own scope; operation and model percentages are not additive.
