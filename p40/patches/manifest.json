@@ -5,7 +5,7 @@
   "patches": [
     {
       "path": "p40/patches/native-ivybridge-p40.patch",
-      "sha256": "ce962a0f7e40bc34ef3644d72c59f758d736af576bab765cc647339835d1cb12",
+      "sha256": "d9a9bf0741193cf45d09e7f66ed075c4f59104afbbf25f594e834984eb223b21",
       "scope": "Current public reviewed postimages on the exact official base; already integrated in this checkout, not reapplied by p40/build.ps1."
     },
     {
@@ -20,11 +20,12 @@
   ],
   "qualified_native_engine_sha256": "d8ee83c2a6c48d8306e4f6ac2971fa6c79e2cbf7d201cfa1b29ce523b1725024",
   "private_compiled_aggregate_sha256": "e3c22a5027ae813f9b929d2fcea951bdbbaec7cc62bca2e41cefb4a29beb0a28",
-  "public_aggregate_reviewed_paths": 167,
+  "public_aggregate_reviewed_paths": 168,
   "optional_DS4_sources_retained_not_bundled": [
     "src/dsv41/ds4_gg_cpu.cpp",
     "src/dsv41/ds4_main.cpp",
     "src/dsv41/ds4_model.cu",
     "src/dsv41/ds4_model.hpp"
-  ]
+  ],
+  "private_reviewed_serving_aggregate_sha256": "d433d3381f45a420cf7cd6590c1243f3bb395569f07bb59e432e81519ef69ee4"
 }

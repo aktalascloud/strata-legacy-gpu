@@ -1,0 +1,7 @@
+# Retire the EOF watcher before final JSON delivery
+
+Selected narrow adaptation of [Xolotl#107](https://github.com/Indras-Mirror/Xolotl/pull/107), ad9a64df6785b1efbe8cd8e6f7939084aaf3950e (MIT). A client may read the full non-streamed body and close before handler cleanup. A per-request lock now orders EOF classification against retiring that completed response. Real write failures still propagate to the existing handler; genuine early disconnects remain cancellable. Streaming behavior is unchanged.
+
+Actual-method isolated harness reproduced a completed response being falsely cancelled in the original server. Fixed regression:1 CPU test/3 semantic cases passed (complete-body close, early EOF, write failure). AST outside the two reviewed method bodies is identical, including engine/control/admission/drain and sampling. One actual HTTP nonstream request returned200, nonempty content and stop, with unchanged live config. The public metrics endpoint did not expose a numeric disconnect counter; no counter claim is made. No live fault injection or GPU/benchmark repeat.
+
+Native d8ee83c2, CPUvision and all non-serving source bytes were reused with their original qualification manifests/receipts, not relabelled as new tests. Local deployment was schema3 graceful/startup, loaded/API verified. Context262144/reserve150MiB/14workers/PCIe1/Q2 MTP/q4_0 KVhost20480/CPUvision/standard xhigh/author sampler/exact route0 retained. This is an API reliability fix, not a generation-TPS speedup. Previous exact0 model results remain scoped, noisy comparisons.
