@@ -31,3 +31,5 @@ Retained applied source/dependency changes and currently used build/startup safe
 - [51. Declared successful I64 extra check](51-publication-declared-i64-extra/README.md)
 - [52. Exact P40 fused expert half-warps](52-pascal-fused-expert-halfwarp/README.md)
 - [53. Keep five useful Swift graph sizes](53-swift-lookup-graph-window-set/README.md)
+- [54. Exact singleton fused GU scheduling](54-pascal-fused-gu-singleton/README.md)
+- [55. Atomic cache publication under allocation failure](55-cache-publication-atomic/README.md)

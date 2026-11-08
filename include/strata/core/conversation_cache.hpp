@@ -11,6 +11,7 @@
 #include <deque>
 #include <memory>
 #include <utility>
+#include <type_traits>
 #include <vector>
 
 namespace strata::core {
@@ -529,8 +530,11 @@ public:
         if (!enabled() || held > budget_ || n > budget_ - held) return false;   // make_room's refusal, first
         drop_superseded(image.live.ids, image.live.imgs, image.checkpoints, image.cvec);
         if (!make_room(n, held)) return false;
-        entries_.push_back(std::move(image));
-        serials_.push_back(next_serial_++);
+        static_assert(std::is_nothrow_move_constructible_v<SavedConversation>);
+        serials_.push_back(next_serial_);
+        try { entries_.push_back(std::move(image)); }
+        catch (...) { serials_.pop_back(); throw; }
+        ++next_serial_;
         bytes_ += n;
         return true;
     }

@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "status": "selected_source_or_dependency",
+  "base_commit": "c7ad5cbaf43611684e07e317f9b1abb01dc8e0a1",
+  "official_source_sha": "146df3c468739147f520ac3816de806f71232571",
+  "engine_sha256": "d8ee83c2a6c48d8306e4f6ac2971fa6c79e2cbf7d201cfa1b29ce523b1725024",
+  "patch_sha256": "470f35acb90fc99f3b11885b8be8a2987341fb08501dca56a65b983fb57c962e",
+  "previous_private_patch_sha256": "342ce9561d68ad460192897c6dfdef569584848ab0c37190a224f9e02acb2b4b",
+  "original_context_required": true,
+  "apply_as_series": false,
+  "source_equivalence": {
+    "include/strata/kernels/iq_kernels.hpp": {
+      "private_sha256": "2b94f33a8a371e8943fda61a61058219b808e0922711e1e47314b17416615b86",
+      "public_sha256": "2b94f33a8a371e8943fda61a61058219b808e0922711e1e47314b17416615b86",
+      "LF_identical": true
+    },
+    "src/core/verify.cpp": {
+      "private_sha256": "595723e4701f712c380beaf08e21e2efb7237faf37754565456e2b2995726a6b",
+      "public_sha256": "0e1f5349257872e05f32ad98e92ded6079d1ed47cd985acd5d936e4cb8a1b141",
+      "LF_identical": true
+    },
+    "src/kernels/cuda/iq_kernels.cu": {
+      "private_sha256": "89de8a9a143396ada7e4d33596fdd95688422db5106898b9ab5378ca4a8afd56",
+      "public_sha256": "053ef3db7d6502f64c3c67cb89adaea6815e907822be9820cd8ec3ecec6efeff",
+      "LF_identical": true
+    }
+  }
+}

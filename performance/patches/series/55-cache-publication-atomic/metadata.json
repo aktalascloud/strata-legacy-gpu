@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "status": "selected_source_or_dependency",
+  "base_commit": "c7ad5cbaf43611684e07e317f9b1abb01dc8e0a1",
+  "official_source_sha": "146df3c468739147f520ac3816de806f71232571",
+  "engine_sha256": "d8ee83c2a6c48d8306e4f6ac2971fa6c79e2cbf7d201cfa1b29ce523b1725024",
+  "patch_sha256": "daa67fa59ff2c5af1832a5a4c571a1f790ef966ccbea47151267c254af71d94f",
+  "previous_private_patch_sha256": "ee00f5a19351ee8ee8ad9c5cafcbfdbdb3b032a587a47401d4597afed7ac0bcb",
+  "original_context_required": true,
+  "apply_as_series": false,
+  "source_equivalence": {
+    "CMakeLists.txt": {
+      "private_sha256": "ba7b2cb8e67f0cb2e6ded98b62990e3ed7c519f166e260da1cea1cb4a424c033",
+      "public_sha256": "2a8153ed2d54fabe900e80ab0137828faa2ad0c16ac929c1a01e7a98809138a2",
+      "LF_identical": true
+    },
+    "include/strata/core/conversation_cache.hpp": {
+      "private_sha256": "6d99b957ba3f12c81a3cdf393bd2683b5117aeb18e337ebdf55ff8bbdc152eb0",
+      "public_sha256": "4fe4b218873aabe7ae5942c6451c9a06033eb78a4aa9ef1b14fbc06425198a52",
+      "LF_identical": true
+    },
+    "src/core/conversation_cache_publication_test.cpp": {
+      "private_sha256": "f508386f1ca3dcf8db79e85ad63d93b656daac823aeb6ba8c08a46d4a5f4e4b5",
+      "public_sha256": "f508386f1ca3dcf8db79e85ad63d93b656daac823aeb6ba8c08a46d4a5f4e4b5",
+      "LF_identical": true
+    }
+  }
+}

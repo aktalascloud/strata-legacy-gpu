@@ -3152,6 +3152,9 @@ endif()
 
 # Local community regression targets: do not alter production feature defaults.
 if(STRATA_BUILD_TESTS)
+  add_executable(conversation_cache_publication_test src/core/conversation_cache_publication_test.cpp)
+  target_include_directories(conversation_cache_publication_test PRIVATE include)
+  add_test(NAME conversation_cache_publication_test COMMAND conversation_cache_publication_test)
   if(NOT TARGET conversation_cache_test)
     add_executable(conversation_cache_test src/core/conversation_cache_test.cpp)
     target_include_directories(conversation_cache_test PRIVATE include)

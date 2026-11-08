@@ -1,0 +1,85 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 78a2d21b2eab66f2b2cda08d73a88f1226fa29d5..e7ab98d0c01a8e6c9abe30f553ab35e65e5a3b3f 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -3152,6 +3152,9 @@ endif()
+ 
+ # Local community regression targets: do not alter production feature defaults.
+ if(STRATA_BUILD_TESTS)
++  add_executable(conversation_cache_publication_test src/core/conversation_cache_publication_test.cpp)
++  target_include_directories(conversation_cache_publication_test PRIVATE include)
++  add_test(NAME conversation_cache_publication_test COMMAND conversation_cache_publication_test)
+   if(NOT TARGET conversation_cache_test)
+     add_executable(conversation_cache_test src/core/conversation_cache_test.cpp)
+     target_include_directories(conversation_cache_test PRIVATE include)
+diff --git a/include/strata/core/conversation_cache.hpp b/include/strata/core/conversation_cache.hpp
+index 392ce92d222499a8da17f15c1cbe9e156e270946..ca3788b7d0e89cc4a10a093455f487431995a26c 100644
+--- a/include/strata/core/conversation_cache.hpp
++++ b/include/strata/core/conversation_cache.hpp
+@@ -11,6 +11,7 @@
+ #include <deque>
+ #include <memory>
+ #include <utility>
++#include <type_traits>
+ #include <vector>
+ 
+ namespace strata::core {
+@@ -529,8 +530,11 @@ public:
+         if (!enabled() || held > budget_ || n > budget_ - held) return false;   // make_room's refusal, first
+         drop_superseded(image.live.ids, image.live.imgs, image.checkpoints, image.cvec);
+         if (!make_room(n, held)) return false;
+-        entries_.push_back(std::move(image));
+-        serials_.push_back(next_serial_++);
++        static_assert(std::is_nothrow_move_constructible_v<SavedConversation>);
++        serials_.push_back(next_serial_);
++        try { entries_.push_back(std::move(image)); }
++        catch (...) { serials_.pop_back(); throw; }
++        ++next_serial_;
+         bytes_ += n;
+         return true;
+     }
+diff --git a/src/core/conversation_cache_publication_test.cpp b/src/core/conversation_cache_publication_test.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..3274f20c5a2b2e2549a25b461d40713cceb095b4
+--- /dev/null
++++ b/src/core/conversation_cache_publication_test.cpp
+@@ -0,0 +1,39 @@
++#ifndef EXPECT_ORIGINAL_BUG
++#define EXPECT_ORIGINAL_BUG 0
++#endif
++#include "strata/core/conversation_cache.hpp"
++#include <atomic>
++#include <cstdio>
++#include <cstdlib>
++#include <new>
++#include <vector>
++static std::atomic<long> fail_n{0};
++void* operator new(size_t n){if(fail_n.load()>0&&fail_n.fetch_sub(1)==1){fail_n=0;throw std::bad_alloc();}if(void*p=std::malloc(n?n:1))return p;throw std::bad_alloc();}
++void* operator new[](size_t n){return ::operator new(n);}
++void operator delete(void*p)noexcept{std::free(p);}
++void operator delete[](void*p)noexcept{std::free(p);}
++void operator delete(void*p,size_t)noexcept{std::free(p);}
++void operator delete[](void*p,size_t)noexcept{std::free(p);}
++using namespace strata::core;
++static SavedConversation make_image(int key){SavedConversation s;s.live.ids={key,key+1};s.live.gdn.resize(64,7);s.cvec=true;return s;}
++int main(){int failures=0,bugs=0,cases=0;
++ for(int before=0;before<8;++before)for(int nth=1;nth<=8;++nth){
++  ConversationCache c(1<<20,16);
++  for(int i=0;i<before;++i){auto s=make_image(100+i*10);if(!c.put(std::move(s)))return 2;}
++  auto image=make_image(9999);const auto ids=image.live.ids;const auto bytes=image.bytes(),old_bytes=c.bytes();bool caught=false;
++  fail_n=nth;
++  try{if(!c.put(std::move(image)))return 3;}catch(const std::bad_alloc&){caught=true;}
++  fail_n=0;++cases;
++  if(caught){
++   ++failures;const bool intact=c.size()==size_t(before)&&c.bytes()==old_bytes&&image.live.ids==ids&&image.live.gdn.size()==64;
++   if(!intact){++bugs;if(!EXPECT_ORIGINAL_BUG){std::printf("FAIL publication after allocation failure before=%d nth=%d\n",before,nth);return 1;}continue;}
++   if(!c.put(std::move(image)))return 4;
++  }
++  if(!EXPECT_ORIGINAL_BUG){
++   if(c.size()!=size_t(before+1)||c.bytes()!=old_bytes+bytes)return 5;
++   auto q=ids;q.push_back(8);auto m=c.best(q,{},true);if(m.tokens!=2||!m.serial||!c.find(m.serial))return 6;
++  }
++ }
++ if(!failures||bool(bugs)!=bool(EXPECT_ORIGINAL_BUG))return 7;
++ std::printf("cache publication: %d cases, %d injected failures, %d broken-state observations, expected_original=%d PASS\n",cases,failures,bugs,EXPECT_ORIGINAL_BUG);return 0;
++}

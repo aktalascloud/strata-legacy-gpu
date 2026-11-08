@@ -5,7 +5,7 @@
   "patches": [
     {
       "path": "p40/patches/native-ivybridge-p40.patch",
-      "sha256": "6a5d8d7cea0153169d4eab9ab1f10f0cd1424b0705af50a934924e61af718760",
+      "sha256": "ce962a0f7e40bc34ef3644d72c59f758d736af576bab765cc647339835d1cb12",
       "scope": "Current public reviewed postimages on the exact official base; already integrated in this checkout, not reapplied by p40/build.ps1."
     },
     {
@@ -18,9 +18,9 @@
       "scope": "dependency-only rebuild overlay; bundled runtime already fixed"
     }
   ],
-  "qualified_native_engine_sha256": "8cc3edf048b71fc0ab8b184887716c279980d0e0203d3956ebcb3e1947105fc1",
-  "private_compiled_aggregate_sha256": "843ce321fe954a8f9547a5e52b177aac51f30f61bdd11a3061f33d51ed39b7e8",
-  "public_aggregate_reviewed_paths": 165,
+  "qualified_native_engine_sha256": "d8ee83c2a6c48d8306e4f6ac2971fa6c79e2cbf7d201cfa1b29ce523b1725024",
+  "private_compiled_aggregate_sha256": "e3c22a5027ae813f9b929d2fcea951bdbbaec7cc62bca2e41cefb4a29beb0a28",
+  "public_aggregate_reviewed_paths": 167,
   "optional_DS4_sources_retained_not_bundled": [
     "src/dsv41/ds4_gg_cpu.cpp",
     "src/dsv41/ds4_main.cpp",

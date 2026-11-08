@@ -6061,7 +6061,7 @@ __global__ void __launch_bounds__(256) native_down_lds_kernel(const unsigned lon
 // bitwise the separate kernels' hq, two launches fewer per call.
 // Logical half-warps preserve each original lane's accumulation and replay the same XOR tree.
 // Adapted from Niko1221/Strata#5033 (MIT), applied to the actually used fused path.
-template<int TG, bool H2 = false>
+template<int TG, bool H2 = false, int NT = LDS_NT>
 __global__ void __launch_bounds__(256) native_gu_fused_kernel(const unsigned long long* __restrict__ grp_ptr,
                                                               const int32_t* __restrict__ grp_start,
                                                               const int32_t* __restrict__ n_groups,
@@ -6071,7 +6071,7 @@ __global__ void __launch_bounds__(256) native_gu_fused_kernel(const unsigned lon
     using GT = typename GridOf<TG>::T;
     using F = Fmt<TG>;
     __shared__ GT sgrid[GridOf<TG>::N];
-    __shared__ float res[LDS_NT][64];
+    __shared__ float res[NT][64];
     extern __shared__ int sx_raw[];
     const int g = blockIdx.y;
     if (g >= *n_groups) return;
@@ -6086,8 +6086,8 @@ __global__ void __launch_bounds__(256) native_gu_fused_kernel(const unsigned lon
     auto wrow = [&](int i) -> const uint8_t* {   // i < 32: gate row r0 + i, else up row r0 + i - 32
         return blob + (i < 32 ? (size_t) 0 : L.up_off) + (size_t) (r0 + (i & 31)) * L.gu_row;
     };
-    for (int c0 = e0; c0 < e1; c0 += LDS_NT) {
-        const int cn = min(LDS_NT, e1 - c0);
+    for (int c0 = e0; c0 < e1; c0 += NT) {
+        const int cn = min(NT, e1 - c0);
         __syncthreads();
         for (int j = 0; j < cn; ++j) {
             const int* src = (const int*) (xq + (size_t) ent_tok[c0 + j] * xb);
@@ -6149,11 +6149,15 @@ __global__ void __launch_bounds__(256) native_gu_fused_kernel(const unsigned lon
                     if (lane == 0) { res[j][i0] = a; res[j][i1] = b; }
                 }
             };
+            if constexpr (NT == 1) {
+                pass(std::integral_constant<int, 1>{});
+            } else {
             switch (cn) {
                 case 1: pass(std::integral_constant<int, 1>{}); break;
                 case 2: pass(std::integral_constant<int, 2>{}); break;
                 case 3: pass(std::integral_constant<int, 3>{}); break;
                 default: pass(std::integral_constant<int, 4>{}); break;
+            }
             }
         }
         __syncthreads();
@@ -6341,7 +6345,7 @@ bool native_expert_expdec_takes(const NativeExpertLayout& L, bool& gu, bool& dow
 void native_expert_grouped(const NativeExpertLayout& L, const unsigned long long* grp_ptr, const int32_t* grp_start,
                            const int32_t* n_groups, const int32_t* ent_dst, const int32_t* ent_tok, int64_t cap_groups,
                            int64_t cap_entries, const void* x_q8_1, void* scratch, float* out, void* stream,
-                           int64_t grid_groups) {
+                           int64_t grid_groups, int64_t max_group_entries) {
     if (cap_groups <= 0 || cap_entries <= 0) return;
     strata::dispatch::kernel(strata::dispatch::kExpert, 0, L.gu_type, (int) L.n_embd, (int) L.n_ff, L.d_type);   // BW-MEASURE: one grouped expert call
     if (L.n_ff % 32 != 0) { std::fprintf(stderr, "native_expert_grouped: n_ff %lld\n", (long long) L.n_ff); std::exit(1); }
@@ -6452,9 +6456,12 @@ void native_expert_grouped(const NativeExpertLayout& L, const unsigned long long
             case 16: native_gu_fused_kernel<16><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq); break;
             case 18: native_gu_fused_kernel<18><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq); break;
             case 21:
-                if (sm61_fused_h2(L, em0, cap_groups, grid_groups, v1))
-                    native_gu_fused_kernel<21, true><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq);
-                else native_gu_fused_kernel<21><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq);
+                if (sm61_fused_h2(L, em0, cap_groups, grid_groups, v1)) {
+                    // A scheduling hint only: chunk1 still processes every entry if the hint is conservative/wrong.
+                    if (max_group_entries == 1)
+                        native_gu_fused_kernel<21, true, 1><<<gl, 256, sh / LDS_NT, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq);
+                    else native_gu_fused_kernel<21, true><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq);
+                } else native_gu_fused_kernel<21><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq);
                 break;
             case 23: native_gu_fused_kernel<23><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq); break;
             default: native_gu_fused_kernel<22><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq); break;
