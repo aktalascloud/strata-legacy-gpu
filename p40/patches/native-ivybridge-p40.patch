@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 57d6b6a3ce52c9bdc0792bed4220f6a319304163..78a2d21b2eab66f2b2cda08d73a88f1226fa29d5 100644
+index 57d6b6a3ce52c9bdc0792bed4220f6a319304163..e7ab98d0c01a8e6c9abe30f553ab35e65e5a3b3f 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -131,6 +131,12 @@ endif()
@@ -140,7 +140,7 @@ index 57d6b6a3ce52c9bdc0792bed4220f6a319304163..78a2d21b2eab66f2b2cda08d73a88f12
    endif()
    # --aux-cpus: the CPU-set derivation (pure) and the placement of live threads; header-only, no GPU
    add_executable(aux_cpus_test tests/platform/aux_cpus_test.cpp)
-@@ -3064,3 +3131,62 @@ option(STRATA_BUILD_SPLIT "Build strata-split: sFNX's split-every-layer engine,
+@@ -3064,3 +3131,65 @@ option(STRATA_BUILD_SPLIT "Build strata-split: sFNX's split-every-layer engine,
  if(STRATA_BUILD_SPLIT)
    add_subdirectory(src/split)
  endif()
@@ -165,6 +165,9 @@ index 57d6b6a3ce52c9bdc0792bed4220f6a319304163..78a2d21b2eab66f2b2cda08d73a88f12
 +
 +# Local community regression targets: do not alter production feature defaults.
 +if(STRATA_BUILD_TESTS)
++  add_executable(conversation_cache_publication_test src/core/conversation_cache_publication_test.cpp)
++  target_include_directories(conversation_cache_publication_test PRIVATE include)
++  add_test(NAME conversation_cache_publication_test COMMAND conversation_cache_publication_test)
 +  if(NOT TARGET conversation_cache_test)
 +    add_executable(conversation_cache_test src/core/conversation_cache_test.cpp)
 +    target_include_directories(conversation_cache_test PRIVATE include)
@@ -341,10 +344,18 @@ index 5800fe94c6b4b4a610733ebfd5a4b7d5578a793b..0908734f2a07eb61e33702045e897066
      template <class T> T read() {
          need(sizeof(T));
 diff --git a/include/strata/core/conversation_cache.hpp b/include/strata/core/conversation_cache.hpp
-index 78ff9f189240434f38c74a836a3db49b3f609380..392ce92d222499a8da17f15c1cbe9e156e270946 100644
+index 78ff9f189240434f38c74a836a3db49b3f609380..ca3788b7d0e89cc4a10a093455f487431995a26c 100644
 --- a/include/strata/core/conversation_cache.hpp
 +++ b/include/strata/core/conversation_cache.hpp
-@@ -246,8 +246,8 @@ public:
+@@ -11,6 +11,7 @@
+ #include <deque>
+ #include <memory>
+ #include <utility>
++#include <type_traits>
+ #include <vector>
+ 
+ namespace strata::core {
+@@ -246,8 +247,8 @@ public:
          uint64_t serial = 0;   // the entry's identity; its index shifts when entries before it go
      };
  
@@ -355,7 +366,7 @@ index 78ff9f189240434f38c74a836a3db49b3f609380..392ce92d222499a8da17f15c1cbe9e15
      bool enabled() const { return budget_ != 0 && slots_ != 0; }
      /// `--conversation-cache-min-tokens`: whether a conversation of this length is worth one of `slots`.  Every
      /// parked conversation costs a whole slot whatever its length, so a client that interleaves short side requests
-@@ -273,7 +273,7 @@ public:
+@@ -273,7 +274,7 @@ public:
          reuse_ = {};
          ConversationKvReuse candidate{std::move(kv), tokens, tokens, {}, std::move(ids)};
          for (auto& k : stage_kv) candidate.stages.push_back(ConversationKvReuse{std::move(k), tokens, tokens, {}, {}});
@@ -364,7 +375,7 @@ index 78ff9f189240434f38c74a836a3db49b3f609380..392ce92d222499a8da17f15c1cbe9e15
      }
      void limit_reuse(int64_t first_dirty) {
          reuse_.unchanged_tokens = std::min(reuse_.unchanged_tokens, first_dirty);
-@@ -395,7 +395,8 @@ public:
+@@ -395,7 +396,8 @@ public:
          while (!entries_.empty() && (entries_.size() >= slots_ || bytes_ > budget_ - held - incoming)) {
              // the oldest entry that does not hold a pinned shared prefix leaves; with only pinned ones left the new
              // image does not fit (the caller skips parking it - the pinned prefix is what the queries come back to)
@@ -374,7 +385,7 @@ index 78ff9f189240434f38c74a836a3db49b3f609380..392ce92d222499a8da17f15c1cbe9e15
          }
          return true;
      }
-@@ -406,6 +407,15 @@ public:
+@@ -406,6 +408,15 @@ public:
      // own allocation, far above glibc's mmap threshold, so dropping an entry returns the whole footprint
      // to the kernel at once - the next admission check reads it back from /proc/meminfo.
      // False when none can go (empty, or only entries that hold a pinned shared prefix are left).
@@ -390,7 +401,21 @@ index 78ff9f189240434f38c74a836a3db49b3f609380..392ce92d222499a8da17f15c1cbe9e15
      bool evict_oldest() {
          // the oldest entry that holds no pinned shared prefix and is not the guarded (borrowed) donor
          for (size_t i = 0; i < entries_.size(); ++i) {
-@@ -536,6 +546,8 @@ private:
+@@ -519,8 +530,11 @@ public:
+         if (!enabled() || held > budget_ || n > budget_ - held) return false;   // make_room's refusal, first
+         drop_superseded(image.live.ids, image.live.imgs, image.checkpoints, image.cvec);
+         if (!make_room(n, held)) return false;
+-        entries_.push_back(std::move(image));
+-        serials_.push_back(next_serial_++);
++        static_assert(std::is_nothrow_move_constructible_v<SavedConversation>);
++        serials_.push_back(next_serial_);
++        try { entries_.push_back(std::move(image)); }
++        catch (...) { serials_.pop_back(); throw; }
++        ++next_serial_;
+         bytes_ += n;
+         return true;
+     }
+@@ -536,6 +550,8 @@ private:
      std::deque<uint64_t> serials_;          // entries_[i]'s identity, never reused
      uint64_t next_serial_ = 1, guarded_ = 0;
      bool guard_blocked_ = false;
@@ -535,6 +560,19 @@ index 64c4a6cd28de661d40f7c23306db6158e6090d0d..1cd49f39c1b61162b7616a651a8e9fd5
      // STRATA_NUMA_SPLIT=1 (opt-in, Linux, exactly 2 nodes): in the native row phases (modes 5/6) every expert's rows
      // are cut into one slice per NUMA node (slice k = rows [per*k/2, per*(k+1)/2) of the gate/up or down matrix, the
      // part the resident complement places on node k in step B), and each node's threads claim and count on their own
+diff --git a/include/strata/kernels/iq_kernels.hpp b/include/strata/kernels/iq_kernels.hpp
+index 3552a451f27586b9c0750bdee06c495b4e1c7694..6d19e2650e2b01b1ad3eef82035491ddd8144bc7 100644
+--- a/include/strata/kernels/iq_kernels.hpp
++++ b/include/strata/kernels/iq_kernels.hpp
+@@ -85,7 +85,7 @@ void iq_xmx_grouped(int ty, const uint8_t* const* a, const uint8_t* const* b, co
+ void native_expert_grouped(const NativeExpertLayout& L, const unsigned long long* grp_ptr, const int32_t* grp_start,
+                            const int32_t* n_groups, const int32_t* ent_dst, const int32_t* ent_tok, int64_t cap_groups,
+                            int64_t cap_entries, const void* x_q8_1, void* scratch, float* out, void* stream,
+-                           int64_t grid_groups = 0);
++                           int64_t grid_groups = 0, int64_t max_group_entries = 0);
+ /// true: `native_expert_grouped`'s launches before the group stride (STRATA_GROUPED_V1=1 at startup) - a block row
+ /// per possible group, SwiGLU and the q8_1 quantization as two kernels over all cap_entries.  Bitwise the same results
+ /// (native_grouped_parity checks it); kept for A/B timing.  Set before graph capture; captured graphs keep theirs.
 diff --git a/include/strata/kernels/ngram.hpp b/include/strata/kernels/ngram.hpp
 index 680631afe6a13042adeca631ca5227da181c7add..607326d07ac8b8fcffa895bf6b44dd6a4c38224f 100644
 --- a/include/strata/kernels/ngram.hpp
@@ -11132,6 +11170,51 @@ index aab0003daf54e4df48dac1d2c3281ed88fbb1d56..4a8b2f0cf1ad8f73ac0180c11f7dc2d2
      std::printf(g_fail ? "gguf_reader_test: %d FAILED\n" : "gguf_reader_test: all passed\n", g_fail);
      return g_fail ? 1 : 0;
  }
+diff --git a/src/core/conversation_cache_publication_test.cpp b/src/core/conversation_cache_publication_test.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..3274f20c5a2b2e2549a25b461d40713cceb095b4
+--- /dev/null
++++ b/src/core/conversation_cache_publication_test.cpp
+@@ -0,0 +1,39 @@
++#ifndef EXPECT_ORIGINAL_BUG
++#define EXPECT_ORIGINAL_BUG 0
++#endif
++#include "strata/core/conversation_cache.hpp"
++#include <atomic>
++#include <cstdio>
++#include <cstdlib>
++#include <new>
++#include <vector>
++static std::atomic<long> fail_n{0};
++void* operator new(size_t n){if(fail_n.load()>0&&fail_n.fetch_sub(1)==1){fail_n=0;throw std::bad_alloc();}if(void*p=std::malloc(n?n:1))return p;throw std::bad_alloc();}
++void* operator new[](size_t n){return ::operator new(n);}
++void operator delete(void*p)noexcept{std::free(p);}
++void operator delete[](void*p)noexcept{std::free(p);}
++void operator delete(void*p,size_t)noexcept{std::free(p);}
++void operator delete[](void*p,size_t)noexcept{std::free(p);}
++using namespace strata::core;
++static SavedConversation make_image(int key){SavedConversation s;s.live.ids={key,key+1};s.live.gdn.resize(64,7);s.cvec=true;return s;}
++int main(){int failures=0,bugs=0,cases=0;
++ for(int before=0;before<8;++before)for(int nth=1;nth<=8;++nth){
++  ConversationCache c(1<<20,16);
++  for(int i=0;i<before;++i){auto s=make_image(100+i*10);if(!c.put(std::move(s)))return 2;}
++  auto image=make_image(9999);const auto ids=image.live.ids;const auto bytes=image.bytes(),old_bytes=c.bytes();bool caught=false;
++  fail_n=nth;
++  try{if(!c.put(std::move(image)))return 3;}catch(const std::bad_alloc&){caught=true;}
++  fail_n=0;++cases;
++  if(caught){
++   ++failures;const bool intact=c.size()==size_t(before)&&c.bytes()==old_bytes&&image.live.ids==ids&&image.live.gdn.size()==64;
++   if(!intact){++bugs;if(!EXPECT_ORIGINAL_BUG){std::printf("FAIL publication after allocation failure before=%d nth=%d\n",before,nth);return 1;}continue;}
++   if(!c.put(std::move(image)))return 4;
++  }
++  if(!EXPECT_ORIGINAL_BUG){
++   if(c.size()!=size_t(before+1)||c.bytes()!=old_bytes+bytes)return 5;
++   auto q=ids;q.push_back(8);auto m=c.best(q,{},true);if(m.tokens!=2||!m.serial||!c.find(m.serial))return 6;
++  }
++ }
++ if(!failures||bool(bugs)!=bool(EXPECT_ORIGINAL_BUG))return 7;
++ std::printf("cache publication: %d cases, %d injected failures, %d broken-state observations, expected_original=%d PASS\n",cases,failures,bugs,EXPECT_ORIGINAL_BUG);return 0;
++}
 diff --git a/src/core/conversation_cache_test.cpp b/src/core/conversation_cache_test.cpp
 index 7c4dba46dba66fbab573edc8ea562f7d29a99ffd..3bd482edc1c8a0a80b100ab4981ca1209d656bd5 100644
 --- a/src/core/conversation_cache_test.cpp
@@ -12155,7 +12238,7 @@ index 81b9d19101c01cb810736d433db2cb4a566ed8c3..68433433ec54f95754b8e63dae0edae5
      // Register with CUDA BEFORE any page is touched: cudaHostRegister pins what is resident now, and a region
      // that has already been faulted in page by page is far more expensive to register and may fail outright.
 diff --git a/src/core/verify.cpp b/src/core/verify.cpp
-index af6179c7373b0c897118336b3b25a96a5cc76d7c..d24a96ee4149312f29fd44e32eeb35c962dd6e23 100644
+index af6179c7373b0c897118336b3b25a96a5cc76d7c..4d1e1541dd49c5206357ec794d37453dbd0279c5 100644
 --- a/src/core/verify.cpp
 +++ b/src/core/verify.cpp
 @@ -5,6 +5,7 @@
@@ -12273,6 +12356,15 @@ index af6179c7373b0c897118336b3b25a96a5cc76d7c..d24a96ee4149312f29fd44e32eeb35c9
      // E-6: a layer whose routed experts are all resident is planned on the device (STRATA_VERIFY_DEVICE_PLAN=1: on;
      // exact, but neutral on RIBPC 1-2 GPUs: off by default)
      {
+@@ -2373,7 +2430,7 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
+ #endif
+                 if (f.had_d) { L.had_block = f.had_block; L.d_signs = had_sh_; }   // APR: h is rotated in there
+                 native_expert_grouped(L, gp, gs, gn, p_dst, p_tok, cap, cap,
+-                                      nat_xq_ + (size_t) tb * (N / 32) * 36, hit_scratch_, dst_buf, cs, gy);
++                                      nat_xq_ + (size_t) tb * (N / 32) * 36, hit_scratch_, dst_buf, cs, gy, n);
+             } else {
+                 moe_grouped_s2_window(gp, gs, gn, p_dst, p_tok, cap, cap, hit_xq_ + (size_t) tb * (N / 32) * 34,
+                                       hit_xs_ + (size_t) tb * (N / 32), hit_scratch_, dst_buf, cs, n);   // (a group holds <= n entries)
 @@ -2401,24 +2458,71 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                  copy_i32_from_mapped(pl, m_plan_ + (size_t) grp * (size_t) plan_i32_, plan_i32_, cs);
                  }
@@ -15322,7 +15414,7 @@ index 0000000000000000000000000000000000000000..ce2bd6cd70213554263e0512c7115cc4
 +    return failures != 0;
 +}
 diff --git a/src/kernels/cuda/iq_kernels.cu b/src/kernels/cuda/iq_kernels.cu
-index c70ca9e106a9bbf7518e4d74963a9a18744d3a1a..a5681421d291b22f88eb30a39b5dbdfbade4f27f 100644
+index c70ca9e106a9bbf7518e4d74963a9a18744d3a1a..801b1a645c0a18c3079bd9c273447f59a59af126 100644
 --- a/src/kernels/cuda/iq_kernels.cu
 +++ b/src/kernels/cuda/iq_kernels.cu
 @@ -4105,43 +4105,43 @@ bool expdec_down_ok(const NativeExpertLayout& L) {
@@ -15420,11 +15512,30 @@ index c70ca9e106a9bbf7518e4d74963a9a18744d3a1a..a5681421d291b22f88eb30a39b5dbdfb
 -template<int TG>
 +// Logical half-warps preserve each original lane's accumulation and replay the same XOR tree.
 +// Adapted from Niko1221/Strata#5033 (MIT), applied to the actually used fused path.
-+template<int TG, bool H2 = false>
++template<int TG, bool H2 = false, int NT = LDS_NT>
  __global__ void __launch_bounds__(256) native_gu_fused_kernel(const unsigned long long* __restrict__ grp_ptr,
                                                                const int32_t* __restrict__ grp_start,
                                                                const int32_t* __restrict__ n_groups,
-@@ -6092,12 +6094,41 @@ __global__ void __launch_bounds__(256) native_gu_fused_kernel(const unsigned lon
+@@ -6069,7 +6071,7 @@ __global__ void __launch_bounds__(256) native_gu_fused_kernel(const unsigned lon
+     using GT = typename GridOf<TG>::T;
+     using F = Fmt<TG>;
+     __shared__ GT sgrid[GridOf<TG>::N];
+-    __shared__ float res[LDS_NT][64];
++    __shared__ float res[NT][64];
+     extern __shared__ int sx_raw[];
+     const int g = blockIdx.y;
+     if (g >= *n_groups) return;
+@@ -6084,20 +6086,49 @@ __global__ void __launch_bounds__(256) native_gu_fused_kernel(const unsigned lon
+     auto wrow = [&](int i) -> const uint8_t* {   // i < 32: gate row r0 + i, else up row r0 + i - 32
+         return blob + (i < 32 ? (size_t) 0 : L.up_off) + (size_t) (r0 + (i & 31)) * L.gu_row;
+     };
+-    for (int c0 = e0; c0 < e1; c0 += LDS_NT) {
+-        const int cn = min(LDS_NT, e1 - c0);
++    for (int c0 = e0; c0 < e1; c0 += NT) {
++        const int cn = min(NT, e1 - c0);
+         __syncthreads();
+         for (int j = 0; j < cn; ++j) {
+             const int* src = (const int*) (xq + (size_t) ent_tok[c0 + j] * xb);
              for (int i = tid; i < xb * 9; i += 256) sx_raw[j * xb * 9 + i] = src[i];
          }
          __syncthreads();
@@ -15468,7 +15579,24 @@ index c70ca9e106a9bbf7518e4d74963a9a18744d3a1a..a5681421d291b22f88eb30a39b5dbdfb
                  float s0[NTC], s1[NTC];
  #pragma unroll
                  for (int j = 0; j < NTC; ++j) { s0[j] = 0.0f; s1[j] = 0.0f; }
-@@ -6223,6 +6254,45 @@ int sm75_down_em(int em0, int64_t cap_groups) {
+@@ -6118,12 +6149,16 @@ __global__ void __launch_bounds__(256) native_gu_fused_kernel(const unsigned lon
+                     if (lane == 0) { res[j][i0] = a; res[j][i1] = b; }
+                 }
+             };
++            if constexpr (NT == 1) {
++                pass(std::integral_constant<int, 1>{});
++            } else {
+             switch (cn) {
+                 case 1: pass(std::integral_constant<int, 1>{}); break;
+                 case 2: pass(std::integral_constant<int, 2>{}); break;
+                 case 3: pass(std::integral_constant<int, 3>{}); break;
+                 default: pass(std::integral_constant<int, 4>{}); break;
+             }
++            }
+         }
+         __syncthreads();
+         if (warp < cn) {   // swiglu_entries_kernel + quantize_q8_1_kernel, one block of 32 h values per entry
+@@ -6223,6 +6258,45 @@ int sm75_down_em(int em0, int64_t cap_groups) {
  int sm75_down_em(int em0, int64_t) { return em0; }
  #endif
  
@@ -15514,7 +15642,16 @@ index c70ca9e106a9bbf7518e4d74963a9a18744d3a1a..a5681421d291b22f88eb30a39b5dbdfb
  void native_expert_set_mode(int mode, int phase) {
  #if STRATA_EXP_LAYOUTS
      g_exp_mode = mode;
-@@ -6353,6 +6423,7 @@ void native_expert_grouped(const NativeExpertLayout& L, const unsigned long long
+@@ -6271,7 +6345,7 @@ bool native_expert_expdec_takes(const NativeExpertLayout& L, bool& gu, bool& dow
+ void native_expert_grouped(const NativeExpertLayout& L, const unsigned long long* grp_ptr, const int32_t* grp_start,
+                            const int32_t* n_groups, const int32_t* ent_dst, const int32_t* ent_tok, int64_t cap_groups,
+                            int64_t cap_entries, const void* x_q8_1, void* scratch, float* out, void* stream,
+-                           int64_t grid_groups) {
++                           int64_t grid_groups, int64_t max_group_entries) {
+     if (cap_groups <= 0 || cap_entries <= 0) return;
+     strata::dispatch::kernel(strata::dispatch::kExpert, 0, L.gu_type, (int) L.n_embd, (int) L.n_ff, L.d_type);   // BW-MEASURE: one grouped expert call
+     if (L.n_ff % 32 != 0) { std::fprintf(stderr, "native_expert_grouped: n_ff %lld\n", (long long) L.n_ff); std::exit(1); }
+@@ -6353,6 +6427,7 @@ void native_expert_grouped(const NativeExpertLayout& L, const unsigned long long
          check("native_expert_grouped (v2k)");
          return;
      }
@@ -15522,7 +15659,7 @@ index c70ca9e106a9bbf7518e4d74963a9a18744d3a1a..a5681421d291b22f88eb30a39b5dbdfb
      const bool v1 = g_grouped_v1;
      const int64_t gy = (v1 || grid_groups <= 0 || grid_groups > cap_groups) ? cap_groups : grid_groups;
      const int gu_rows = (!g_old_kernels && !g_no_sub16_gu && L.n_embd == 2560 && gu_split(L.gu_type) &&
-@@ -6360,12 +6431,16 @@ void native_expert_grouped(const NativeExpertLayout& L, const unsigned long long
+@@ -6360,12 +6435,16 @@ void native_expert_grouped(const NativeExpertLayout& L, const unsigned long long
      const dim3 ggu((unsigned) ((2 * L.n_ff + gu_rows - 1) / gu_rows), (unsigned) gy);
  #if STRATA_EXP_LAYOUTS
  #if defined(STRATA_HIP_GFX906)
@@ -15541,20 +15678,23 @@ index c70ca9e106a9bbf7518e4d74963a9a18744d3a1a..a5681421d291b22f88eb30a39b5dbdfb
  #endif
  #if STRATA_EXP_LAYOUTS
      const bool fused_gu = !nib_layout(L) && em0 == 8 && ((kExpLds16 && L.gu_type == 16) || L.gu_type == 18 || L.gu_type == 21 || L.gu_type == 22 || L.gu_type == 23) &&
-@@ -6376,7 +6451,11 @@ void native_expert_grouped(const NativeExpertLayout& L, const unsigned long long
+@@ -6376,7 +6455,14 @@ void native_expert_grouped(const NativeExpertLayout& L, const unsigned long long
          switch (L.gu_type) {
              case 16: native_gu_fused_kernel<16><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq); break;
              case 18: native_gu_fused_kernel<18><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq); break;
 -            case 21: native_gu_fused_kernel<21><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq); break;
 +            case 21:
-+                if (sm61_fused_h2(L, em0, cap_groups, grid_groups, v1))
-+                    native_gu_fused_kernel<21, true><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq);
-+                else native_gu_fused_kernel<21><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq);
++                if (sm61_fused_h2(L, em0, cap_groups, grid_groups, v1)) {
++                    // A scheduling hint only: chunk1 still processes every entry if the hint is conservative/wrong.
++                    if (max_group_entries == 1)
++                        native_gu_fused_kernel<21, true, 1><<<gl, 256, sh / LDS_NT, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq);
++                    else native_gu_fused_kernel<21, true><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq);
++                } else native_gu_fused_kernel<21><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq);
 +                break;
              case 23: native_gu_fused_kernel<23><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq); break;
              default: native_gu_fused_kernel<22><<<gl, 256, sh, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, hq); break;
          }
-@@ -6448,7 +6527,7 @@ void native_expert_grouped(const NativeExpertLayout& L, const unsigned long long
+@@ -6448,7 +6534,7 @@ void native_expert_grouped(const NativeExpertLayout& L, const unsigned long long
                        n_groups, ent_tok, X, gate, up);
      else
  #endif
@@ -15563,7 +15703,7 @@ index c70ca9e106a9bbf7518e4d74963a9a18744d3a1a..a5681421d291b22f88eb30a39b5dbdfb
      switch (L.gu_type) {
  #define STRATA_GU(T) case T: launch_gu<T>(ggu, s, grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up); break;
          STRATA_GU_FMTS(STRATA_GU)
-@@ -6494,11 +6573,16 @@ void native_expert_grouped(const NativeExpertLayout& L, const unsigned long long
+@@ -6494,11 +6580,16 @@ void native_expert_grouped(const NativeExpertLayout& L, const unsigned long long
      }
  #endif
  #if STRATA_EXP_LAYOUTS

@@ -3,7 +3,7 @@
   "kind": "selected_applied_patch_catalogue",
   "source_binding": {
     "official_source_sha": "146df3c468739147f520ac3816de806f71232571",
-    "native_engine_sha256": "8cc3edf048b71fc0ab8b184887716c279980d0e0203d3956ebcb3e1947105fc1",
+    "native_engine_sha256": "d8ee83c2a6c48d8306e4f6ac2971fa6c79e2cbf7d201cfa1b29ce523b1725024",
     "commit_binding": "Source commit is the containing Git revision; historical deltas retain their own stated bases."
   },
   "application_order": [],
@@ -303,6 +303,28 @@
       "scope": "Keep five useful Swift graph sizes",
       "patch": "53-swift-lookup-graph-window-set/change.patch",
       "sha256": "ce085a0c7079e1d238ad80c3fe7825ee7dbcd57b6ff4c01d2827a8233af259de",
+      "original_context_required": true,
+      "apply_as_series": false
+    },
+    {
+      "id": 54,
+      "directory": "54-pascal-fused-gu-singleton",
+      "title": "Exact singleton fused GU scheduling",
+      "status": "selected_source_or_dependency",
+      "scope": "Exact singleton fused GU scheduling",
+      "patch": "54-pascal-fused-gu-singleton/change.patch",
+      "sha256": "470f35acb90fc99f3b11885b8be8a2987341fb08501dca56a65b983fb57c962e",
+      "original_context_required": true,
+      "apply_as_series": false
+    },
+    {
+      "id": 55,
+      "directory": "55-cache-publication-atomic",
+      "title": "Atomic cache publication under allocation failure",
+      "status": "selected_source_or_dependency",
+      "scope": "Atomic cache publication under allocation failure",
+      "patch": "55-cache-publication-atomic/change.patch",
+      "sha256": "daa67fa59ff2c5af1832a5a4c571a1f790ef966ccbea47151267c254af71d94f",
       "original_context_required": true,
       "apply_as_series": false
     }
