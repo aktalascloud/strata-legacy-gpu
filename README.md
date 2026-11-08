@@ -27,3 +27,5 @@ Source build: VS2022 x64 Developer PowerShell, Clang23.1.4, CUDA12.9, CMake/Ninj
 [Latest exact-routing measurements and cache fix](docs/PASCAL_SINGLETON_CACHE_20261108.md) · [New scoped PR review](docs/REVIEW_SINGLETON_CACHE_20261108.md). Prior private rank1 measurements are historical approximation results; current local/public profiles use rank0.
 
 [JSON completion fix and reused native qualification](docs/JSON_WATCHER_20261108.md). Native/model settings unchanged; no new speed claim.
+
+[P40 GraphUpload measurements](docs/GRAPH_UPLOAD_P40_20261108.md) · [Refreshed issue/source decisions](docs/ISSUE_FOLLOWUP_20261108.md).

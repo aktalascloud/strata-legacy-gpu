@@ -27,3 +27,5 @@ API: `/v1/models`, `/v1/chat/completions`, `/v1/responses`, `/v1/messages`. Ад
 [Новые точные замеры и исправление кэша](docs/PASCAL_SINGLETON_CACHE_20261108.md) · [Новый разбор PR](docs/REVIEW_SINGLETON_CACHE_20261108.md). Прежние частные rank1 замеры — исторические приближённые результаты; текущий локальный и публичный профиль используют rank0.
 
 [JSON completion fix and reused native qualification](docs/JSON_WATCHER_20261108.md). Native/model settings unchanged; no new speed claim.
+
+[P40 GraphUpload measurements](docs/GRAPH_UPLOAD_P40_20261108.md) · [Refreshed issue/source decisions](docs/ISSUE_FOLLOWUP_20261108.md).
