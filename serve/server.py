@@ -8026,6 +8026,7 @@ def make_handler(svc: Service):
             was done.  Every 0.5 s: the socket readable with nothing to read (EOF) means the client closed it.  A
             request is HTTP/1.0 and fully read here, so no later bytes are expected - data is not a hang-up."""
             done = self.watch_done = threading.Event()
+            self.watch_lock = threading.Lock()
             self.cancel_event = cancel
             with svc.status_lock:
                 svc.active_cancels.add(cancel)
@@ -8040,9 +8041,13 @@ def make_handler(svc: Service):
                         gone = True
                     except (OSError, ValueError):            # the socket was closed here: the request has ended
                         return
-                    if gone and not done.is_set():
-                        self._note(outcome="disconnected")
-                        svc.note_client_disconnect(cancel)
+                    if gone:
+                        # Serialize an EOF decision with retiring a completed JSON response.
+                        with self.watch_lock:
+                            if done.is_set():
+                                return
+                            self._note(outcome="disconnected")
+                            svc.note_client_disconnect(cancel)
                         return
 
             threading.Thread(target=watch, daemon=True, name="strata-client-watch").start()
@@ -8095,6 +8100,11 @@ def make_handler(svc: Service):
                         if key in obj:
                             self.record[key] = obj[key]
             body = json.dumps(obj, ensure_ascii=False).encode()
+            # A client may close immediately after its final Content-Length byte.
+            # Send errors still propagate to do_POST's disconnect handler.
+            if self.watch_done is not None:
+                with self.watch_lock:
+                    self.watch_done.set()
             self.send_response(code)
             self.send_header("Content-Type", "application/json")
             for k, v in (headers or {}).items():

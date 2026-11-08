@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "status": "selected_source_or_dependency",
+  "base_commit": "63f127b4593b2fffbf305eadf4a58f7d1d237361",
+  "official_source_sha": "146df3c468739147f520ac3816de806f71232571",
+  "engine_sha256": "d8ee83c2a6c48d8306e4f6ac2971fa6c79e2cbf7d201cfa1b29ce523b1725024",
+  "native_qualification_reused_from": "146df3c46873-e3c22a50-d8ee83c2-99e1cac7-d0bddbd7",
+  "native_rebuilt": false,
+  "new_GPU_runs": 0,
+  "CPU_semantic_cases": 3,
+  "actual_HTTP_requests": 1,
+  "patch_sha256": "ce33270080afc2720f8a3af67321059dd98ffbed68b844b8dcd624e278a26fd5",
+  "previous_private_patch_sha256": "4367503d7f710fc048d1a93f2f5af2536c59b32f4c73f4045d9a84bd815d62a6",
+  "source_equivalence": {
+    "serve/server.py": {
+      "private_sha256": "a80e16338e89c4e98eda6f7aa4d1da92437d4c5ae1049d1a9304eefe407eddd7",
+      "public_sha256": "e4dbca6f2d5b265952676c8a146846aad44636e16118385bec8ca45b00549734",
+      "LF_identical": true
+    },
+    "serve/test_json_watcher_retirement.py": {
+      "private_sha256": "c5a8b389da4ae448f84fb33ecf4ba6f6e32e5624e35a1587ed4aa5263a98f14f",
+      "public_sha256": "c5a8b389da4ae448f84fb33ecf4ba6f6e32e5624e35a1587ed4aa5263a98f14f",
+      "LF_identical": true
+    }
+  },
+  "original_context_required": true,
+  "apply_as_series": false
+}

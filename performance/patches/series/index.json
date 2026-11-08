@@ -327,6 +327,17 @@
       "sha256": "daa67fa59ff2c5af1832a5a4c571a1f790ef966ccbea47151267c254af71d94f",
       "original_context_required": true,
       "apply_as_series": false
+    },
+    {
+      "id": 56,
+      "directory": "56-json-response-watcher-retirement",
+      "title": "Retire the EOF watcher before final JSON delivery",
+      "scope": "JSON API completion reliability; no generation-TPS claim",
+      "status": "selected_source_or_dependency",
+      "patch": "56-json-response-watcher-retirement/change.patch",
+      "sha256": "ce33270080afc2720f8a3af67321059dd98ffbed68b844b8dcd624e278a26fd5",
+      "original_context_required": true,
+      "apply_as_series": false
     }
   ],
   "selected_feature": {
