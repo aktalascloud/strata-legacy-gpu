@@ -23,6 +23,10 @@ The selected AVX1 change removes work from the normal FP16 scale conversion. IQ3
 
 The existing upstream `--prompt-cache-tail` is enabled in the Swift profile. In the 24,366-token branch workload the repeat reused 23,552 tokens instead of 16,384. End-to-end time fell from 53.00 s to 28.94 s. The retained CPU pool has 14 workers, and PCIe admission retains its original thresholds.
 
+The deployed build includes [upstream `6c642df7`](https://github.com/Niko1221/Strata/commit/6c642df7530a5a4ba2f6ae52deaa5be436271195). It passed 14 Windows process tests and the eight AVX1 row-format pairs. The deployed pair had a 49.98 s median for the standard request and 31.2 tok/s decode. The 24,366-token first request took 90.09 s, and its branch reused 23,552 tokens and took 29.08 s.
+
 ## Кратко по-русски
 
 На обоих Xeon оставили 14 воркеров. Упрощённое AVX1-преобразование FP16 ускорило изолированную операцию IQ3_S/IQ4_NL на 10,1%. На Tesla P40 включён побитово проверенный `cublasSgemm` для плотного prefill. Резерв VRAM — 210 МиБ. При ветвлении длинного промпта дополнительный checkpoint сократил повторный запрос с 53,00 до 28,94 с.
+
+На запущенной сборке после слияния upstream стандартный запрос занял 49,98 с в медиане, повторный запрос на 24 366 токенов — 29,08 с.
