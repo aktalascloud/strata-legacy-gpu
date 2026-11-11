@@ -1,0 +1,24 @@
+id	status	decision
+01	selected	Two three-request boots: decode medians 29.4 and 29.6 vs upstream 28.1 tok/s; total 62.90 and 62.86 vs 63.58 s. Prefill was 249.6/251.8 vs 264.4 tok/s. The exact SIMD PLE kernel is retained for the repeatable warm decode gain; output hashes differ across boots.
+06	rejected	CPU image-encoder lifecycle only. No decode or prefill path is changed. The CPU encoder remains supported.
+08	rejected	Old activation script gate, absent from the fresh tree. Upstream has the gemm_f32_parity target.
+12	rejected	Restored the recipe's per-source ISA flags and rebuilt with clang-cl O3 and CUDA L1 caching. Two matching long requests measured 71.86 vs 66.90 s and 25.8 vs 26.3 decode tok/s. Retain the upstream AVX-floor build with MSVC.
+24	rejected	NVML sampling filter only. Serving and kernel throughput are unaffected.
+29	rejected	Rebased onto both current MMQ header paths and initially measured 64.33 vs 66.90 s. At 210 MiB with PCIe admission the re-test took 60.98 vs 57.59 s and prefilled at 263.7 vs 284.5 tok/s. The initial gain did not hold.
+31	rejected	Pillow 13.0.0 already pinned by the current Windows lock and running in the new Python environment.
+33	rejected	Shared settings migration, irrelevant to the explicit Swift profile and benchmark request.
+35	rejected	Rebased with upstream per-expert destinations intact. Confirmed active. Compared to 01, full request 65.86 vs 62.90 s, decode 29.9 vs 29.4 tok/s. No consistent gain.
+37	rejected	Rebased on 35 with a guard for upstream adaptive admissions. Confirmed active. Compared to 01, full request 65.92 vs 62.90 s, decode 29.8 vs 29.4 tok/s. No consistent gain.
+38	rejected	Only corrupt or implausible PLE rows benefit. The added scan runs per row and changes malformed-input semantics. No Swift speed path.
+39	rejected	The profile passes the exact same shard path to --native and --ple-gguf. Alias detection has no benefit for this path.
+44	rejected	Streaming tool-call parser only. It cannot speed up model inference. The current plain Swift request does not enter it.
+45	rejected	Rebased and measured two long requests. The actual node-0 allocation declined because the arena plus 4 GiB would not fit, so the tested path fell back to ordinary allocation. Timing variation does not establish a NUMA gain.
+46	rejected	BOM reader fix for old local preflight tools. Neither tool exists on main, and this deployment writes UTF-8 without BOM.
+47	rejected	Two long P40 requests, matched B6 control. Elapsed 68.67 vs 66.07 s, decode 25.6 vs 25.3 tok/s and prefill 243.7 vs 264.1 tok/s. No throughput case for the extra warp path on this profile.
+50	rejected	Rebased for current P40 grouped dispatch and tested with the EXPDEC control. Full request 71.53 vs 62.95 s, decode 25.9 vs 26.6 tok/s across the two matching cases.
+52	rejected	At 150 MiB the initial two-case arm measured 61.78 vs 66.90 s. At the requested 210 MiB with PCIe admission, the matched re-test gave 58.81 vs 57.59 s and 30.3 vs 30.9 decode tok/s. The initial gain did not hold on the chosen profile.
+53	rejected	Same binary, two long cases with upstream windows 1,2,3,4,5,12 completed in 64.41 s median. Matched first-two-case medians with explicit 1,2,3,4,12 were 65.04 and 66.90 s in two boots. No observed graph reclaims or speed benefit from dropping 5 on this trace.
+54	rejected	Measured the rebased singleton path on top of 52. Full-request median 61.28 vs 61.78 s, decode 27.0 vs 27.1 tok/s. No reproducible gain for the added dispatch.
+55	rejected	Cache publication failure transaction. No speed gain on successful inference. Keep the upstream PR review as a correctness lead.
+56	rejected	JSON EOF watcher retirement only. The long streaming request never hits the patched response delivery.
+2638	rejected	Rebuilt after correcting Git patch application. Two matching requests took 69.49 vs 66.90 s. Decode 26.7 vs 26.3 tok/s did not offset the slower prefill. The current Swift profile sends most missed experts over PCIe rather than to the CPU.

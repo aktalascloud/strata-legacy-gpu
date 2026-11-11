@@ -1,0 +1,21 @@
+arm	decision	evidence
+previous-deployment	reference	Old engine before drain. Three long requests. Build preparation ran in the background, so the new upstream control is the stronger comparison for tuning.
+upstream-avx1-sm61	control	Unmodified dbb2d168 with the AVX1 and sm_61 build options, exact routing and the carried model settings.
+control-01	control	Repeat of patch 01 on a separate boot. The first request begins with a cold adaptive expert cache; compare matching case numbers.
+b6-control	reject profile default	Baseline for patch 47. Matched two-case decode 25.3 tok/s vs 26.3 with patch 01 alone, and no repeatable benefit.
+expdec-control	comparison	Baseline for patch 50. Two requests measured 62.95 s and 26.6 decode tok/s. Prefill variation prevents attributing the elapsed difference to a decode-only switch.
+dense-f32	candidate	Active Pascal cublasSgemm route. Two requests measured 64.00 s, 270.6 prefill tok/s and 26.3 decode tok/s. Consider only with a current numerical check and a combined-profile repeat.
+pcie-admit	candidate	STRATA_ADAPT_FETCH=2 and --adapt-async 0. Two requests measured 60.62 s and 31.4 decode tok/s vs 66.90 s and 26.3 for the same cases on control-01. Cold PCIe share fell to 7.9% from about 19%.
+vram-480	invalid arm	Existing user_args appended --vram-reserve-mib 150. The running command confirmed 150, so its timings cannot test 480. The corrected second suite removes only the overridden option before testing.
+vram-reserve	user preference	Use 210 MiB in the delivered Swift profile and installer. The 150 MiB controls and 480 MiB comparison are experimental settings. At about 1.95 MiB per slot, 210 fits roughly 30 fewer experts than 150 and roughly 140 more than 480.
+vram-480-effective	measured comparison	480 MiB gave 9077 cached experts and 509 MiB free after startup. At 150 MiB the same binary gave 9247 experts and 179 MiB free. At 480, matched decode was 25.9 vs 26.3 tok/s. Prefill timing varied across boots, so the change does not establish an end-to-end speed gain.
+prefill-1024	candidate	In isolation the 1024-token chunk raised prefill to 288.1 tok/s and dropped decode to 23.1. It borrowed 397 expert slots versus 316 at 512. Try with PCIe admission before selecting a chunk.
+prefill-cpu-off	rejected	Disabling the upstream CPU share lowered prefill to 213.4 tok/s and raised full-request latency to 73.43 s. Leave the CPU share enabled.
+prefill-group-scratch	candidate	The log confirmed the active grouped scratch (1024 rows instead of 5120). Two cases gave 280.7 prefill tok/s and 62.08 s. Repeat at 210 MiB with PCIe admissions.
+pcie-dma	rejected profile default	The DMA arm reached 27.1 decode tok/s and 62.03 s. PCIe admission in the existing kernel path gave 31.4 tok/s and 60.62 s.
+mtp-spec4	rejected profile default	The engine confirmed four-token MTP windows. Decode was 26.1 tok/s vs 26.3 in the matching three-token control. Keep spec 3.
+tuned-512-210	final comparison baseline	Actual 210 MiB reserve and no overriding user_args. 9216 cached experts and 239 MiB free after startup. PCIe admission mode 2 with 512-token prefill reached 30.9 decode tok/s and 57.59 s over two cases.
+tuned-1024-210	selected	Same 210 MiB and PCIe admission mode, with 1024-token prefill. Median 330.9 prefill tok/s, 30.7 decode tok/s and 53.12 s. At 512 tokens the matched medians were 284.5, 30.9 and 57.59 s.
+tuned-scratch-210	comparison	Active grouped scratch with 512-token prefill and PCIe admission at 210 MiB. Reached 287.2 prefill tok/s, 31.9 decode tok/s and 56.47 s. Compare the combination at 1024 before selecting.
+tuned-1024-scratch-210	rejected profile default	53.09 s vs 53.12 s with the standard scratch. Prefill was 330.6 vs 330.9 tok/s and decode 30.8 vs 30.7. No repeatable gain at the selected chunk size.
+ivy-build	rejected	The first build failed in a runtime-gated AVX-512 TU. Restoring the scoped flags resolved compilation. The fixed arm took 71.86 vs 66.90 s at the same prompt and output lengths. Keep MSVC and the upstream AVX floor.

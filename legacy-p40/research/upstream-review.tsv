@@ -1,0 +1,40 @@
+number	decision	evidence
+5713	outside Swift profile	Pascal fix targets the separate DeepSeek V4.1 engine.
+5712	defer	12-file speculative idle CPU cache prefetch. Draft; no Windows or model result. The current PCIe share runs almost all missed experts on the GPU, leaving little CPU expert work to warm.
+5700	not used	DFlash2 confidence table assumes IQ3_S slot size. This configuration uses Q2 MTP and explicit draft parameters.
+5699	defer	Conversation-file fingerprint fix covers saved sessions imported under different environment/device plans. Long local requests use the in-memory cache.
+5691	defer	Opt-in VRAM calibration changes cache sizing across devices. Test manual headroom first on one P40; author measurement uses two AMD cards.
+5655	selected safety adaptation	The sentinel can index outside the 16-element lane array. The adaptation commits neither IDs nor weights unless every rank and the normalization sum are valid. The CUDA test passed a normal top-10 row and four invalid rows on the P40. Swift disables the prior by default.
+5643	reject current revision	The proposed server-wide answer-key cache can restore reasoning based on a prompt suffix without a conversation owner. It also logs slices of nearby answers on mismatch. Needs request isolation before use.
+5635	not reproduced	Linux systemd service, two GPUs and DFlash2. Windows native Swift loaded at 262144 with full RAM arena and Q2 MTP.
+5623	defer	34 files for shared immutable KV snapshots. Useful for concurrent sessions with shared prefixes. Needs eviction, accounting and lifetime tests on Windows streaming KV.
+5588	not used	A separate PLE file collides with split shard metadata. This profile uses its model shard for PLE.
+5569	incompatible accelerator	Proposed half2/tensor tile targets Volta sm_70. P40 has no Tensor Cores and FP16 arithmetic is slow on sm_61.
+5562	outside topology	Fused prompt scratch mismatch on a heterogeneous HIP split. Current host uses one Pascal device.
+5530	defer	Large memory-lock policy PR. Native embedding uses cudaHostAlloc, PLE is locked in RAM, and experts load into the arena. Local transaction subpatch 55 changes allocation-failure correctness only.
+5503	not used	Session snapshots with a DFlash2-only drafter. Current Swift loads its Q2 MTP.
+5479	not used	Separating PLE across model splits has no effect when the actual original model shard is supplied.
+5476	local adaptation 47	The upstream gfx103x warp reduction changes accumulation order. Local version keeps four logical warps and needs P40 measurement with the matching B6 baseline.
+5449	not reproduced	sm_86, int8 KV. Current Pascal q4_0 profile booted with lookup size 12 and completed long prompts.
+5438	rejected for this profile	Built with the exact Pascal Q8_0 option and confirmed the route active. Two long requests gave 26.5 decode tok/s vs 26.3 in the matching control. The elapsed difference came mostly from prefill, so a decode-kernel gain was not established.
+5436	outside OS	NUMA placement uses Linux APIs. Evaluate the Windows-native VirtualAllocExNuma adaptation as patch 45.
+5433	not used	Separately supplied BF16 embeddings change embedding data and consume extra memory. Keep the user's Swift IQ4_XS embedding resident as supplied.
+5418	conditional	Fix caps layer-major prefill scratch to group_cap. The current profile runs standard chunk prefill without group scratch. Revisit only with both options enabled.
+5326	local patch 39	Filesystem-equivalent shard aliases avoid duplicate metadata. Current profile passes the identical string twice and already takes that branch.
+5273	defer	Single-file short prefill stream-plan guard. Needs a reproducer for this profile and exact current path review.
+5268	outside Swift profile	Same P40 but Qwen3.6 engine with different attention. Track separately from Swift KV streaming.
+5201	outside context	Selects one-read top-k stride above 524288 tokens. Current configured maximum is 262144.
+5108	upstream	Main includes f225844d, which sizes the stream-k row-table margin from the actual backend tile bound.
+5165	not reproduced	The issue is a different Heretic Swift quant with a BF16 attention gate. Both SC117 Swift IQ3_S shards in this profile load and produce text.
+5096	upstream	Main includes 40849df0, ordering the empty-group B notification after queued DMA copies and widening copy coverage.
+5033	local adaptation 52	The upstream MI50 patch is for gfx906. Only the independently adapted exact Pascal half-warp path is considered.
+4952	defer	EcoQoS modifies process and benchmark scheduling. First compare WMI/S4U-launched worker under the same policy as its controls.
+4944	not used	Q2_0 CPU expert table. Swift IQ3_S uses other gate/up formats. Its Q2 MTP is on the GPU.
+4910	not used	The optimized temporary map belongs to the direct-SSD PLE reader. Swift explicitly uses the RAM table.
+4871	defer	Opt-in W4A8 path targets selected architectures and quant formats. Needs evidence of dispatch and exact arithmetic on sm_61.
+4860	not used	Sliced registration of the --resident-experts complement. Current full pinned arena is a different owner and path.
+4858	conditional	CPU-side kernels for other AVX1 expert formats. Worth testing only if a tuned profile sends enough work to the CPU; the current workload sends most misses over PCIe.
+4856	reject default	P100 comparison reported long-context regressions and greedy output drift. Keep the established Q2 MTP policy until local evidence supports a change.
+4854	not used	Native CPU Q2_0 gate/up route, absent in this model's native expert layouts.
+4808	defer	Opt-in WDDM partial pin registration. Check driver reports and pinned prefix first; the current native arena already starts without disk fallback.
+4688	local patch 38	Handles malformed PLE values. No matching failures on this Swift file and not a speed path.

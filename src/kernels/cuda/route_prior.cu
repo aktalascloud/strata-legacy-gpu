@@ -48,6 +48,7 @@ __global__ void route_prior_k(const float* __restrict__ logits, const int32_t* _
     }
     (void) wsum(sum);
     float sel_p = 0.0f, sel_sum = 0.0f;
+    int sel_e = 0;
     for (int rank = 0; rank < 10; ++rank) {
         float best = -FLT_MAX, bp = 0.0f;
         int be = 1 << 30;
@@ -61,11 +62,17 @@ __global__ void route_prior_k(const float* __restrict__ logits, const int32_t* _
             const float op = __shfl_xor_sync(0xffffffffu, bp, m, 32);
             if (ob > best || (ob == best && oe < be)) { best = ob; be = oe; bp = op; }
         }
+        // A row can run out of usable logits before all ten ranks are picked.
+        // The reduced expert is the same in every lane. Keep the original route on failure.
+        if (be >= 512) return;
         if ((be & 31) == lane) s[be >> 5] = -FLT_MAX;
-        if (lane == rank) { id[rank] = be; sel_p = bp; }
-        sel_sum += bp;                                      // the same on every lane
+        if (lane == rank) { sel_e = be; sel_p = bp; }
+        sel_sum += bp;
     }
-    if (lane < 10) w[lane] = sel_p / fmaxf(sel_sum, 1e-30f);
+    if (lane < 10 && isfinite(sel_sum) && sel_sum > 0.0f) {
+        id[lane] = sel_e;
+        w[lane] = sel_p / fmaxf(sel_sum, 1e-30f);
+    }
 }
 
 }  // namespace
