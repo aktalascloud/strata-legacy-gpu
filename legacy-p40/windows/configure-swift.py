@@ -47,7 +47,7 @@ def configure(models, mtp):
     args = ["--pack", str(pack), "--native", str(model), "--ple-gguf", str(model),
             "--expert-profile", str(SOURCE / "data/expert-profile.bin"), "--expert-cache", "auto",
             "--max-context", "262144", "--kv", "q4_0", "--kv-resident", "20480", "--prefill", "1024",
-            "--pool-workers", "14", "--prompt-cache", "6", "--prompt-cache-every", "16384",
+            "--pool-workers", "14", "--prompt-cache", "6", "--prompt-cache-every", "16384", "--prompt-cache-tail",
             "--prompt-cache-root", "2048", "--vram-reserve-mib", "210", "--ple-io", "ram",
             "--adapt-async", "0", "--pcie-frac", "1"]
     if mtp:
@@ -57,6 +57,7 @@ def configure(models, mtp):
                    tokenizer=str(pack / "tokenizer"), model_name="swift-1.5-iq3-s", reasoning_effort="high",
                    mtp=bool(mtp), args=args, env={"STRATA_ARENA_RAM_FALLBACK": "0", "STRATA_ROUTE_PRIOR": "0",
                                                   "STRATA_ROUTE_TAIL_SKIP": "0", "STRATA_ADAPT_FETCH": "2",
+                                                  "STRATA_DENSE_F32": "1",
                                                   "OMP_PROC_BIND": "FALSE"},
                    sampling=dict(top_k=20, min_p=0.0, repetition_penalty=1.0, frequency_penalty=0.0))
     projector = models / "mmproj-Qwen3.8-Flash-Next-BF16.gguf"

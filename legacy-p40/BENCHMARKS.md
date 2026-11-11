@@ -19,3 +19,5 @@ The final profile uses a 210 MiB VRAM reserve, 1,024-token prefill chunks and `S
 Для промпта в 24 366 токенов получено 99,03 с и 31,5 ток/с генерации. Повторный запрос переиспользовал 16 384 токена и занял 50,37 с. Результаты относятся к указанным запросам и оборудованию.
 
 [Patch decisions / Решения по патчам](research/patch-review.tsv) · [Profile experiments / Профили](research/profile-review.tsv) · [Upstream review / Разбор upstream](research/upstream-review.tsv)
+
+[Follow-up tuning on both CPUs and the P40 / Донастройка двух CPU и P40](TUNING.md)

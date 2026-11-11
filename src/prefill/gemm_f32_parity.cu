@@ -3,7 +3,7 @@
 // shapes and a sweep of chunk sizes T (GPU, synthetic, no model).  Whether the two agree is a property of the cuBLAS
 // build (measured: 12.4.5.8 on a Tesla P40, 5,201 sizes): run this before setting STRATA_DENSE_F32=1.
 //
-//     build/gemm_f32_parity [--quick | --full] [--bench]
+//     build/gemm_f32_parity [--quick | --full] [--bench] [--max-t N]
 // default: every 7th T from the route's first to 8192, every T of 7000-7100 and around the powers of two, 8192;
 // --quick: every 251st T; --full: every T.  --bench prints both times for a few T.  Exit 0: every output bitwise
 // equal (or the route is not built here: not the experimental CUDA 12 engine).
@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <set>
 #include <string>
@@ -42,9 +43,18 @@ struct Shape { const char* what; int64_t N, K, t_min; };
 int main(int argc, char** argv) {
     setvbuf(stdout, nullptr, _IONBF, 0);
     bool quick = false, full = false, bench = false;
+    int64_t TMAX = 8192;
     for (int i = 1; i < argc; ++i) {
         const std::string a = argv[i];
         quick |= a == "--quick"; full |= a == "--full"; bench |= a == "--bench";
+        if (a == "--max-t") {
+            char* end = nullptr;
+            TMAX = i + 1 < argc ? std::strtoll(argv[++i], &end, 10) : 0;
+            if (!end || *end || TMAX < 256 || TMAX > 8192) {
+                std::fprintf(stderr, "--max-t must be between 256 and 8192\n");
+                return 2;
+            }
+        }
     }
     int dev = 0, maj = 0, min = 0;
     cudaGetDevice(&dev);
@@ -59,7 +69,6 @@ int main(int argc, char** argv) {
     // the shapes the route takes and its first T for each (gemm.cu, dense_f32_min_t)
     const Shape shapes[] = {{"gdn qkv", 10240, 2560, 256}, {"qsa query", 12288, 2560, 256}, {"gdn gate", 6144, 2560, 512},
                             {"gdn out", 2560, 6144, 4096}, {"qsa out", 2560, 4096, 4096}};
-    const int64_t TMAX = 8192;
     unsigned* cnt = nullptr;
     if (!ok(cudaMalloc((void**) &cnt, 4), "counter")) return 1;
     cudaEvent_t e0, e1;
@@ -67,6 +76,7 @@ int main(int argc, char** argv) {
     cudaEventCreate(&e1);
     long long cases = 0, bad_cases = 0;
     for (const Shape& s : shapes) {
+        if (s.t_min > TMAX) continue;
         const int64_t N = s.N, K = s.K;
         uint16_t *W = nullptr, *X = nullptr;
         float *Ya = nullptr, *Yb = nullptr;
@@ -79,9 +89,9 @@ int main(int argc, char** argv) {
         for (int64_t t = s.t_min; t <= TMAX; t += step) ts.insert(t);
         ts.insert(s.t_min); ts.insert(TMAX);
         if (!quick) {
-            for (int64_t t = 7000; t <= 7100; ++t) if (t >= s.t_min) ts.insert(t);
+            for (int64_t t = 7000; t <= std::min<int64_t>(7100, TMAX); ++t) if (t >= s.t_min) ts.insert(t);
             for (int64_t p = 256; p <= TMAX; p *= 2) for (int64_t d = -3; d <= 3; ++d) if (p + d >= s.t_min && p + d <= TMAX) ts.insert(p + d);
-            for (int64_t t = 6540; t <= 6570; ++t) if (t >= s.t_min) ts.insert(t);   // around the activation slices' first split (K 2560)
+            for (int64_t t = 6540; t <= std::min<int64_t>(6570, TMAX); ++t) if (t >= s.t_min) ts.insert(t);   // around the activation slices' first split (K 2560)
         }
         long long bad = 0, bad_outputs = 0;
         int64_t first_bad = 0;
@@ -104,7 +114,7 @@ int main(int argc, char** argv) {
         bad_cases += bad;
         if (bench) {
             for (int64_t T : {(int64_t) 560, (int64_t) 2048, (int64_t) 4096, (int64_t) 7040, (int64_t) 7041}) {
-                if (T < s.t_min) continue;
+                if (T < s.t_min || T > TMAX) continue;
                 double ms[2] = {0, 0};
                 for (int on = 0; on < 2; ++on) {
                     strata::prefill::gemm_set_dense_f32(on);

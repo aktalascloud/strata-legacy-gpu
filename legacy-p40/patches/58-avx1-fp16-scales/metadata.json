@@ -1,0 +1,7 @@
+{
+  "id": 58,
+  "base": "31ba7155b28bfc58e37a1b5cf17dbbb7200188aa",
+  "status": "selected",
+  "patch": "58-avx1-fp16-scales/change.patch",
+  "sha256": "3aea3cb2443418918f2be0bb8ff25ec5582ad31b05404662acabf597dde54d10"
+}

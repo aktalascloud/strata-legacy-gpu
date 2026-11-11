@@ -44,21 +44,21 @@ namespace {
 
 // fp16 -> fp32 without F16C (expert.cpp's h2f: the conversion written out, subnormals included).
 inline float h2f(uint16_t h) {
-    const uint32_t sign = (uint32_t) (h >> 15) & 1u;
-    uint32_t exp = (h >> 10) & 0x1Fu, man = h & 0x3FFu, f;
-    if (exp == 0) {
-        if (man == 0) {
-            f = sign << 31;
-        } else {
-            exp = 127 - 15 + 1;
-            while (!(man & 0x400u)) { man <<= 1; --exp; }
-            man &= 0x3FFu;
-            f = (sign << 31) | (exp << 23) | (man << 13);
-        }
-    } else if (exp == 31) {
-        f = (sign << 31) | 0x7F800000u | (man << 13);
+    const uint32_t sign = (uint32_t) (h & 0x8000u) << 16;
+    const uint32_t mag = h & 0x7fffu;
+    uint32_t f;
+    if (mag - 0x400u < 0x7800u) {
+        // Positive normal magnitude: FP32 adds 112 to the FP16 exponent bias.
+        f = sign | ((mag << 13) + 0x38000000u);
+    } else if (mag >= 0x7c00u) {
+        f = sign | 0x7f800000u | ((mag & 0x3ffu) << 13);
+    } else if (mag == 0) {
+        f = sign;
     } else {
-        f = (sign << 31) | ((exp - 15 + 127) << 23) | (man << 13);
+        uint32_t man = mag;
+        uint32_t exp = 113;
+        while ((man & 0x400u) == 0) { man <<= 1; --exp; }
+        f = sign | (exp << 23) | ((man & 0x3ffu) << 13);
     }
     float out;
     std::memcpy(&out, &f, 4);

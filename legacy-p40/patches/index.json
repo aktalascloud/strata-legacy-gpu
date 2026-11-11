@@ -3,7 +3,8 @@
   "upstream": "dbb2d168cffa8cf793d9325358809d5263c7c6b0",
   "application_order": [
     1,
-    57
+    57,
+    58
   ],
   "entries": [
     {
@@ -19,6 +20,13 @@
       "status": "selected",
       "patch": "57-route-prior-safety/change.patch",
       "sha256": "623ef00d2d79b174dedc4c929c95e93d773d74361c9b87ff4e9ae13d08aa1c70"
+    },
+    {
+      "id": 58,
+      "base": "31ba7155b28bfc58e37a1b5cf17dbbb7200188aa",
+      "status": "selected",
+      "patch": "58-avx1-fp16-scales/change.patch",
+      "sha256": "3aea3cb2443418918f2be0bb8ff25ec5582ad31b05404662acabf597dde54d10"
     }
   ]
 }
