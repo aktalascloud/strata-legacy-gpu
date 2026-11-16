@@ -46,7 +46,7 @@ def configure(models, mtp):
 
     args = ["--pack", str(pack), "--native", str(model), "--ple-gguf", str(model),
             "--expert-profile", str(SOURCE / "data/expert-profile.bin"), "--expert-cache", "auto",
-            "--max-context", "262144", "--kv", "q4_0", "--kv-resident", "20480", "--prefill", "1024",
+            "--max-context", "262144", "--kv", "q4_0", "--kv-resident", "20480", "--prefill", "1536",
             "--pool-workers", "14", "--prompt-cache", "6", "--prompt-cache-every", "16384", "--prompt-cache-tail",
             "--prompt-cache-root", "2048", "--vram-reserve-mib", "210", "--ple-io", "ram",
             "--adapt-async", "0", "--pcie-frac", "1"]
@@ -63,7 +63,7 @@ def configure(models, mtp):
     projector = models / "mmproj-Qwen3.8-Flash-Next-BF16.gguf"
     if projector.is_file():
         profile["vision"] = dict(exe=str(RUNTIME / "vision/strata-vision.exe"), model=str(model),
-                                 mmproj=str(projector), gpu=False, threads=8, max_tokens=300, require_ram=True)
+                                 mmproj=str(projector), gpu=False, threads=16, max_tokens=300, require_ram=True)
     with tempfile.TemporaryDirectory(prefix="swift-config-", dir=RUNTIME) as directory:
         prepared = Path(directory) / config.name
         prepared.write_text(json.dumps(profile, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

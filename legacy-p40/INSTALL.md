@@ -7,7 +7,7 @@ CONFIGURE.cmd "D:\Models\Swift-IQ3_S"
 START.cmd
 ```
 
-`CONFIGURE.cmd` reserves 210 MiB of VRAM and enables launch at Windows sign-in after configuring the model. Use `powershell -ExecutionPolicy Bypass -File tools\autostart.ps1 -Disable` to remove the sign-in entry.
+`CONFIGURE.cmd` uses a prefill chunk of 1,536 tokens, reserves 210 MiB of VRAM, and uses 16 CPU threads for Vision when the projector is present. It enables launch at Windows sign-in after configuring the model. Use `powershell -ExecutionPolicy Bypass -File tools\autostart.ps1 -Disable` to remove the sign-in entry.
 
 If you have a prepared Q2 MTP pack, append `--mtp-dir "D:\Models\Swift-MTP\rt"` to `CONFIGURE.cmd`. The projector is loaded on the CPU when `mmproj-Qwen3.8-Flash-Next-BF16.gguf` is present. The API listens at `http://127.0.0.1:8093/v1`. `STOP.cmd` requests graceful shutdown.
 
@@ -19,7 +19,7 @@ The P40 build defaults to MMQ following the [Swift A/B test](BENCHMARKS.md#mmq-o
 
 Сборка для Windows x64, Tesla P40 (`sm_61`) и процессоров с AVX, включая Ivy Bridge. Нужны драйвер NVIDIA с поддержкой CUDA 12.9 и [Microsoft Visual C++ v14 x64](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist). Установщик содержит движок, Python и библиотеки CUDA. Два шарда GGUF модели Swift 1.5 IQ3_S укажите отдельно.
 
-`CONFIGURE.cmd` задаёт резерв VRAM 210 МиБ и после настройки модели включает запуск при входе в Windows. Ключ `-Disable` у скрипта `tools\autostart.ps1` отключает этот запуск.
+`CONFIGURE.cmd` задаёт чанк prefill 1536 токенов, резерв VRAM 210 МиБ и 16 потоков CPU Vision при наличии проектора. После настройки модели включается запуск при входе в Windows. Ключ `-Disable` у скрипта `tools\autostart.ps1` отключает этот запуск.
 
 Параметр `--mtp-dir` принимает папку готового Q2 MTP. Если рядом с шардами есть `mmproj-Qwen3.8-Flash-Next-BF16.gguf`, Strata использует CPU для изображений. `STOP.cmd` штатно завершает работу.
 
