@@ -4,3 +4,6 @@ if "%~1"=="" (
   exit /b 2
 )
 "%~dp0runtime\python\python.exe" -B "%~dp0tools\configure-swift.py" %*
+if errorlevel 1 exit /b %errorlevel%
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0tools\autostart.ps1"
+exit /b %errorlevel%

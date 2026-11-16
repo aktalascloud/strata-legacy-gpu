@@ -4,7 +4,12 @@ Unicode true
 !include "FileFunc.nsh"
 !include "x64.nsh"
 
-Name "Strata Legacy GPU"
+Name "Strata Legacy GPU ${VERSION}"
+VIProductVersion "${VERSION}"
+VIAddVersionKey "ProductName" "Strata Legacy GPU"
+VIAddVersionKey "FileDescription" "Strata Legacy GPU Windows Setup"
+VIAddVersionKey "FileVersion" "${VERSION}"
+VIAddVersionKey "ProductVersion" "${VERSION}"
 OutFile "${OUTPUT}"
 InstallDir "$LOCALAPPDATA\Strata Legacy GPU"
 RequestExecutionLevel user
@@ -15,7 +20,7 @@ Var VerifyOnly
 !insertmacro MUI_PAGE_LICENSE "${PAYLOAD}\licenses\NVIDIA-CUDA-12.9.txt"
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
-!define MUI_FINISHPAGE_TEXT "Strata Legacy GPU is installed. Run CONFIGURE.cmd with the folder containing your Swift IQ3_S GGUF shards. Run START.cmd to serve it and STOP.cmd to stop it. Model files are supplied separately."
+!define MUI_FINISHPAGE_TEXT "Run CONFIGURE.cmd with your Swift IQ3_S GGUF folder to set up the model and enable startup at Windows sign-in. Run START.cmd to serve it now or STOP.cmd to stop it. Model files are supplied separately."
 !insertmacro MUI_PAGE_FINISH
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "Russian"
