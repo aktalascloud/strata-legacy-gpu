@@ -21,3 +21,16 @@ The final profile uses a 210 MiB VRAM reserve, 1,024-token prefill chunks and `S
 [Patch decisions / Решения по патчам](research/patch-review.tsv) · [Profile experiments / Профили](research/profile-review.tsv) · [Upstream review / Разбор upstream](research/upstream-review.tsv)
 
 [Follow-up tuning on both CPUs and the P40 / Донастройка двух CPU и P40](TUNING.md)
+
+## MMQ on Strata 0.1.60.1
+
+Both builds use `6399b835`, the same Swift profile, and the hardware above. Four matched prompts ran in fresh instances in OFF–ON–ON–OFF order, two requests per instance. Each request processed 9,292 input tokens, generated 768 tokens, and reused zero prompt tokens.
+
+| MMQ | Median prefill, tok/s | Median decode, tok/s | Median total, s |
+| --- | ---: | ---: | ---: |
+| OFF | 323.1 | 29.85 | 54.30 |
+| ON | 338.3 | 30.50 | 52.60 |
+
+ON was faster in three of four pairs and cut median request time by 3.1%. The engine selected MMQ for all 48 expert layers in ON. In OFF the grouped expert counters recorded Strata's native int8 path. Both responses and MTP acceptance varied between builds, so the measured decode gain applies to these requests. [Individual runs and dispatch evidence](research/swift-mmq-20261116.json)
+
+На Swift с MMQ медиана полного запроса снизилась на 3,1%. Замеры включают четыре пары запросов без переиспользования промпта. В трёх из четырёх пар MMQ выиграл по полному времени. Поэтому скрипт сборки для P40 выбирает MMQ по умолчанию.

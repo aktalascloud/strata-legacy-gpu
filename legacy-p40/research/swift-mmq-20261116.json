@@ -1,0 +1,671 @@
+{
+  "source_commit": "6399b835e30fa12bcc6593314b14ac439dd2c878",
+  "model": "Swift 1.5 Flash Next IQ3_S",
+  "host": {
+    "gpu": "Tesla P40 24 GiB (sm_61)",
+    "cpu": "2x Xeon E5-2697 v2",
+    "ram_gib": 256,
+    "os": "Windows 10 Enterprise LTSC (19044)",
+    "cuda": "12.9",
+    "driver": "582.70",
+    "isa_floor": "avx"
+  },
+  "profile": {
+    "prefill": 1024,
+    "pool_workers": 14,
+    "context": 262144,
+    "kv": "q4_0",
+    "kv_resident": 20480,
+    "reserve_mib": 210,
+    "spec": 3,
+    "mtp": "Q2",
+    "env": {
+      "STRATA_DENSE_F32": "1",
+      "STRATA_ADAPT_FETCH": "2",
+      "STRATA_ROUTE_TAIL_SKIP": "0",
+      "STRATA_ROUTE_PRIOR": "0",
+      "STRATA_I8_COUNT": "1",
+      "STRATA_MANIFEST": "enabled during A/B"
+    }
+  },
+  "protocol": {
+    "driver": "legacy-p40/research/bench-swift.py, measure()",
+    "block_order": [
+      "OFF",
+      "ON",
+      "ON",
+      "OFF"
+    ],
+    "fresh_instances": 4,
+    "requests_per_instance": 2,
+    "synthetic_rows": 315,
+    "cases": [
+      [
+        1612,
+        1613
+      ],
+      [
+        1612,
+        1613
+      ],
+      [
+        1614,
+        1615
+      ],
+      [
+        1614,
+        1615
+      ]
+    ],
+    "prompt_tokens": 9292,
+    "generated_tokens": 768,
+    "reused_tokens": 0,
+    "temperature": 0,
+    "seed": 42,
+    "selection_metric": "median complete request time"
+  },
+  "on_dll_sha256": "a1b6bb2f2cd0101f74e78aed1f76f2d2d284324d8073aca34025c0aff7df4f4d",
+  "on_avx1_format_pairs_passed": 8,
+  "selected_mmq": "ON",
+  "selected_faster_pairs": 3,
+  "medians": {
+    "OFF": {
+      "prefill_tokens_per_second": 323.1,
+      "decode_tokens_per_second": 29.85,
+      "total_seconds": 54.29967314994428,
+      "ttft_seconds": 28.85085899999831
+    },
+    "ON": {
+      "prefill_tokens_per_second": 338.29999999999995,
+      "decode_tokens_per_second": 30.5,
+      "total_seconds": 52.602465600008145,
+      "ttft_seconds": 27.530471099889837
+    }
+  },
+  "dispatch": [
+    {
+      "block": 1,
+      "mmq": "OFF",
+      "paths": [
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ2_S, down IQ4_NL",
+          "selected": false,
+          "reason": "no MMQ tile for the gate/up format on every visible GPU; the dequantize + FP16 GEMM path takes it",
+          "detail": "fp16-gemm, 15 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ2_S, down Q2_0",
+          "selected": false,
+          "reason": "no MMQ tile for the gate/up format on every visible GPU; the dequantize + FP16 GEMM path takes it",
+          "detail": "fp16-gemm, 5 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ3_S, down IQ4_NL",
+          "selected": false,
+          "reason": "no MMQ tile for the gate/up format on every visible GPU; the dequantize + FP16 GEMM path takes it",
+          "detail": "fp16-gemm, 9 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ3_S, down Q2_0",
+          "selected": false,
+          "reason": "no MMQ tile for the gate/up format on every visible GPU; the dequantize + FP16 GEMM path takes it",
+          "detail": "fp16-gemm, 1 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ3_XXS, down IQ4_NL",
+          "selected": false,
+          "reason": "no MMQ tile for the gate/up format on every visible GPU; the dequantize + FP16 GEMM path takes it",
+          "detail": "fp16-gemm, 14 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ3_XXS, down Q2_0",
+          "selected": false,
+          "reason": "no MMQ tile for the gate/up format on every visible GPU; the dequantize + FP16 GEMM path takes it",
+          "detail": "fp16-gemm, 3 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ4_XS, down IQ4_NL",
+          "selected": false,
+          "reason": "no MMQ tile for the gate/up format on every visible GPU; the dequantize + FP16 GEMM path takes it",
+          "detail": "fp16-gemm, 1 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "own-only-build",
+          "selected": true,
+          "reason": "this engine was built without llama.cpp's MMQ prompt kernels",
+          "detail": "switches on by default here (a switch you set is kept): STRATA_PF_FUSED STRATA_PF_FUSED_Q50 STRATA_PF_FUSED_Q8D STRATA_PF_FUSED_Q8GU STRATA_PF_FUSED_Q6K STRATA_PF_FUSED_KQ STRATA_PF_FUSED_TQ STRATA_PF_FUSED_SM75 STRATA_PF_FUSED_Q2N"
+        }
+      ],
+      "chunk_records": 20,
+      "grouped_routed_entries": 8687999,
+      "native_int8_routed_entries": 8687999
+    },
+    {
+      "block": 2,
+      "mmq": "ON",
+      "paths": [
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ2_S, down IQ4_NL",
+          "selected": true,
+          "reason": "an MMQ tile exists for both products on every visible GPU",
+          "detail": "mmq, 15 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ2_S, down Q2_0",
+          "selected": true,
+          "reason": "an MMQ tile exists for both products on every visible GPU",
+          "detail": "mmq, 5 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ3_S, down IQ4_NL",
+          "selected": true,
+          "reason": "an MMQ tile exists for both products on every visible GPU",
+          "detail": "mmq, 9 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ3_S, down Q2_0",
+          "selected": true,
+          "reason": "an MMQ tile exists for both products on every visible GPU",
+          "detail": "mmq, 1 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ3_XXS, down IQ4_NL",
+          "selected": true,
+          "reason": "an MMQ tile exists for both products on every visible GPU",
+          "detail": "mmq, 14 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ3_XXS, down Q2_0",
+          "selected": true,
+          "reason": "an MMQ tile exists for both products on every visible GPU",
+          "detail": "mmq, 3 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ4_XS, down IQ4_NL",
+          "selected": true,
+          "reason": "an MMQ tile exists for both products on every visible GPU",
+          "detail": "mmq, 1 layers"
+        }
+      ],
+      "chunk_records": 20,
+      "grouped_routed_entries": 8698442,
+      "native_int8_routed_entries": 0
+    },
+    {
+      "block": 3,
+      "mmq": "ON",
+      "paths": [
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ2_S, down IQ4_NL",
+          "selected": true,
+          "reason": "an MMQ tile exists for both products on every visible GPU",
+          "detail": "mmq, 15 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ2_S, down Q2_0",
+          "selected": true,
+          "reason": "an MMQ tile exists for both products on every visible GPU",
+          "detail": "mmq, 5 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ3_S, down IQ4_NL",
+          "selected": true,
+          "reason": "an MMQ tile exists for both products on every visible GPU",
+          "detail": "mmq, 9 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ3_S, down Q2_0",
+          "selected": true,
+          "reason": "an MMQ tile exists for both products on every visible GPU",
+          "detail": "mmq, 1 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ3_XXS, down IQ4_NL",
+          "selected": true,
+          "reason": "an MMQ tile exists for both products on every visible GPU",
+          "detail": "mmq, 14 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ3_XXS, down Q2_0",
+          "selected": true,
+          "reason": "an MMQ tile exists for both products on every visible GPU",
+          "detail": "mmq, 3 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ4_XS, down IQ4_NL",
+          "selected": true,
+          "reason": "an MMQ tile exists for both products on every visible GPU",
+          "detail": "mmq, 1 layers"
+        }
+      ],
+      "chunk_records": 20,
+      "grouped_routed_entries": 8727693,
+      "native_int8_routed_entries": 0
+    },
+    {
+      "block": 4,
+      "mmq": "OFF",
+      "paths": [
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ2_S, down IQ4_NL",
+          "selected": false,
+          "reason": "no MMQ tile for the gate/up format on every visible GPU; the dequantize + FP16 GEMM path takes it",
+          "detail": "fp16-gemm, 15 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ2_S, down Q2_0",
+          "selected": false,
+          "reason": "no MMQ tile for the gate/up format on every visible GPU; the dequantize + FP16 GEMM path takes it",
+          "detail": "fp16-gemm, 5 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ3_S, down IQ4_NL",
+          "selected": false,
+          "reason": "no MMQ tile for the gate/up format on every visible GPU; the dequantize + FP16 GEMM path takes it",
+          "detail": "fp16-gemm, 9 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ3_S, down Q2_0",
+          "selected": false,
+          "reason": "no MMQ tile for the gate/up format on every visible GPU; the dequantize + FP16 GEMM path takes it",
+          "detail": "fp16-gemm, 1 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ3_XXS, down IQ4_NL",
+          "selected": false,
+          "reason": "no MMQ tile for the gate/up format on every visible GPU; the dequantize + FP16 GEMM path takes it",
+          "detail": "fp16-gemm, 14 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ3_XXS, down Q2_0",
+          "selected": false,
+          "reason": "no MMQ tile for the gate/up format on every visible GPU; the dequantize + FP16 GEMM path takes it",
+          "detail": "fp16-gemm, 3 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "experts: gate_up IQ4_XS, down IQ4_NL",
+          "selected": false,
+          "reason": "no MMQ tile for the gate/up format on every visible GPU; the dequantize + FP16 GEMM path takes it",
+          "detail": "fp16-gemm, 1 layers"
+        },
+        {
+          "area": "prefill",
+          "name": "own-only-build",
+          "selected": true,
+          "reason": "this engine was built without llama.cpp's MMQ prompt kernels",
+          "detail": "switches on by default here (a switch you set is kept): STRATA_PF_FUSED STRATA_PF_FUSED_Q50 STRATA_PF_FUSED_Q8D STRATA_PF_FUSED_Q8GU STRATA_PF_FUSED_Q6K STRATA_PF_FUSED_KQ STRATA_PF_FUSED_TQ STRATA_PF_FUSED_SM75 STRATA_PF_FUSED_Q2N"
+        }
+      ],
+      "chunk_records": 20,
+      "grouped_routed_entries": 8743737,
+      "native_int8_routed_entries": 8743737
+    }
+  ],
+  "runs": [
+    {
+      "block": 1,
+      "mmq": "OFF",
+      "sha256": "b516446c05ef99027b9bba8f72b1b8ea9ba83ec5f4febfd67e13afe3b93212da",
+      "case": 1612,
+      "elapsed_s": 52.38046870008111,
+      "ttft_s": 28.031839000061154,
+      "usage": {
+        "prompt_tokens": 9292,
+        "completion_tokens": 768,
+        "total_tokens": 10060,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "api_timings": {
+        "cache_n": 0,
+        "prompt_n": 9292,
+        "prompt_ms": 27958.5,
+        "prompt_per_token_ms": 3.009,
+        "prompt_per_second": 332.3,
+        "predicted_n": 768,
+        "predicted_ms": 24394.5,
+        "predicted_per_token_ms": 31.764,
+        "predicted_per_second": 31.5,
+        "draft_n": 554,
+        "draft_n_accepted": 391
+      },
+      "finish": "length",
+      "text_sha256": "566b4adc4ce4e38a73da49311bece7d9dd59a9784714521efd762d7811d1f85c",
+      "end_to_end_tps": 14.66195356894183,
+      "host_numa_busy_pct": {
+        "prefill": {
+          "0": 63.0,
+          "1": 55.1
+        },
+        "decode": {
+          "0": 16.7,
+          "1": 3.1
+        }
+      }
+    },
+    {
+      "block": 1,
+      "mmq": "OFF",
+      "sha256": "b516446c05ef99027b9bba8f72b1b8ea9ba83ec5f4febfd67e13afe3b93212da",
+      "case": 1613,
+      "elapsed_s": 53.20249709999189,
+      "ttft_s": 27.567661000182852,
+      "usage": {
+        "prompt_tokens": 9292,
+        "completion_tokens": 768,
+        "total_tokens": 10060,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "api_timings": {
+        "cache_n": 0,
+        "prompt_n": 9292,
+        "prompt_ms": 27500.0,
+        "prompt_per_token_ms": 2.96,
+        "prompt_per_second": 337.9,
+        "predicted_n": 768,
+        "predicted_ms": 25677.5,
+        "predicted_per_token_ms": 33.434,
+        "predicted_per_second": 29.9,
+        "draft_n": 558,
+        "draft_n_accepted": 373
+      },
+      "finish": "length",
+      "text_sha256": "cd2e6119377656111d26adf97e9ddd309f0829d1cf7cdb4af83e1c97266e49ab",
+      "end_to_end_tps": 14.435412656600983,
+      "host_numa_busy_pct": {
+        "prefill": {
+          "0": 63.4,
+          "1": 55.2
+        },
+        "decode": {
+          "0": 17.1,
+          "1": 3.4
+        }
+      }
+    },
+    {
+      "block": 2,
+      "mmq": "ON",
+      "sha256": "f317090230c5ffc8d9800822db5c67b834693bb6a4e87160def01e5f75de47a5",
+      "case": 1612,
+      "elapsed_s": 53.237326400121674,
+      "ttft_s": 26.678646499989554,
+      "usage": {
+        "prompt_tokens": 9292,
+        "completion_tokens": 768,
+        "total_tokens": 10060,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "api_timings": {
+        "cache_n": 0,
+        "prompt_n": 9292,
+        "prompt_ms": 26609.4,
+        "prompt_per_token_ms": 2.864,
+        "prompt_per_second": 349.2,
+        "predicted_n": 768,
+        "predicted_ms": 26600.0,
+        "predicted_per_token_ms": 34.635,
+        "predicted_per_second": 28.9,
+        "draft_n": 571,
+        "draft_n_accepted": 349
+      },
+      "finish": "length",
+      "text_sha256": "d5470b84eba20c8d125b7cc48211e2a3b502249ef826992363851a984122fcf5",
+      "end_to_end_tps": 14.425968618856952,
+      "host_numa_busy_pct": {
+        "prefill": {
+          "0": 61.3,
+          "1": 54.6
+        },
+        "decode": {
+          "0": 19.7,
+          "1": 4.4
+        }
+      }
+    },
+    {
+      "block": 2,
+      "mmq": "ON",
+      "sha256": "f317090230c5ffc8d9800822db5c67b834693bb6a4e87160def01e5f75de47a5",
+      "case": 1613,
+      "elapsed_s": 51.967604799894616,
+      "ttft_s": 27.71842319983989,
+      "usage": {
+        "prompt_tokens": 9292,
+        "completion_tokens": 768,
+        "total_tokens": 10060,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "api_timings": {
+        "cache_n": 0,
+        "prompt_n": 9292,
+        "prompt_ms": 27659.3,
+        "prompt_per_token_ms": 2.977,
+        "prompt_per_second": 335.9,
+        "predicted_n": 768,
+        "predicted_ms": 24283.8,
+        "predicted_per_token_ms": 31.62,
+        "predicted_per_second": 31.6,
+        "draft_n": 556,
+        "draft_n_accepted": 397
+      },
+      "finish": "length",
+      "text_sha256": "05f92e63d05460017fa2240fea7a92df0045e7768663fc0b29c406d10ba0b3ad",
+      "end_to_end_tps": 14.778437508467919,
+      "host_numa_busy_pct": {
+        "prefill": {
+          "0": 64.0,
+          "1": 57.7
+        },
+        "decode": {
+          "0": 20.3,
+          "1": 10.9
+        }
+      }
+    },
+    {
+      "block": 3,
+      "mmq": "ON",
+      "sha256": "f317090230c5ffc8d9800822db5c67b834693bb6a4e87160def01e5f75de47a5",
+      "case": 1614,
+      "elapsed_s": 51.79880140000023,
+      "ttft_s": 27.342518999939784,
+      "usage": {
+        "prompt_tokens": 9292,
+        "completion_tokens": 768,
+        "total_tokens": 10060,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "api_timings": {
+        "cache_n": 0,
+        "prompt_n": 9292,
+        "prompt_ms": 27271.7,
+        "prompt_per_token_ms": 2.935,
+        "prompt_per_second": 340.7,
+        "predicted_n": 768,
+        "predicted_ms": 24497.7,
+        "predicted_per_token_ms": 31.898,
+        "predicted_per_second": 31.3,
+        "draft_n": 556,
+        "draft_n_accepted": 391
+      },
+      "finish": "length",
+      "text_sha256": "9023ddd53bea7c615aba004a65d62f812dc0bf7471db92f969b91c9a18347205",
+      "end_to_end_tps": 14.826597898846297,
+      "host_numa_busy_pct": {
+        "prefill": {
+          "0": 65.4,
+          "1": 62.4
+        },
+        "decode": {
+          "0": 16.9,
+          "1": 15.9
+        }
+      }
+    },
+    {
+      "block": 3,
+      "mmq": "ON",
+      "sha256": "f317090230c5ffc8d9800822db5c67b834693bb6a4e87160def01e5f75de47a5",
+      "case": 1615,
+      "elapsed_s": 53.686490500112996,
+      "ttft_s": 27.842581700067967,
+      "usage": {
+        "prompt_tokens": 9292,
+        "completion_tokens": 768,
+        "total_tokens": 10060,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "api_timings": {
+        "cache_n": 0,
+        "prompt_n": 9292,
+        "prompt_ms": 27776.7,
+        "prompt_per_token_ms": 2.989,
+        "prompt_per_second": 334.5,
+        "predicted_n": 768,
+        "predicted_ms": 25884.0,
+        "predicted_per_token_ms": 33.703,
+        "predicted_per_second": 29.7,
+        "draft_n": 540,
+        "draft_n_accepted": 362
+      },
+      "finish": "length",
+      "text_sha256": "f71c701d13da2c88e5547402602a2dec508e241e1e6fbfd6d1a0fec8e26e7313",
+      "end_to_end_tps": 14.305274806487557,
+      "host_numa_busy_pct": {
+        "prefill": {
+          "0": 65.6,
+          "1": 69.7
+        },
+        "decode": {
+          "0": 24.8,
+          "1": 35.7
+        }
+      }
+    },
+    {
+      "block": 4,
+      "mmq": "OFF",
+      "sha256": "b516446c05ef99027b9bba8f72b1b8ea9ba83ec5f4febfd67e13afe3b93212da",
+      "case": 1614,
+      "elapsed_s": 55.97620110004209,
+      "ttft_s": 30.25996969989501,
+      "usage": {
+        "prompt_tokens": 9292,
+        "completion_tokens": 768,
+        "total_tokens": 10060,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "api_timings": {
+        "cache_n": 0,
+        "prompt_n": 9292,
+        "prompt_ms": 30190.9,
+        "prompt_per_token_ms": 3.249,
+        "prompt_per_second": 307.8,
+        "predicted_n": 768,
+        "predicted_ms": 25757.5,
+        "predicted_per_token_ms": 33.538,
+        "predicted_per_second": 29.8,
+        "draft_n": 551,
+        "draft_n_accepted": 369
+      },
+      "finish": "length",
+      "text_sha256": "b87e23c4dad70dd6e2906123bf0b4b0f8a8208f0d994520a12f0ed6b35087582",
+      "end_to_end_tps": 13.720116494283184,
+      "host_numa_busy_pct": {
+        "prefill": {
+          "0": 64.1,
+          "1": 68.4
+        },
+        "decode": {
+          "0": 20.1,
+          "1": 17.8
+        }
+      }
+    },
+    {
+      "block": 4,
+      "mmq": "OFF",
+      "sha256": "b516446c05ef99027b9bba8f72b1b8ea9ba83ec5f4febfd67e13afe3b93212da",
+      "case": 1615,
+      "elapsed_s": 55.39684919989668,
+      "ttft_s": 29.669878999935463,
+      "usage": {
+        "prompt_tokens": 9292,
+        "completion_tokens": 768,
+        "total_tokens": 10060,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "api_timings": {
+        "cache_n": 0,
+        "prompt_n": 9292,
+        "prompt_ms": 29602.2,
+        "prompt_per_token_ms": 3.186,
+        "prompt_per_second": 313.9,
+        "predicted_n": 768,
+        "predicted_ms": 25769.4,
+        "predicted_per_token_ms": 33.554,
+        "predicted_per_second": 29.8,
+        "draft_n": 552,
+        "draft_n_accepted": 365
+      },
+      "finish": "length",
+      "text_sha256": "4b38aaa17d6da2f605fe29eb6440dc791b5229323cea9e55c03fa873e4abb839",
+      "end_to_end_tps": 13.863604358231846,
+      "host_numa_busy_pct": {
+        "prefill": {
+          "0": 64.4,
+          "1": 60.1
+        },
+        "decode": {
+          "0": 31.9,
+          "1": 15.1
+        }
+      }
+    }
+  ]
+}
