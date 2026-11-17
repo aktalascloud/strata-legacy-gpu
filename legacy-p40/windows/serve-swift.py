@@ -2,12 +2,16 @@
 
 import _thread
 import json
+import math
 import msvcrt
 import os
 from pathlib import Path
+import socket
 import sys
 import threading
 import time
+
+import psutil
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,6 +39,31 @@ def load_server():
     return server
 
 
+def remove_stale_ready(settings):
+    ready = RUNTIME / "ready.json"
+    if ready.is_symlink():
+        raise ValueError("The ready file is a symlink; inspect it before starting.")
+    if not ready.exists():
+        return
+    state = json.loads(ready.read_text(encoding="utf-8-sig"))
+    if (not isinstance(state, dict) or not isinstance(state.get("pid"), int)
+            or state["pid"] <= 0 or state.get("bound_host") != "127.0.0.1"
+            or state.get("bound_port") != settings["port"]
+            or not isinstance(state.get("instance_id"), str)
+            or not isinstance(state.get("created_at"), (int, float))
+            or not math.isfinite(state["created_at"])):
+        raise ValueError("The ready file is invalid; inspect it before starting.")
+    try:
+        process = psutil.Process(state["pid"])
+        if process.create_time() <= state["created_at"] + 1:
+            raise ValueError("The ready file names a running process; inspect it before starting.")
+    except psutil.NoSuchProcess:
+        pass
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("127.0.0.1", settings["port"]))
+        ready.unlink()
+
+
 def run():
     with (RUNTIME / "server.lock").open("a+b") as lock:
         lock.seek(0)
@@ -49,6 +78,7 @@ def run():
         settings = json.loads(config.read_text(encoding="utf-8-sig"))
         if settings.get("host") != "127.0.0.1":
             raise ValueError("This profile serves only on 127.0.0.1")
+        remove_stale_ready(settings)
         return server.main(["--engine", "strata", "--config", str(config),
                             "--host", settings["host"], "--port", str(settings["port"]),
                             "--ready-file", str(RUNTIME / "ready.json"),
