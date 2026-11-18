@@ -24,6 +24,10 @@ Windows, Tesla P40 24 GiB, два Xeon E5-2697 v2 (16 доступных яде�
 | 9 292 токена, контроль | 367.0 tok/s | 30.4 tok/s | 50.62 s |
 | 24 368 токенов, контроль | 344.6 tok/s | 32.5 tok/s | 94.39 s |
 
+Один запрос без чтения кэша с **262 013 входными и 123 выходными токенами** завершился без OOM за 927,5 с. Минимум свободной VRAM по выборке — 37 МиБ; это результат конкретного теста, а не гарантия для любых задач.
+
+One request with **262,013 input and 123 output tokens**, without a cache read, completed without OOM in 927.5 s. The sampled minimum free VRAM was 37 MiB; this is one workload, not a guarantee for every request.
+
 На двух изображениях CPU Vision, 16 потоков, A/B/B/A: медианы повторов нового кодировщика примерно **3.27 с против 8.06 с** и **2.91 с против 7.27 с**. Выходы не побитово идентичны: cosine около 0.99985; реальные OCR-проверки `4217` и `STRATA 42` прошли. Это не гарантия качества на всех изображениях.
 
 On two images, 16-thread CPU Vision A/B/B/A median encoding times were about **3.27 s vs 8.06 s** and **2.91 s vs 7.27 s**. Embeddings were not bit-identical (cosine about 0.99985); real OCR checks returned `4217` and `STRATA 42`. This does not establish quality for every image.

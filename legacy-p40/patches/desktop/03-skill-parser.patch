@@ -1,0 +1,51 @@
+diff --git a/apps/host/server/skill-files.mjs b/apps/host/server/skill-files.mjs
+index e76771ca7..dff3ba613 100644
+--- a/apps/host/server/skill-files.mjs
++++ b/apps/host/server/skill-files.mjs
+@@ -26,9 +26,21 @@ export function parseSkillFile(text) {
+   const raw = String(text ?? '').replace(/^﻿/, '').replace(/\r\n/g, '\n');
+   const m = /^---\n([\s\S]*?)\n---\n?/.exec(raw);
+   if (!m) return { name: null, title: null, description: null, body: raw.trim() };
++  const lines = m[1].split('\n');
+   const field = key => {
+-    const line = new RegExp(`^${key}:\\s*(.*)$`, 'mi').exec(m[1])?.[1]?.trim();
++    const pattern = new RegExp(`^${key}:[ \\t]*(.*)$`, 'i');
++    const index = lines.findIndex(line => pattern.test(line));
++    const line = index < 0 ? undefined : pattern.exec(lines[index])?.[1]?.trim();
+     if (line === undefined) return null;
++    // Descriptions are shown on one line: fold YAML block text without changing the source file.
++    if (/^>(?:[1-9][+-]?|[+-][1-9]?|)(?:[ \t]+#.*)?$/.test(line)) {
++      const pieces = [];
++      for (const next of lines.slice(index + 1)) {
++        if (next.trim() && !/^[ \t]/.test(next)) break;
++        if (next.trim()) pieces.push(next.trim());
++      }
++      return pieces.join(' ') || null;
++    }
+     try { if (/^["']/.test(line)) return typeof JSON.parse(line.replace(/^'(.*)'$/, '"$1"')) === 'string' ? JSON.parse(line.replace(/^'(.*)'$/, '"$1"')) : line; } catch { /* plain scalar */ }
+     return line;
+   };
+diff --git a/apps/host/tests/agent-skills.test.mjs b/apps/host/tests/agent-skills.test.mjs
+index 1a5b62c6a..2129e1e9f 100644
+--- a/apps/host/tests/agent-skills.test.mjs
++++ b/apps/host/tests/agent-skills.test.mjs
+@@ -28,6 +28,19 @@ test('a skill name becomes the kebab-case name the agent requires, and its file
+   assert.deepEqual(parseSkillFile('just text'), { name: null, title: null, description: null, body: 'just text' });
+ });
+ 
++test('folded YAML descriptions are read without changing the skill instructions', () => {
++  for (const marker of ['>', '>-', '>+', '>2-', '>+2', '> # comment']) {
++    const source = `\uFEFF---\r\nname: ponytail\r\ndescription: ${marker}\r\n  Lazy senior dev mode: use this\r\n  for programming, fixes and tests.\r\n\r\n  Keep it small.\r\nlicense: MIT\r\n---\r\n# Ponytail\r\n\r\nOriginal instructions.\r\n`;
++    const parsed = parseSkillFile(source);
++    assert.equal(parsed.name, 'ponytail');
++    assert.equal(parsed.description, 'Lazy senior dev mode: use this for programming, fixes and tests. Keep it small.');
++    assert.equal(parsed.body, '# Ponytail\n\nOriginal instructions.');
++    assert.match(source, /license: MIT/);
++  }
++  assert.equal(parseSkillFile('---\nname: x\ndescription: >\nlicense: MIT\n---\nbody').description, null);
++  assert.equal(parseSkillFile('---\nname: x\ndescription: plain text\n---\nbody').description, 'plain text');
++});
++
+ test('writing a skill refuses a duplicate and an empty name, and materializing makes the agent folder match the list exactly', () => {
+   const dir = mkdtempSync(join(tmpdir(), 'strata-skill-files-'));
+   try {
