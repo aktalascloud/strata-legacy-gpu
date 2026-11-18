@@ -14,6 +14,10 @@ An independent Strata Desktop fork for Windows x64, Tesla P40 and AVX1 CPUs. Run
 - Russian interface, reasoning display, Ponytail and configurable agent-chat compaction. Plain chat and manual `/compact` retain their own upstream behavior.
 - FreeLLM через Kilo: Nemotron 3 Ultra 550B и Dots3-Note Preview 280B без ключа, с лимитами из API. Облако используется только после выбора модели; провайдер может использовать запросы для обучения.
 - FreeLLM through Kilo: keyless Nemotron 3 Ultra 550B and Dots3-Note Preview 280B, with limits discovered from the API. Cloud use requires model selection; the provider may use prompts for training.
+- Для роя выберите помощников в меню субагентов одного чата. Swift составляет текстовые подзадачи и собирает ответы. Поддерживаются сохранённые FreeLLM и KoboldCpp в локальной сети. История и вложения обрабатываются локально.
+- Choose swarm helpers from a chat’s subagent menu. Swift drafts text subtasks and combines the answers. Saved FreeLLM and LAN KoboldCpp models can join. Chat history and attachments stay with the local orchestrator.
+- В настройках можно сохранить медиашлюз KoboldCpp в локальной сети. Strata проверяет доступные функции, открывает Media Studio шлюза и отправляет генерацию звуковых эффектов по явной команде.
+- Save a LAN KoboldCpp media gateway in Settings. Strata checks available features, opens the gateway’s Media Studio, and submits sound-effect requests when asked.
 
 ## Замеры / Measurements
 
@@ -23,6 +27,15 @@ Windows, Tesla P40 24 GiB, два Xeon E5-2697 v2 (16 доступных яде�
 |---|---:|---:|---:|
 | 9 292 токена, контроль | 367.0 tok/s | 30.4 tok/s | 50.62 s |
 | 24 368 токенов, контроль | 344.6 tok/s | 32.5 tok/s | 94.39 s |
+
+Повторное сравнение stock и fork использовало одинаковые AVX1, CUDA 12.9, `sm_61` и MMQ. Каждый запрос сгенерировал 768 токенов без чтения кэша.
+
+| Вход / Input | Stock, ABBA median | Fork, ABBA median | Setup engine |
+|---|---:|---:|---:|
+| 9 292 | 49.61 s | 49.49 s | 49.11 s |
+| 24 368 | 88.63 s | 88.39 s | 88.39 s |
+
+Устойчивый выигрыш патчей в полной задержке не подтвердился. [Хеши, NUMA, VRAM, prefill и decode / Detailed comparison](legacy-p40/research/swift-desktop-ab-20261118.json).
 
 Один запрос без чтения кэша с **262 013 входными и 123 выходными токенами** завершился без OOM за 927,5 с. Минимум свободной VRAM по выборке — 37 МиБ; это результат конкретного теста, а не гарантия для любых задач.
 

@@ -5,8 +5,9 @@ try {
   $service.Connect()
   $folder = $service.GetFolder('\')
   try {
-    $null = $folder.GetTask('Strata - startup')
-    exit 1
+    $task = $folder.GetTask('Strata - startup')
+    if ($task.Enabled) { exit 1 }
+    exit 0
   } catch {
     $code = [BitConverter]::ToUInt32([BitConverter]::GetBytes([int32]$_.Exception.HResult), 0)
     if ($code -eq [uint32]2147942402 -or $code -eq [uint32]2147943568) { exit 0 }

@@ -225,6 +225,9 @@ def configure(install_root: Path, model_dir: Path, mtp_dir: Path | None = None, 
                 raise FileExistsError(f'Существующий путь моделей сохранён: {location}')
         else:
             publish_file_exclusive(location, chosen_path.encode('utf-8'))
+        prefs = root / 'shell-prefs.json'
+        if not prefs.exists() and not prefs.is_symlink():
+            publish_file_exclusive(prefs, b'{"port":0,"tray":true,"language":"ru"}\n')
         publish_file_exclusive(config, (json.dumps(profile, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
         return {"ok": True, "profile": str(config), "mtp": "q2" if mtp else "off",
                 "vision": "cpu-16" if "vision" in profile else "off",

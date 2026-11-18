@@ -1,0 +1,896 @@
+{
+  "method": "ABBA. Fresh model process per arm. Identical uncached prompts matched by case and token count. Temperature 0, seed 42, 768 generated tokens. The Windows CPU sampler measures system-wide utilization by NUMA node.",
+  "stock": "c77572806996349b49995e4f98d41b5294d36a21",
+  "fork": "desktop 475bfcc23 engine files over the same stock build",
+  "release": "Model-free Setup reference, engine 0.1.60.1, source 6399b835e30fa12bcc6593314b14ac439dd2c878",
+  "build_flags": "MSVC 14.44.35207 /O2 /Ob2 /DNDEBUG /arch:AVX, CUDA 12.9 compute_61/sm_61, STRATA_ENABLE_CUDA=ON, STRATA_EXPERIMENTAL_SM60=ON, STRATA_ISA_FLOOR=avx, STRATA_MMQ=ON, STRATA_MMQ_KQUANTS=ON. Release reference also uses deterministic path mapping.",
+  "host": "Windows, Tesla P40 (TCC, driver 582.70, PCIe capability Gen3 x16), two Xeon E5-2697 v2 with eight physical cores each exposed, P40 on NUMA node 0, 256 GiB RAM with 16 modules configured at 1866 MT/s",
+  "profile": "Swift IQ3_S, 262144 context, prefill 1536, Q4 KV, Q2 MTP spec 3, 14 workers, auto experts, 210 MiB reserve. All arms use the same effective profile, except compact sets STRATA_PLE_COMPACT=1.",
+  "profile_sha256": [
+    "0647e2afa1563e0dff3db9d1592fdfaaa8c5ee5e4e1fc98c81c10b701d7e4dd0"
+  ],
+  "binary_sha256": {
+    "stock": {
+      "strata.exe": "a3bb7bde4b2704e6db3c9783106255b42ed8b0664ac3cb706c6b1e6f24ea6b84",
+      "strata_kq.dll": "158306b0c0b11a3989b756a5c2523db511a24006fbb3351651518c28faba0f6e"
+    },
+    "fork": {
+      "strata.exe": "53372c8c21bc52a8a5a19ac15ce2f2f7df9a2de9b3de9ce95a2929aea140e2bd",
+      "strata_kq.dll": "158306b0c0b11a3989b756a5c2523db511a24006fbb3351651518c28faba0f6e"
+    },
+    "release": {
+      "strata.exe": "cfe1f854b5da4a4f1779401b475f9420a9ab2a81e91c88950d974d6c70cdba15",
+      "strata_kq.dll": "33aa05a871a14a5bf1b5d461a49a1db432a2f4245c080cc9e4ef5c398c57bfac"
+    },
+    "compact": {
+      "strata.exe": "53372c8c21bc52a8a5a19ac15ce2f2f7df9a2de9b3de9ce95a2929aea140e2bd",
+      "strata_kq.dll": "158306b0c0b11a3989b756a5c2523db511a24006fbb3351651518c28faba0f6e"
+    }
+  },
+  "decisions": [
+    "The current fork and stock builds completed eight valid uncached ABBA requests. Median full-request changes were 49.606 to 49.491 seconds at 9292 input tokens and 88.631 to 88.395 seconds at 24368 input tokens. Opposite signs between matched pairs and different MTP acceptance do not establish a speedup. Preserve the established profile.",
+    "The exact sanitized release engine and MMQ DLL completed 49.11 seconds at 9292 input and 88.39 seconds at 24368 input. Two successful requests qualify basic real Swift inference on this pair of binaries, not a full 262K soak on these hashes.",
+    "Compact IQ4_NL PLE took 47.79 and 86.51 seconds on one boot of the 0.1.61 fork. Its sampled free VRAM fell 4 MiB relative to control. The GGUF header reported IQ4_NL PLE; the RAM reader supports the compressed path. Existing logs do not prove GPU branch activation. Different text hashes, MTP acceptance, no repeat and no 262K soak rule out deployment on this evidence.",
+    "Runtime logs confirmed 9215 resident expert slots and full 46.84 GiB host expert arena registration. Q4 KV had 20480 cells in VRAM per QSA layer and 1.69 GiB of pinned RAM. On Windows the existing CPU NUMA pool split reports disabled. PR 6157 measured cross-socket staged transfers; for this fully pinned single-GPU profile there is no evidence to merge it.",
+    "Prior local experiments already rejected MTP spec 4 (26.1 vs 26.3 tok/s) and prefill 2048 (slower prefill and no parity qualification). Preserve Q2 MTP spec 3 and prefill 1536. Requantization and expert ranking must use representative calibration data and held-out quality and speed comparisons before replacing the stable IQ3_S model."
+  ],
+  "limitations": [
+    "ABBA uses two paired observations per length. Each extra arm repeats only the first pair. Timings measure this model and profile, not every load or quantization.",
+    "No full-context test was run on the new hashes; the earlier almost-262K pass applies to the previous deployed engine.",
+    "GPU memory, temperature and clocks were sampled before and after requests, not throughout. NUMA utilization is system-wide. Neither measures individual kernel duration or attributes host bandwidth.",
+    "Output hashes and draft counts are included as diagnostics. Neither distinct hashes nor throughput establish a quality difference."
+  ],
+  "upstream_review": {
+    "main": "c77572806996349b49995e4f98d41b5294d36a21",
+    "open_prs": {
+      "6157": "NUMA staging targets transfers through a host ring and multi-GPU placement; no matched single-P40 full-arena improvement",
+      "6196": "Automatic shared-prefix reuse is relevant to repeated multi-client prompts; not a cold-prefill result",
+      "6193": "Native model metadata fidelity, not engine speed",
+      "6190": "Windows MTP download cancellation, not local inference"
+    }
+  },
+  "summary": [
+    {
+      "arm": "compact",
+      "input_tokens": 9292,
+      "runs": 1,
+      "seconds": 47.787,
+      "ttft_seconds": 23.475,
+      "prefill_tps": 396.9,
+      "decode_tps": 31.5
+    },
+    {
+      "arm": "compact",
+      "input_tokens": 24368,
+      "runs": 1,
+      "seconds": 86.509,
+      "ttft_seconds": 62.495,
+      "prefill_tps": 390.5,
+      "decode_tps": 31.9
+    },
+    {
+      "arm": "fork",
+      "input_tokens": 9292,
+      "runs": 2,
+      "seconds": 49.491,
+      "ttft_seconds": 24.04,
+      "prefill_tps": 387.55,
+      "decode_tps": 30.15
+    },
+    {
+      "arm": "fork",
+      "input_tokens": 24368,
+      "runs": 2,
+      "seconds": 88.395,
+      "ttft_seconds": 63.787,
+      "prefill_tps": 382.6,
+      "decode_tps": 31.15
+    },
+    {
+      "arm": "release",
+      "input_tokens": 9292,
+      "runs": 1,
+      "seconds": 49.109,
+      "ttft_seconds": 23.939,
+      "prefill_tps": 389.2,
+      "decode_tps": 30.5
+    },
+    {
+      "arm": "release",
+      "input_tokens": 24368,
+      "runs": 1,
+      "seconds": 88.388,
+      "ttft_seconds": 63.495,
+      "prefill_tps": 384.4,
+      "decode_tps": 30.8
+    },
+    {
+      "arm": "stock",
+      "input_tokens": 9292,
+      "runs": 2,
+      "seconds": 49.606,
+      "ttft_seconds": 24.302,
+      "prefill_tps": 383.55,
+      "decode_tps": 30.35
+    },
+    {
+      "arm": "stock",
+      "input_tokens": 24368,
+      "runs": 2,
+      "seconds": 88.631,
+      "ttft_seconds": 63.721,
+      "prefill_tps": 382.95,
+      "decode_tps": 30.8
+    }
+  ],
+  "pairs": [
+    {
+      "case": 2681,
+      "input_tokens": 9292,
+      "same_output_sha256": false,
+      "fork_vs_stock_pct": {
+        "seconds": 1.81,
+        "ttft_seconds": -3.56,
+        "prefill_tps": 3.7,
+        "decode_tps": -6.69
+      }
+    },
+    {
+      "case": 2682,
+      "input_tokens": 24368,
+      "same_output_sha256": false,
+      "fork_vs_stock_pct": {
+        "seconds": 0.22,
+        "ttft_seconds": 0.21,
+        "prefill_tps": -0.21,
+        "decode_tps": -0.32
+      }
+    },
+    {
+      "case": 2683,
+      "input_tokens": 9292,
+      "same_output_sha256": false,
+      "fork_vs_stock_pct": {
+        "seconds": -2.24,
+        "ttft_seconds": 1.51,
+        "prefill_tps": -1.51,
+        "decode_tps": 5.8
+      }
+    },
+    {
+      "case": 2684,
+      "input_tokens": 24368,
+      "same_output_sha256": false,
+      "fork_vs_stock_pct": {
+        "seconds": -0.75,
+        "ttft_seconds": -0.01,
+        "prefill_tps": 0.03,
+        "decode_tps": 2.61
+      }
+    }
+  ],
+  "references": [
+    {
+      "arm": "release",
+      "case": 2681,
+      "input_tokens": 9292,
+      "same_output_sha256": false,
+      "vs_fork_pct": {
+        "seconds": -1.94,
+        "ttft_seconds": 0.08,
+        "prefill_tps": -0.08,
+        "decode_tps": 4.1
+      }
+    },
+    {
+      "arm": "compact",
+      "case": 2681,
+      "input_tokens": 9292,
+      "same_output_sha256": false,
+      "vs_fork_pct": {
+        "seconds": -4.58,
+        "ttft_seconds": -1.85,
+        "prefill_tps": 1.9,
+        "decode_tps": 7.51
+      }
+    },
+    {
+      "arm": "release",
+      "case": 2682,
+      "input_tokens": 24368,
+      "same_output_sha256": false,
+      "vs_fork_pct": {
+        "seconds": -0.37,
+        "ttft_seconds": -0.52,
+        "prefill_tps": 0.55,
+        "decode_tps": 0.0
+      }
+    },
+    {
+      "arm": "compact",
+      "case": 2682,
+      "input_tokens": 24368,
+      "same_output_sha256": false,
+      "vs_fork_pct": {
+        "seconds": -2.49,
+        "ttft_seconds": -2.09,
+        "prefill_tps": 2.14,
+        "decode_tps": 3.57
+      }
+    }
+  ],
+  "runs": [
+    {
+      "case": 2681,
+      "elapsed_s": 49.19206649999978,
+      "ttft_s": 24.802243000005546,
+      "usage": {
+        "prompt_tokens": 9292,
+        "completion_tokens": 768,
+        "total_tokens": 10060,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "api_timings": {
+        "cache_n": 0,
+        "prompt_n": 9292,
+        "prompt_ms": 24739.0,
+        "prompt_per_token_ms": 2.662,
+        "prompt_per_second": 375.6,
+        "predicted_n": 768,
+        "predicted_ms": 24424.3,
+        "predicted_per_token_ms": 31.802,
+        "predicted_per_second": 31.4,
+        "draft_n": 549,
+        "draft_n_accepted": 382
+      },
+      "finish": "length",
+      "text_sha256": "8d6936b76d6025cba7431a8c673e73819e7b2e3867b468b33ea617565c626ee9",
+      "end_to_end_tps": 15.612273576675284,
+      "host_numa_busy_pct": {
+        "prefill": {
+          "0": 52.1,
+          "1": 42.8
+        },
+        "decode": {
+          "0": 20.2,
+          "1": 3.9
+        }
+      },
+      "arm": "stock",
+      "epoch": "comparison-1",
+      "prompt_rows": 315,
+      "ready_seconds": 57.45300000000134,
+      "gpu_before": {
+        "free_mib": 155,
+        "temperature_c": 51,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "gpu_after": {
+        "free_mib": 45,
+        "temperature_c": 62,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "valid": true
+    },
+    {
+      "case": 2682,
+      "elapsed_s": 88.52080399999977,
+      "ttft_s": 63.69530659999873,
+      "usage": {
+        "prompt_tokens": 24368,
+        "completion_tokens": 768,
+        "total_tokens": 25136,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "api_timings": {
+        "cache_n": 0,
+        "prompt_n": 24368,
+        "prompt_ms": 63602.3,
+        "prompt_per_token_ms": 2.61,
+        "prompt_per_second": 383.1,
+        "predicted_n": 768,
+        "predicted_ms": 24863.9,
+        "predicted_per_token_ms": 32.375,
+        "predicted_per_second": 30.9,
+        "draft_n": 562,
+        "draft_n_accepted": 373
+      },
+      "finish": "length",
+      "text_sha256": "c8e0d62a32602a08288411fa081d6b6d08f9e3d50643d0d259ed0b743cd6285c",
+      "end_to_end_tps": 8.675926621723884,
+      "host_numa_busy_pct": {
+        "prefill": {
+          "0": 53.8,
+          "1": 46.9
+        },
+        "decode": {
+          "0": 19.0,
+          "1": 5.2
+        }
+      },
+      "arm": "stock",
+      "epoch": "comparison-1",
+      "prompt_rows": 830,
+      "ready_seconds": 57.45300000000134,
+      "gpu_before": {
+        "free_mib": 45,
+        "temperature_c": 61,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "gpu_after": {
+        "free_mib": 81,
+        "temperature_c": 76,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "valid": true
+    },
+    {
+      "case": 2681,
+      "elapsed_s": 50.081847400004335,
+      "ttft_s": 23.918587500003923,
+      "usage": {
+        "prompt_tokens": 9292,
+        "completion_tokens": 768,
+        "total_tokens": 10060,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "api_timings": {
+        "cache_n": 0,
+        "prompt_n": 9292,
+        "prompt_ms": 23855.2,
+        "prompt_per_token_ms": 2.567,
+        "prompt_per_second": 389.5,
+        "predicted_n": 768,
+        "predicted_ms": 26197.9,
+        "predicted_per_token_ms": 34.112,
+        "predicted_per_second": 29.3,
+        "draft_n": 577,
+        "draft_n_accepted": 351
+      },
+      "finish": "length",
+      "text_sha256": "ef2a4a7f7b9f15636982c7a453e3055d54d002c844a1a5d1ed576b0d0243383e",
+      "end_to_end_tps": 15.334897570091105,
+      "host_numa_busy_pct": {
+        "prefill": {
+          "0": 51.4,
+          "1": 43.6
+        },
+        "decode": {
+          "0": 18.2,
+          "1": 3.4
+        }
+      },
+      "arm": "fork",
+      "epoch": "comparison-2",
+      "prompt_rows": 315,
+      "ready_seconds": 56.875,
+      "gpu_before": {
+        "free_mib": 155,
+        "temperature_c": 64,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "gpu_after": {
+        "free_mib": 45,
+        "temperature_c": 72,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "valid": true
+    },
+    {
+      "case": 2682,
+      "elapsed_s": 88.71459630000027,
+      "ttft_s": 63.829990599995654,
+      "usage": {
+        "prompt_tokens": 24368,
+        "completion_tokens": 768,
+        "total_tokens": 25136,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "api_timings": {
+        "cache_n": 0,
+        "prompt_n": 24368,
+        "prompt_ms": 63736.2,
+        "prompt_per_token_ms": 2.616,
+        "prompt_per_second": 382.3,
+        "predicted_n": 768,
+        "predicted_ms": 24922.6,
+        "predicted_per_token_ms": 32.451,
+        "predicted_per_second": 30.8,
+        "draft_n": 532,
+        "draft_n_accepted": 364
+      },
+      "finish": "length",
+      "text_sha256": "2bce1b74ef6378de3377561cd2f56043dc7ee97fac789a20994ff03f00c817ca",
+      "end_to_end_tps": 8.656974523142791,
+      "host_numa_busy_pct": {
+        "prefill": {
+          "0": 51.0,
+          "1": 42.9
+        },
+        "decode": {
+          "0": 16.7,
+          "1": 3.3
+        }
+      },
+      "arm": "fork",
+      "epoch": "comparison-2",
+      "prompt_rows": 830,
+      "ready_seconds": 56.875,
+      "gpu_before": {
+        "free_mib": 45,
+        "temperature_c": 71,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "gpu_after": {
+        "free_mib": 81,
+        "temperature_c": 82,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "valid": true
+    },
+    {
+      "case": 2683,
+      "elapsed_s": 48.89945389999775,
+      "ttft_s": 24.160998400002427,
+      "usage": {
+        "prompt_tokens": 9292,
+        "completion_tokens": 768,
+        "total_tokens": 10060,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "api_timings": {
+        "cache_n": 0,
+        "prompt_n": 9292,
+        "prompt_ms": 24097.7,
+        "prompt_per_token_ms": 2.593,
+        "prompt_per_second": 385.6,
+        "predicted_n": 768,
+        "predicted_ms": 24773.5,
+        "predicted_per_token_ms": 32.257,
+        "predicted_per_second": 31.0,
+        "draft_n": 534,
+        "draft_n_accepted": 377
+      },
+      "finish": "length",
+      "text_sha256": "46e550d4ad70602cb70097b0358c4be66153dec295c992206f958812ee40ebc4",
+      "end_to_end_tps": 15.705696868734055,
+      "host_numa_busy_pct": {
+        "prefill": {
+          "0": 52.1,
+          "1": 40.2
+        },
+        "decode": {
+          "0": 18.6,
+          "1": 3.6
+        }
+      },
+      "arm": "fork",
+      "epoch": "comparison-3",
+      "prompt_rows": 315,
+      "ready_seconds": 60.42199999999866,
+      "gpu_before": {
+        "free_mib": 155,
+        "temperature_c": 67,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "gpu_after": {
+        "free_mib": 45,
+        "temperature_c": 74,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "valid": true
+    },
+    {
+      "case": 2684,
+      "elapsed_s": 88.07501299999421,
+      "ttft_s": 63.74302309999621,
+      "usage": {
+        "prompt_tokens": 24368,
+        "completion_tokens": 768,
+        "total_tokens": 25136,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "api_timings": {
+        "cache_n": 0,
+        "prompt_n": 24368,
+        "prompt_ms": 63642.0,
+        "prompt_per_token_ms": 2.612,
+        "prompt_per_second": 382.9,
+        "predicted_n": 768,
+        "predicted_ms": 24368.4,
+        "predicted_per_token_ms": 31.73,
+        "predicted_per_second": 31.5,
+        "draft_n": 547,
+        "draft_n_accepted": 382
+      },
+      "finish": "length",
+      "text_sha256": "67cc9f196a18d6706995ee9f49a372c3d08331fc859286f04572a0ddf224bc18",
+      "end_to_end_tps": 8.719839757503646,
+      "host_numa_busy_pct": {
+        "prefill": {
+          "0": 53.8,
+          "1": 43.2
+        },
+        "decode": {
+          "0": 20.5,
+          "1": 3.8
+        }
+      },
+      "arm": "fork",
+      "epoch": "comparison-3",
+      "prompt_rows": 830,
+      "ready_seconds": 60.42199999999866,
+      "gpu_before": {
+        "free_mib": 45,
+        "temperature_c": 74,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "gpu_after": {
+        "free_mib": 81,
+        "temperature_c": 84,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "valid": true
+    },
+    {
+      "case": 2683,
+      "elapsed_s": 50.01960880000115,
+      "ttft_s": 23.8014028999969,
+      "usage": {
+        "prompt_tokens": 9292,
+        "completion_tokens": 768,
+        "total_tokens": 10060,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "api_timings": {
+        "cache_n": 0,
+        "prompt_n": 9292,
+        "prompt_ms": 23736.1,
+        "prompt_per_token_ms": 2.554,
+        "prompt_per_second": 391.5,
+        "predicted_n": 768,
+        "predicted_ms": 26252.8,
+        "predicted_per_token_ms": 34.183,
+        "predicted_per_second": 29.3,
+        "draft_n": 569,
+        "draft_n_accepted": 342
+      },
+      "finish": "length",
+      "text_sha256": "0427cb862b916301552dafc5d76e867a4017e1e3138754199f601240a7e8cd1d",
+      "end_to_end_tps": 15.353978538112484,
+      "host_numa_busy_pct": {
+        "prefill": {
+          "0": 54.3,
+          "1": 43.3
+        },
+        "decode": {
+          "0": 18.0,
+          "1": 4.7
+        }
+      },
+      "arm": "stock",
+      "epoch": "comparison-4",
+      "prompt_rows": 315,
+      "ready_seconds": 57.95300000000134,
+      "gpu_before": {
+        "free_mib": 155,
+        "temperature_c": 69,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "gpu_after": {
+        "free_mib": 45,
+        "temperature_c": 76,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "valid": true
+    },
+    {
+      "case": 2684,
+      "elapsed_s": 88.74025779999647,
+      "ttft_s": 63.747189399997296,
+      "usage": {
+        "prompt_tokens": 24368,
+        "completion_tokens": 768,
+        "total_tokens": 25136,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "api_timings": {
+        "cache_n": 0,
+        "prompt_n": 24368,
+        "prompt_ms": 63651.0,
+        "prompt_per_token_ms": 2.612,
+        "prompt_per_second": 382.8,
+        "predicted_n": 768,
+        "predicted_ms": 25029.3,
+        "predicted_per_token_ms": 32.59,
+        "predicted_per_second": 30.7,
+        "draft_n": 547,
+        "draft_n_accepted": 360
+      },
+      "finish": "length",
+      "text_sha256": "f3193c2f70d5471fc07611164d8e7f796f98b642bcc2799a07fc9ff68b70663e",
+      "end_to_end_tps": 8.654471139028296,
+      "host_numa_busy_pct": {
+        "prefill": {
+          "0": 52.9,
+          "1": 42.7
+        },
+        "decode": {
+          "0": 20.5,
+          "1": 4.4
+        }
+      },
+      "arm": "stock",
+      "epoch": "comparison-4",
+      "prompt_rows": 830,
+      "ready_seconds": 57.95300000000134,
+      "gpu_before": {
+        "free_mib": 45,
+        "temperature_c": 75,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "gpu_after": {
+        "free_mib": 81,
+        "temperature_c": 85,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "valid": true
+    },
+    {
+      "case": 2681,
+      "elapsed_s": 49.10938599999645,
+      "ttft_s": 23.938738700002432,
+      "usage": {
+        "prompt_tokens": 9292,
+        "completion_tokens": 768,
+        "total_tokens": 10060,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "api_timings": {
+        "cache_n": 0,
+        "prompt_n": 9292,
+        "prompt_ms": 23873.9,
+        "prompt_per_token_ms": 2.569,
+        "prompt_per_second": 389.2,
+        "predicted_n": 768,
+        "predicted_ms": 25205.8,
+        "predicted_per_token_ms": 32.82,
+        "predicted_per_second": 30.5,
+        "draft_n": 560,
+        "draft_n_accepted": 382
+      },
+      "finish": "length",
+      "text_sha256": "a83f12748d5ddae371d3396821ca56bbe0a5faf40daa6099a747e47d82415af6",
+      "end_to_end_tps": 15.638558380674024,
+      "host_numa_busy_pct": {
+        "prefill": {
+          "0": 51.8,
+          "1": 44.6
+        },
+        "decode": {
+          "0": 19.6,
+          "1": 6.7
+        }
+      },
+      "arm": "release",
+      "epoch": "reference-1",
+      "prompt_rows": 315,
+      "ready_seconds": 56.405999999988126,
+      "gpu_before": {
+        "free_mib": 155,
+        "temperature_c": 49,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "gpu_after": {
+        "free_mib": 45,
+        "temperature_c": 60,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "valid": true
+    },
+    {
+      "case": 2682,
+      "elapsed_s": 88.38774730000296,
+      "ttft_s": 63.49549359999946,
+      "usage": {
+        "prompt_tokens": 24368,
+        "completion_tokens": 768,
+        "total_tokens": 25136,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "api_timings": {
+        "cache_n": 0,
+        "prompt_n": 24368,
+        "prompt_ms": 63391.5,
+        "prompt_per_token_ms": 2.601,
+        "prompt_per_second": 384.4,
+        "predicted_n": 768,
+        "predicted_ms": 24927.8,
+        "predicted_per_token_ms": 32.458,
+        "predicted_per_second": 30.8,
+        "draft_n": 557,
+        "draft_n_accepted": 365
+      },
+      "finish": "length",
+      "text_sha256": "93d5ee9b01fa3dc86eb790a476c30d26c298e188a2eac4a53a8a23213bf9bf89",
+      "end_to_end_tps": 8.688987144261954,
+      "host_numa_busy_pct": {
+        "prefill": {
+          "0": 50.5,
+          "1": 43.0
+        },
+        "decode": {
+          "0": 18.9,
+          "1": 5.6
+        }
+      },
+      "arm": "release",
+      "epoch": "reference-1",
+      "prompt_rows": 830,
+      "ready_seconds": 56.405999999988126,
+      "gpu_before": {
+        "free_mib": 45,
+        "temperature_c": 59,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "gpu_after": {
+        "free_mib": 81,
+        "temperature_c": 75,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "valid": true
+    },
+    {
+      "case": 2681,
+      "elapsed_s": 47.787011899999925,
+      "ttft_s": 23.475397899994277,
+      "usage": {
+        "prompt_tokens": 9292,
+        "completion_tokens": 768,
+        "total_tokens": 10060,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "api_timings": {
+        "cache_n": 0,
+        "prompt_n": 9292,
+        "prompt_ms": 23411.1,
+        "prompt_per_token_ms": 2.519,
+        "prompt_per_second": 396.9,
+        "predicted_n": 768,
+        "predicted_ms": 24346.8,
+        "predicted_per_token_ms": 31.702,
+        "predicted_per_second": 31.5,
+        "draft_n": 536,
+        "draft_n_accepted": 389
+      },
+      "finish": "length",
+      "text_sha256": "b24790912bdc6127784cad6130ef53428b2854b7a95ff499bf5ba299d703c969",
+      "end_to_end_tps": 16.071312464715987,
+      "host_numa_busy_pct": {
+        "prefill": {
+          "0": 50.9,
+          "1": 40.4
+        },
+        "decode": {
+          "0": 17.0,
+          "1": 5.8
+        }
+      },
+      "arm": "compact",
+      "epoch": "reference-2",
+      "prompt_rows": 315,
+      "ready_seconds": 60.34399999999732,
+      "gpu_before": {
+        "free_mib": 151,
+        "temperature_c": 63,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "gpu_after": {
+        "free_mib": 41,
+        "temperature_c": 71,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "valid": true
+    },
+    {
+      "case": 2682,
+      "elapsed_s": 86.5091143999889,
+      "ttft_s": 62.49505389999831,
+      "usage": {
+        "prompt_tokens": 24368,
+        "completion_tokens": 768,
+        "total_tokens": 25136,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "api_timings": {
+        "cache_n": 0,
+        "prompt_n": 24368,
+        "prompt_ms": 62394.1,
+        "prompt_per_token_ms": 2.56,
+        "prompt_per_second": 390.5,
+        "predicted_n": 768,
+        "predicted_ms": 24054.2,
+        "predicted_per_token_ms": 31.321,
+        "predicted_per_second": 31.9,
+        "draft_n": 564,
+        "draft_n_accepted": 367
+      },
+      "finish": "length",
+      "text_sha256": "d05692896567b5e8f64cee8f791cd9a52f3eb264ab8fd84bc55239e2a8d87c4b",
+      "end_to_end_tps": 8.877677286684818,
+      "host_numa_busy_pct": {
+        "prefill": {
+          "0": 51.6,
+          "1": 41.1
+        },
+        "decode": {
+          "0": 15.2,
+          "1": 2.4
+        }
+      },
+      "arm": "compact",
+      "epoch": "reference-2",
+      "prompt_rows": 830,
+      "ready_seconds": 60.34399999999732,
+      "gpu_before": {
+        "free_mib": 41,
+        "temperature_c": 70,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "gpu_after": {
+        "free_mib": 77,
+        "temperature_c": 82,
+        "sm_mhz": 1531,
+        "memory_mhz": 3615
+      },
+      "valid": true
+    }
+  ]
+}

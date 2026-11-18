@@ -1,6 +1,7 @@
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -60,8 +61,27 @@ class InstallerSourceTests(unittest.TestCase):
             (root / 'weights.gguf').write_bytes(b'not real weights')
             (root / 'a.exe').write_bytes(b'prefix Z:\\FixtureRoot\\private suffix')
             (root / 'b.exe').write_bytes('Z:/FixtureRoot/private'.encode('utf-16le'))
+            (root / 'VCRUNTIME140_1.dll').write_bytes(b'system prerequisite')
             names = {path for path, _ in scan.scan(root, ['Z:\\FixtureRoot\\'])}
-            self.assertEqual(names, {'weights.gguf', 'a.exe', 'b.exe'})
+            self.assertEqual(names, {'weights.gguf', 'a.exe', 'b.exe', 'VCRUNTIME140_1.dll'})
+
+    def test_vc_receipt_checks_exact_system_copy_on_install(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            windows = root / 'windows'
+            system = windows / 'System32' / 'MSVCP140.dll'
+            app = root / 'app'
+            local = app / 'vision' / system.name
+            for file in (system, local):
+                file.parent.mkdir(parents=True)
+                file.write_bytes(b'fixed system runtime')
+            entry = {'path': 'vision/MSVCP140.dll', 'source': 'windows-vc-runtime'}
+            with mock.patch.dict(os.environ, {'WINDIR': str(windows)}):
+                self.assertEqual(receipt.record(app, entry, fresh=True)['sha256'], receipt.sha256(system))
+                system.write_bytes(b'new system runtime')
+                self.assertEqual(receipt.record(app, entry)['sha256'], receipt.sha256(local))
+                with self.assertRaisesRegex(ValueError, 'differs from System32'):
+                    receipt.record(app, entry, fresh=True)
 
     def test_receipt_is_derived_only_from_install_root_and_hash_manifest(self):
         integrity = {'version': '1', 'build_id': 'fixture',

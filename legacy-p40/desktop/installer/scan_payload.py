@@ -6,6 +6,10 @@ FORBIDDEN_NAMES = {'dense.bin', 'experts.bin', 'expert-profile.bin', 'ready.json
 FORBIDDEN_SUFFIXES = {'.gguf', '.safetensors', '.ckpt', '.pth', '.pt', '.pdb', '.log', '.pyc'}
 
 
+def is_vc_runtime(path):
+    return path.suffix.lower() == '.dll' and path.stem.lower().startswith(('msvcp140', 'vcruntime140', 'vcomp140'))
+
+
 def scan(root, private_prefixes):
     needles = [variant.encode(encoding).lower() for prefix in private_prefixes for variant in {prefix, prefix.replace('\\', '/')} if prefix for encoding in ('utf-8', 'utf-16le')]
     maximum = max(map(len, needles), default=1)
@@ -17,6 +21,9 @@ def scan(root, private_prefixes):
         if not path.is_file():
             continue
         rel = str(path.relative_to(root))
+        if is_vc_runtime(path):
+            failures.append((rel, 'Microsoft VC runtime comes from Windows, not this package'))
+            continue
         if path.name.lower() in FORBIDDEN_NAMES or path.suffix.lower() in FORBIDDEN_SUFFIXES:
             failures.append((rel, 'model, state, debug or log'))
             continue

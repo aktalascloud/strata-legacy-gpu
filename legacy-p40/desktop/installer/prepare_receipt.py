@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 
 
@@ -13,11 +14,28 @@ def sha256(path):
     return h.hexdigest()
 
 
-def receipt(root, integrity):
+def receipt(root, integrity, fresh=False):
     def entries(section):
-        return [{'path': str(root / item['path']), 'sha256': item['sha256']} for item in integrity[section]]
+        return [record(root, item, fresh) for item in integrity[section]]
     return {'version': integrity['version'], 'build_id': integrity['build_id'],
             'files': entries('components'), 'external_files': entries('external')}
+
+
+def record(root, item, fresh=False):
+    path = root / item['path']
+    if item.get('source') == 'windows-vc-runtime':
+        system = Path(os.environ['WINDIR']) / 'System32' / path.name
+        if path.parent != root / 'vision' or path.name.lower() not in {
+            'msvcp140_atomic_wait.dll', 'msvcp140.dll', 'vcomp140.dll', 'vcruntime140_1.dll', 'vcruntime140.dll'
+        }:
+            raise ValueError('Unexpected reference to a system runtime file.')
+        # Setup validates Microsoft's x64 copies. Subsequent launches pin the installed
+        # local copies even if Windows services the system runtime to a new version.
+        digest = sha256(path)
+        if fresh and digest != sha256(system):
+            raise ValueError(f'Installed VC runtime copy differs from System32: {path.name}')
+        return {'path': str(path), 'sha256': digest}
+    return {'path': str(path), 'sha256': item['sha256']}
 
 
 def main():
@@ -31,7 +49,7 @@ def main():
     if sha256(integrity_path) != args.integrity_sha256.lower():
         raise SystemExit('The installer integrity manifest changed.')
     integrity = json.loads(integrity_path.read_text(encoding='utf-8'))
-    expected = (json.dumps(receipt(root, integrity), ensure_ascii=False, sort_keys=True, separators=(',', ':')) + '\n').encode('utf-8')
+    expected = (json.dumps(receipt(root, integrity, fresh=args.create), ensure_ascii=False, sort_keys=True, separators=(',', ':')) + '\n').encode('utf-8')
     path = root / 'dll-receipt.json'
     if args.create:
         if path.exists():

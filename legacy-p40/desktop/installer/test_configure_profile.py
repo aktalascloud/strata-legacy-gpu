@@ -71,6 +71,8 @@ class ConfigureProfileTest(unittest.TestCase):
         self.assertEqual(profile['api_key'], 'none')
         self.assertEqual(profile['parallel'], 1)
         self.assertEqual(profile['ui_resource_profile'], 'performance')
+        self.assertEqual(json.loads((self.root / 'shell-prefs.json').read_text(encoding='utf-8')),
+                         {'port': 0, 'tray': True, 'language': 'ru'})
         self.assertEqual(profile['user_args'], profile['args'])
         self.assertEqual((self.root / 'install' / 'models-directory.txt').read_text(encoding='utf-8').strip(), str(self.model.resolve()))
         uniform = Path(profile['args'][profile['args'].index('--expert-profile') + 1])

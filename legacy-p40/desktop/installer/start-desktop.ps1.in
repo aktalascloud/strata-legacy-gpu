@@ -41,7 +41,7 @@ try {
     STRATA_RUNTIME_DIR = Join-Path $root 'runtime\control'
     STRATA_STATE_DIR = Join-Path $root 'state'
     STRATA_SETTINGS_FILE = Join-Path $root 'app-settings.json'
-    STRATA_DESKTOP_DATA_DIR = Join-Path $root 'logs'
+    STRATA_DESKTOP_DATA_DIR = $root
     STRATA_DESKTOP_AUTOSTART_MODEL = 'swift-1.5-iq3-s'
     STRATA_DESKTOP_AUTOSTART_PORT = '8093'
     STRATA_DESKTOP_LEGACY_LOCK_FILE = Join-Path $root 'runtime\server.lock'
