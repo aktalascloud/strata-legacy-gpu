@@ -24,6 +24,7 @@ import { photoData, uploadChatPhotos, photoHistorySlots, pendingChatPhotos, take
 import { applyNativeEvent, nativeState } from './native';
 import { pictureStatus } from './pictures';
 import { noModelNotice } from './no-model';
+import { canSendToFreeLlm, selectedFreeLlmHelpers } from './free-llm-helpers';
 import { taskHandoverMessage, taskHandoverTitle, chatHandoverMessage, chatHandoverTitle } from './task-handover';
 import type { Task } from './tasks';
 import { postWithFolderFallback } from './folder-pick';
@@ -108,7 +109,7 @@ export interface AppState {
   shareTelemetry: boolean;
   paletteOpen: boolean;
   shortcutsOpen: boolean;
-  settingsSection: 'Appearance' | 'Models' | 'Tools' | 'Storage' | 'Engine' | 'About';
+  settingsSection: 'Appearance' | 'Models' | 'Media' | 'Tools' | 'Storage' | 'Engine' | 'About';
   hardware: Hardware | null;
   library: ModelLibrary | null;
   imageModels: ImageModelLibrary | null;
@@ -971,10 +972,12 @@ export async function bootstrap() {
     if (!setup.complete && !setup.dismissed && !window.location.hash.includes('setup')) navigate('setup');
   } catch (err) {
     set({ ready: true, connection: 'offline' });
+    const failure = plainFailureText(err instanceof Error ? err.message : 'Engine host unreachable');
+    if (failure.kind === 'host-offline') return; // The connection banner already shows this failure and offers Retry.
     pushToast(
       'error',
       'Engine host unreachable',
-      err instanceof Error ? err.message : 'Start it with `npm run host` and reload.',
+      failure.message,
     );
   }
 }
@@ -1781,6 +1784,7 @@ export function branchFrom(messageId: string): string | null {
   const now = new Date().toISOString();
   const branch: Session = {
     ...source,
+    ...(source.preferences?.freeLlmHelpers ? { preferences: { ...source.preferences, freeLlmHelpers: undefined } } : {}),
     id: uid('s'),
     title: `${source.title} (branch)`,
     defaultTitle: false,
@@ -1945,7 +1949,7 @@ export async function approvePlan(sessionId: string, planId: string) {
 /** "Start as goal" (and Resume on a paused plan): the host streams the run like any chat turn. */
 export async function startPlanGoal(planId: string) { await sendMessage('', { planId }); }
 
-export async function sendMessage(text: string, options: { fromLoop?: boolean; goalAction?: 'resume'; planId?: string; shown?: string; title?: string; markdown?: boolean; reattach?: string; requestId?: string } = {}) {
+export async function sendMessage(text: string, options: { fromLoop?: boolean; goalAction?: 'resume'; planId?: string; shown?: string; title?: string; markdown?: boolean; reattach?: string; requestId?: string; allowFreeLlmHelpers?: boolean } = {}) {
   // `reattach`: a turn the host is still running for this chat (or finished while the page was away) is taken over again after a reload, not started.
   const reattach = options.reattach;
   if (state.streaming && !reattach) {
@@ -2042,6 +2046,7 @@ export async function sendMessage(text: string, options: { fromLoop?: boolean; g
     }));
 
   const started = performance.now();
+  const helperNotices = new Set<string>();
 
   const imageSlots=photoHistorySlots(prior,pictures.length);
   /* Text and reasoning arrive token by token (90 a second or more). Drawing the whole answer again for each one made the page do more work for every
@@ -2062,6 +2067,11 @@ export async function sendMessage(text: string, options: { fromLoop?: boolean; g
     waitingTimer ??= setTimeout(flushWaiting, 90);
   };
   try {
+    const native = nativeState(), remoteModel = state.remoteModel;
+    const localSwift = native?.instances.some(i => i.id === native.defaultId && i.model === 'swift-1.5-iq3-s' && i.status === 'ready');
+    const chatPrefs = state.sessions.find(s => s.id === sessionId)?.preferences;
+    const freeLlmHelpers = canSendToFreeLlm(body, { direct: options.allowFreeLlmHelpers === true, hasImages: !!pictures.length }) && !reattach && !planStart && !resume && localSwift && !remoteModel && chatPrefs?.agent !== false
+      ? selectedFreeLlmHelpers(state.providers, chatPrefs?.freeLlmHelpers) : [];
     await streamPost(
       reattach ? '/api/chat/attach' : planStart ? '/api/plan/start-goal' : '/api/chat/stream',
       reattach ? { sessionId, ...(options.requestId ? { requestId: options.requestId } : {}) } : {
@@ -2070,8 +2080,9 @@ export async function sendMessage(text: string, options: { fromLoop?: boolean; g
         ...(resume ? { goalAction: 'resume' } : planStart ? {} : { message: options.shown ? body : body }),
         history:await Promise.all(prior.map(async(m,index)=>{const included=pictureCheck.ok?(m.photos??[]).filter((_,p)=>imageSlots.has(`${index}:${p}`)):[];const omitted=(m.photos??[]).filter(p=>!included.includes(p));const text=m.content+(omitted.length?`\n[Earlier pictures: ${omitted.map(p=>p.name).join(', ')}. Their pixels are outside this model's image context; ask to reattach them if needed.]`:'');return {role:m.role,content:included.length?[{type:'text',text},...await Promise.all(included.map(async photo=>({type:'image_url',image_url:{url:(await photoData(photo)).url}})))]:text};})),
         model: state.library?.loaded ?? state.library?.current ?? null,
-        remoteModel: state.remoteModel,
-        nativeModelId:nativeState()?.instances.length?nativeState()?.defaultId:undefined,
+        remoteModel,
+        nativeModelId: native?.instances.length ? native.defaultId : undefined,
+        ...(freeLlmHelpers.length ? { freeLlmHelpers } : {}),
         ...(pictures.length ? { imageIds: await uploadChatPhotos(pictures, sessionId) } : {}),
         useTools:state.sessions.find(s=>s.id===sessionId)?.preferences?.useTools===true,
         // A chat set to plain talk (preferences.agent === false) never runs a tool: the host answers it directly.
@@ -2140,7 +2151,9 @@ export async function sendMessage(text: string, options: { fromLoop?: boolean; g
         } else if (type === 'notice') {
           // The host says why this chat is not using the agent. One toast per reason per page load.
           const code = String(frame.code ?? 'notice');
-          if (!noticed.has(code)) { noticed.add(code); pushToast('info', 'Agent', plainFailureText(String(frame.message ?? '')).message); }
+          const helper = code === 'swarm-start' || code === 'swarm-partial';
+          const seen = helper ? helperNotices : noticed;
+          if (!seen.has(code)) { seen.add(code); pushToast('info', helper ? 'Parallel helpers' : 'Agent', plainFailureText(String(frame.message ?? '')).message); }
         } else if (type === 'agent-question') {
           addAgentAsk(sessionId, frame as { callId?: unknown; questions?: unknown });
         } else if (type === 'agent-question-end') {

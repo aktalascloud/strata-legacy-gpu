@@ -86,7 +86,7 @@ export function SettingsModels() {
             await saveModelConnection(draft);
             setDraft(null);
             reset();
-            setNotice('Models added. Choose one from the model picker in chat.');
+            setNotice(draft.models.length ? 'Models added. Choose one from the model picker in chat.' : 'LAN connection saved. Fetch models when the server is online.');
         }
         catch (err) {
             setError(err instanceof Error ? err.message : 'Could not save the connection.');
@@ -116,7 +116,7 @@ export function SettingsModels() {
       <fieldset disabled={pending} className="provider-fields">
         {tr(draft.kind === 'provider' ? <div className="input-field"><span>{tr("Provider")}</span><Select ariaLabel={tr("Provider")} value={draft.provider ?? ''} options={providers!.catalog.map(p => ({ value: p.id, label: p.name }))} onChange={value => { const p = providers!.catalog.find(p => p.id === value)!; update({ provider: p.id, name: p.name, baseUrl: p.baseUrl, protocol: p.protocol, apiKey: '', clearKey: true, models: [] }); }}/></div> : null)}
         {tr(draft.kind === 'custom' ? connectionFields : null)}
-        {draft.provider === 'freellm' ? <p className="small" role="note">{tr("FreeLLM sends your messages to Kilo and its providers. They may use prompts and answers to improve models. Do not send confidential data. NVIDIA free models are for trial use.")}</p> : <label className="input-field"><span>{tr("API key ")}{tr(draft.kind === 'custom' ? <span className="muted">{tr("(optional)")}</span> : null)}</span><input className="st-input" type="password" value={draft.apiKey} autoComplete="new-password" placeholder={tr(saved?.apiKeySet && !draft.clearKey ? 'Leave blank to keep the saved key' : 'Enter API key')} spellCheck={false} onChange={e => update({ apiKey: e.target.value, clearKey: false })}/><small className="muted">{tr("Saved on the Strata host, never in browser storage.")}</small></label>}
+        {draft.provider === 'freellm' ? <p className="small" role="note">{tr("FreeLLM sends your messages to Kilo and its providers. They may use prompts and answers to improve models. Do not send confidential data. NVIDIA free models are for trial use.")}</p> : <label className="input-field"><span>{tr("API key ")}{tr(draft.kind === 'custom' || preset?.keyOptional ? <span className="muted">{tr("(optional)")}</span> : null)}</span><input className="st-input" type="password" value={draft.apiKey} autoComplete="new-password" placeholder={tr(saved?.apiKeySet && !draft.clearKey ? 'Leave blank to keep the saved key' : 'Enter API key')} spellCheck={false} onChange={e => update({ apiKey: e.target.value, clearKey: false })}/><small className="muted">{tr("Saved on the Strata host, never in browser storage.")}</small></label>}
         {tr(draft.kind === 'provider' && draft.provider !== 'freellm' ? <details className="provider-options" key={draft.provider} open={!preset?.baseUrl}><summary>{tr("Connection settings")}</summary>{tr(connectionFields)}</details> : null)}
         {tr(saved?.apiKeySet && draft.kind === 'custom' ? <label className="row small"><input type="checkbox" checked={draft.clearKey ?? false} onChange={e => update({ clearKey: e.target.checked, apiKey: '' })}/>{tr("Remove saved API key")}</label> : null)}
         <div className="provider-models">
@@ -137,7 +137,7 @@ export function SettingsModels() {
         </div>
       </fieldset>
       {tr(error ? <ErrorNotice message={error}/> : null)}
-      <div className="provider-actions">{tr(draft.id ? <Btn variant="ghost" size="sm" disabled={pending || streaming} onClick={() => setRemove(true)}>{tr("Remove connection")}</Btn> : null)}<span className="spacer"/><Btn disabled={pending} onClick={() => { reset(); setDraft(null); }}>{tr("Cancel")}</Btn><Btn variant="primary" disabled={pending || fetching || !draft.models.length || !draft.name.trim() || !draft.baseUrl.trim()} onClick={() => void apply()}>{tr(pending ? 'Saving…' : 'Apply')}</Btn></div>
+      <div className="provider-actions">{tr(draft.id ? <Btn variant="ghost" size="sm" disabled={pending || streaming} onClick={() => setRemove(true)}>{tr("Remove connection")}</Btn> : null)}<span className="spacer"/><Btn disabled={pending} onClick={() => { reset(); setDraft(null); }}>{tr("Cancel")}</Btn><Btn variant="primary" disabled={pending || fetching || (!draft.models.length && draft.provider !== 'koboldcpp-lan') || !draft.name.trim() || !draft.baseUrl.trim()} onClick={() => void apply()}>{tr(pending ? 'Saving…' : 'Apply')}</Btn></div>
     </div>)}
     {tr(!draft && notice ? <p role="status" className="small muted">{tr(notice)}</p> : null)}
     {tr(!draft && error ? <ErrorNotice message={error}/> : null)}

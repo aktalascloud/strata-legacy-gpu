@@ -4,6 +4,7 @@ import { useRef, type ReactNode } from 'react';
 import { Btn, Field, Icon, Select, type IconName } from '../components/ui';
 import { Brand } from '../components/Brand';
 import { SettingsModels } from '../components/SettingsModels';
+import { SettingsMedia } from '../components/SettingsMedia';
 import { SettingsTools } from '../components/SettingsTools';
 import { SettingsStorage } from '../components/SettingsStorage';
 import { PrivacyNotes } from '../components/PrivacyNotes';
@@ -16,7 +17,7 @@ import { ApprovalNotifySetting, DoneSoundSetting, PortSetting, TraySetting, useS
 import { LANGUAGES } from '../lib/i18n';
 import { setLanguage, setWhileBusy } from '../lib/store';
 import { CONTENT_FONT_RANGE, setContentFontSize, setDensity, setFocus, setMotion, setShortcuts, setTheme, setTransparency, setUiScale, UI_SCALES, useStore, setSettingsSection } from '../lib/store';
-const PANELS = [{ name: 'Appearance', icon: 'sun', sections: ['General', 'Reading & focus'] }, { name: 'Models', icon: 'models', sections: [] }, { name: 'Tools', icon: 'tool', sections: [] }, { name: 'Storage', icon: 'disk', sections: ['Storage'] }, { name: 'Engine', icon: 'engine', sections: [] }, { name: 'About', icon: 'info', sections: ['About', 'Update', 'Privacy'] }] as const;
+const PANELS = [{ name: 'Appearance', icon: 'sun', sections: ['General', 'Reading & focus'] }, { name: 'Models', icon: 'models', sections: [] }, { name: 'Media', icon: 'image', sections: [] }, { name: 'Tools', icon: 'tool', sections: [] }, { name: 'Storage', icon: 'disk', sections: ['Storage'] }, { name: 'Engine', icon: 'engine', sections: [] }, { name: 'About', icon: 'info', sections: ['About', 'Update', 'Privacy'] }] as const;
 export function SettingsScreen() {
     const prefs = useStore(s => s);
     const [shell, saveShell] = useShellState();
@@ -65,7 +66,7 @@ export function SettingsScreen() {
     </nav>
     <div className="settings-pane" ref={scrollRef}>
       {tr(PANELS.map(panel => <div key={panel.name} role="tabpanel" tabIndex={0} id={`settings-panel-${panel.name}`} aria-labelledby={`settings-tab-${panel.name}`} hidden={active !== panel.name}>
-        {tr(panel.name === 'Models' ? <SettingsModels /> : panel.name === 'Tools' ? (active === panel.name ? <SettingsTools /> : null) : panel.name === 'Engine' && active === panel.name ? <div className="stack stack--lg settings-body"><section className="settings-section"><h2 className="h3" style={{ marginBottom: 14 }}>{tr("Engine")}</h2><NativeOperations /></section></div> : active === panel.name ? <div className="stack stack--lg settings-body">
+        {tr(panel.name === 'Models' ? <SettingsModels /> : panel.name === 'Media' ? (active === panel.name ? <SettingsMedia /> : null) : panel.name === 'Tools' ? (active === panel.name ? <SettingsTools /> : null) : panel.name === 'Engine' && active === panel.name ? <div className="stack stack--lg settings-body"><section className="settings-section"><h2 className="h3" style={{ marginBottom: 14 }}>{tr("Engine")}</h2><NativeOperations /></section></div> : active === panel.name ? <div className="stack stack--lg settings-body">
           {tr(panel.sections.map(section => <section className="settings-section" key={section}>
             <h2 className="h3" style={{ marginBottom: 14 }}>{tr(section)}</h2>
             <div className="st-card st-card--flush">

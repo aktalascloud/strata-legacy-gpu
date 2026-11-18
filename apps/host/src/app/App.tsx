@@ -100,10 +100,10 @@ function ConnectionBar() {
         return null;
     const offline = connection === 'offline';
     return (<div className="connbar" data-state={connection} role="status">
-      <span className="connbar__dot"/>
+      <span className="connbar__dot" aria-hidden="true"/>
       <span className="connbar__text">
         {tr(offline ? (<>
-            <strong>{tr("Strata isn\u2019t connected to its engine.")}</strong>{tr(" Your conversation and drafts are kept while it reconnects.")}</>) : (<>{tr("Connecting to the local engine\u2026")}</>))}
+            <strong>{tr("Engine host unreachable")}</strong><span className="connbar__note">{tr("Your conversation and drafts are kept while it reconnects.")}</span></>) : (<>{tr("Connecting to the local engine\u2026")}</>))}
       </span>
       {tr(offline ? (<Btn variant="secondary" size="sm" icon="refresh" disabled={retrying} onClick={() => {
                 setRetrying(true);
@@ -111,7 +111,7 @@ function ConnectionBar() {
             }}>
           {tr(retrying ? 'Retrying…' : 'Retry')}
         </Btn>) : null)}
-      {tr(offline ? <details className="connection-details"><summary>{tr("Connection details")}</summary><p className="xs">{tr("App host: ")}{tr(window.location.origin)}{tr(". Retained readings may be stale. Start the configured engine host, then retry.")}</p></details> : null)}
+      {tr(offline ? <details className="connbar__details"><summary>{tr("Connection details")}</summary><p className="xs">{tr("App host: ")}{window.location.origin}{tr(". Retained readings may be stale. Start the configured engine host, then retry.")}</p></details> : null)}
     </div>);
 }
 /**

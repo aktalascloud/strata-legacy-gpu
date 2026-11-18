@@ -1,5 +1,6 @@
 import { validMcpName, MCP_NAME_HELP } from './mcp-names.mjs';
 import { SPEED_SWITCH_TABLE, DRAFTING_FAMILIES as GENERATED_DRAFTING_FAMILIES, DFLASH2_MODEL_PATTERN } from './policy-generated.mjs';
+import { LOCAL_RUN_FIELDS } from './native-run-settings.mjs';
 /** Editable native keys. Unknown config keys and program paths stay intact. */
 /* The Drafting hint, word for word, with the size of the drafter this model would really fetch (the tuned one is 0.34 GB, 0.52 on an Arc card; the stock one 1.2). */
 export function draftingHint(gb=1.2){const size=Number.isFinite(Number(gb))&&Number(gb)>0?Number(gb):1.2;return `Which drafter guesses words ahead to make answers faster, one at a time. Auto (recommended) is DFlash2 for Qwen3.8-Flash-Next where the engine has it, the MTP otherwise; on two or more identical graphics cards that the all-cards split engine takes, it is that engine with the MTP draft layer. DFlash2 downloads a ${size} GB drafter once, the MTP its draft layer once. With Auto, several requests at once use the MTP. If you choose DFlash2 yourself, it runs with the number of requests you set. If DFlash2 cannot run, the MTP is used alone and Details says why. Off turns the drafter off.`;}
@@ -91,7 +92,7 @@ export function withoutDraftLayer(args){
  for(let i=0;i<list.length;i++){const a=list[i];if(a==='--batch-mtp')continue;if(a==='--mtp'||a==='--spec-min-p'){if(i+1<list.length&&!list[i+1].startsWith('--'))i++;continue;}out.push(a);}
  return out;
 }
-export function validateNativeSettings(values){
+export function validateNativeSettings(values,{local=false}={}){
  if(!values||typeof values!=='object'||Array.isArray(values))throw new Error('Native settings must be an object.');
  const result={};
  for(const [key,value] of Object.entries(values)){
@@ -99,13 +100,14 @@ export function validateNativeSettings(values){
   if(key==='args'){if(!Array.isArray(value)||value.length>200||value.some(v=>typeof v!=='string'||v.length>4000||/[\n\r\0]/.test(v))||value.some(v=>['--host','--port','--api-key'].includes(v)))throw new Error('Engine arguments must be text values. Network access stays managed by Strata.');result.args=[...value];continue;}
   if(key==='env'){if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('Engine environment must be an object.');const env={};for(const [name,text] of Object.entries(value)){if(!ENV_FLAG.test(name)||typeof text!=='string'||text.length>4000||text.includes('\0'))throw new Error('Use STRATA_ environment flags with text values.');env[name]=text;}result.env=env;continue;}
   if(key==='sampling'){if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('Sampling must be an object.');const limits={temperature:[0,10],top_p:[Number.MIN_VALUE,1],top_k:[1,64],min_p:[0,1],repetition_penalty:[Number.MIN_VALUE,10],presence_penalty:[0,10],frequency_penalty:[0,10],penalty_last_n:[0,1048576],seed:[1,2147483647]};for(const [name,n] of Object.entries(value)){if(name==='experimental_speed_projection'){if(typeof n!=='boolean')throw new Error('Speed projection must be on or off.');continue;}if(!limits[name]||!Number.isFinite(n)||(['top_k','seed','penalty_last_n'].includes(name)&&!Number.isInteger(n))||n<limits[name][0]||n>limits[name][1])throw new Error(`Choose a valid sampling ${name}.`);}result.sampling={...value};continue;}
-  const field=NATIVE_FIELDS.find(f=>f.id===key);if(!field)throw new Error(`Unknown native setting: ${key}`);
+  const field=NATIVE_FIELDS.find(f=>f.id===key)??(local?LOCAL_RUN_FIELDS.find(f=>f.id===key):undefined);if(!field)throw new Error(`Unknown native setting: ${key}`);
   if(value===null||value===''){result[key]=null;continue;}
   if(field.type==='number'&&(!Number.isFinite(value)||value<field.min||value>field.max||!Number.isInteger(value)))throw new Error(`${field.label}: choose a whole number from ${field.min} to ${field.max}.`);
   if(field.type==='boolean'&&typeof value!=='boolean')throw new Error(`${field.label}: choose on or off.`);
   if(field.type==='string'&&(typeof value!=='string'||value.length>256))throw new Error(`${field.label}: enter at most 256 characters.`);
   if(field.type==='enum'&&!field.choices.includes(value))throw new Error(`${field.label}: choose a supported option.`);
   if(field.type==='array'&&(!Array.isArray(value)||value.length>24||value.some(v=>typeof v!=='string'||!v.trim()||v.length>80)||new Set(value).size!==value.length))throw new Error('Choose distinct model aliases, up to 80 characters each.');
+  if(key==='prefill_chunk'&&!(/^(?:auto(?::(?:8192|16384|32768))?)$/.test(value)||(/^\d{1,5}$/.test(value)&&Number(value)<=32768)))throw new Error('Choose a prefill chunk in tokens, or enter auto.');
   if(key==='layer_split'&&value!=='auto'){const points=value.split(',').map(Number);if(!points.length||points.some((n,i)=>!Number.isInteger(n)||n<1||n>=48||(i>0&&n<=points[i-1])))throw new Error('Layer split points must increase from 1 to 47, for example 16,32.');}
   result[key]=value;
  }

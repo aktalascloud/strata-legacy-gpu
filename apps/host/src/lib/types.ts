@@ -473,7 +473,7 @@ export interface Session {
   previewOpen?: string;
   closedPreviews?: string[];
   showcaseAgentStates?: boolean;
-  preferences?: { access?: 'read' | 'write' | 'full'; thinking?: string; thinkingBudget?: number; mode?: ChatMode; useTools?:boolean; /** false: plain conversation, no tools of any kind. */ agent?: boolean; /** This chat's API model; absent or null means the local model. */ remoteModel?: RemoteModelSelection | null };
+  preferences?: { access?: 'read' | 'write' | 'full'; thinking?: string; thinkingBudget?: number; mode?: ChatMode; useTools?:boolean; /** false: plain conversation, no tools of any kind. */ agent?: boolean; /** This chat's API model; absent or null means the local model. */ remoteModel?: RemoteModelSelection | null; freeLlmHelpers?: RemoteModelSelection[] };
   /** A branch does not have retained per-turn input usage. */
   statsAvailable?: boolean;
   id: string;

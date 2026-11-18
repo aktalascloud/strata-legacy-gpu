@@ -143,6 +143,12 @@ export function get() {
   return state;
 }
 
+export function setMediaGateway(url) {
+  const next = { ...state, mediaGateway: url };
+  writeFileSync(STATE_FILE, JSON.stringify(next, null, 2));
+  state = next;
+}
+
 export function save() {
   try {
     writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));

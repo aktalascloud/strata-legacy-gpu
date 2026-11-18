@@ -224,14 +224,22 @@ test('the running local Swift profile reports its own ID, KV and CPU vision sett
   try {
     const dirs = [join(f.root, 'cuda'), join(f.root, 'vision')], path = join(f.install, 'strata-swift-1.5-iq3-s.json'), vision = join(f.root, 'engine', 'strata-vision.exe');
     writeFileSync(vision, 'fixture');
-    const cfg = JSON.parse(readFileSync(path, 'utf8')); Object.assign(cfg, { host: '127.0.0.1', port: 8093, api_key: 'none', lib_dirs: dirs, args: ['--max-context','262144','--kv','q4_0'], vision: { gpu: false, threads: 16, exe: vision } });
+    const args = ['--max-context','262144','--kv','q4_0','--prefill','1536','--pool-workers','14','--vram-reserve-mib','210'];
+    const cfg = JSON.parse(readFileSync(path, 'utf8')); Object.assign(cfg, { host: '127.0.0.1', port: 8093, api_key: 'none', lib_dirs: dirs, args, user_args: args, vision: { gpu: false, threads: 16, max_tokens: 300, exe: vision } });
     writeFileSync(path, JSON.stringify(cfg)); await f.native.refresh(true);
     const model = f.native.state().installed.models[0];
     assert.equal(model.model, 'swift-1.5-iq3-s'); assert.equal(model.catalogId, 'swift-iq3_s'); assert.equal(model.kv, 'q4_0'); assert.equal(model.visionDevice, 'cpu');
+    const values = f.native.settings(model.model).values;
+    assert.deepEqual([values.context_tokens, values.kv_format, values.prefill_chunk, values.pool_workers, values.vram_reserve_mib, values.vision_device, values.vision_threads, values.vision_tokens], [262144, 'q4_0', '1536', 14, 210, 'cpu', 16, 300]);
+    const rawArgs = values.args.map((value, index) => values.args[index - 1] === '--prefill' ? '1024' : value);
+    const saved = f.native.save(model.model, { values: { args: rawArgs, pool_workers: 12, vision_threads: 15 } }).values;
+    assert.deepEqual([saved.prefill_chunk, saved.pool_workers, saved.vision_threads, saved.vram_reserve_mib], ['1024', 12, 15, 210]);
     f.native.enableLegacyAutostart({ directories: dirs, components: new Map(['strata.exe','strata_kq.dll','strata-vision.exe'].map(name => [name, 'a'.repeat(64)])) });
     const job = await finish(f.native, f.native.operation('load', { model: model.model, port: 8093 }).id);
     assert.equal(job.state, 'done', job.error);
-    assert.deepEqual(f.native.resolveInstance(model.model).runSettings, { context: 262144, kv: 'q4_0', vision: 'cpu', visionThreads: 16 });
+    assert.deepEqual(f.native.resolveInstance(model.model).runSettings, { context: 262144, kv: 'q4_0', vision: 'cpu', visionThreads: 15 });
+    assert.equal(f.saved.at(-1).args[f.saved.at(-1).args.indexOf('--prefill') + 1], '1024');
+    assert.equal(f.saved.at(-1).args[f.saved.at(-1).args.indexOf('--pool-workers') + 1], '12');
   } finally {
     await f.native.close(); f.cleanup();
     if (prevModel === undefined) delete process.env.STRATA_DESKTOP_AUTOSTART_MODEL; else process.env.STRATA_DESKTOP_AUTOSTART_MODEL = prevModel;

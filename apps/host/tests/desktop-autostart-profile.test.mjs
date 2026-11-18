@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { acquireLegacyOwner, autostartPortAvailable, desktopAutostartConfig, legacyLocalConfig, shutdownLegacy, verifyLegacyComponent, verifyLegacyDependencies, watchAutostartJob } from '../server/desktop-autostart-profile.mjs';
+import { acquireLegacyOwner, autostartPortAvailable, desktopAutostartConfig, legacyLocalConfig, relocateAutostartModel, shutdownLegacy, verifyLegacyComponent, verifyLegacyDependencies, watchAutostartJob } from '../server/desktop-autostart-profile.mjs';
 import { createHash } from 'node:crypto';
 
 const enabled = { STRATA_DESKTOP_AUTOSTART_MODEL: 'swift-1.5-iq3-s', STRATA_DESKTOP_AUTOSTART_PORT: '8093' };
@@ -35,7 +35,7 @@ test('ordinary saved settings survive a new start while verified library paths s
   assert.throws(() => legacyLocalConfig({ ...saved, exe: 'C:\\other.exe' }, profile, profile, dirs), /verified engine/);
 });
 
-test('failed and cancelled asynchronous model starts request shutdown; a successful start does not', async () => {
+test('failed and cancelled asynchronous model starts are reported; a successful start is not a failure', async () => {
   for (const state of ['error', 'cancelled']) {
     const failure = await new Promise(resolve => watchAutostartJob({ state: () => ({ jobs: [{ id: '1', state, error: 'start failed' }] }) }, '1', resolve));
     assert.equal(failure, 'start failed');
@@ -43,6 +43,30 @@ test('failed and cancelled asynchronous model starts request shutdown; a success
   let failed = false;
   watchAutostartJob({ state: () => ({ jobs: [{ id: '1', state: 'done' }] }) }, '1', () => { failed = true; });
   assert.equal(failed, false);
+});
+
+test('autostart can repair a flattened GGUF library only when all model and projector files exist', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'strata-relocated-model-'));
+  t.after(() => rm(dir, {recursive: true, force: true}));
+  const part = n => `swift-0000${n}-of-00002.gguf`;
+  const old = join(dir, 'previous', part(1));
+  const projector = join(dir, 'previous', 'projector.gguf');
+  const configPath = join(dir, 'config.json');
+  const config = { args: ['--native', old, '--kv', 'q4_0'], user_args: ['--ple-gguf', old],
+    args_written: ['--native', old], vision: { model: old, mmproj: projector, threads: 16 } };
+  const serialized = JSON.stringify(config);
+  await writeFile(configPath, serialized);
+  await writeFile(join(dir, part(1)), 'GGUF');
+  await writeFile(join(dir, 'projector.gguf'), 'GGUF');
+  assert.equal(relocateAutostartModel(configPath, dir), false);
+  assert.equal(await readFile(configPath, 'utf8'), serialized);
+  await writeFile(join(dir, part(2)), 'GGUF');
+  assert.equal(relocateAutostartModel(configPath, dir), true);
+  const saved = JSON.parse(await readFile(configPath, 'utf8'));
+  const current = join(dir, part(1));
+  assert.deepEqual(saved, { args: ['--native', current, '--kv', 'q4_0'], user_args: ['--ple-gguf', current],
+    args_written: ['--native', current], vision: { model: current, mmproj: join(dir, 'projector.gguf'), threads: 16 } });
+  assert.equal(relocateAutostartModel(configPath, dir), false);
 });
 
 test('the autostart watcher reports state changes before its failure callback', async () => {

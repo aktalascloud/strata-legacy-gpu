@@ -1,7 +1,7 @@
 import { createServer } from 'node:net';
 import { spawn } from 'node:child_process';
-import { lstatSync, readFileSync, createReadStream } from 'node:fs';
-import { createHash } from 'node:crypto';
+import { lstatSync, readFileSync, createReadStream, statSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
+import { createHash, randomUUID } from 'node:crypto';
 import { basename, dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -13,6 +13,42 @@ export function desktopAutostartConfig(env = process.env) {
     throw new Error('Desktop autostart requires a valid model and port 8093.');
   }
   return { model, port: 8093 };
+}
+
+// Recover a model moved to the root of the configured library, keeping every other setting.
+export function relocateAutostartModel(configPath, modelsDir) {
+  if (!isAbsolute(modelsDir ?? '') || !lstatSync(configPath, { throwIfNoEntry: false })?.isFile()) return false;
+  const config = JSON.parse(readFileSync(configPath, 'utf8').replace(/^\uFEFF/, ''));
+  const isFile = path => statSync(path, { throwIfNoEntry: false })?.isFile() === true;
+  let changed = false;
+  let unresolved = false;
+  function relocate(path) {
+    if (typeof path !== 'string' || !isAbsolute(path) || !/\.gguf$/i.test(path) || isFile(path)) return path;
+    const candidate = join(modelsDir, basename(path));
+    const shard = /^(.*)-\d{5}-of-(\d{5})(\.gguf)$/i.exec(candidate);
+    const complete = isFile(candidate) && (!shard || (
+      Number(shard[2]) > 0 && Number(shard[2]) <= 100 &&
+      Array.from({ length: Number(shard[2]) }, (_, i) =>
+        isFile(`${shard[1]}-${String(i + 1).padStart(5, '0')}-of-${shard[2]}${shard[3]}`)).every(Boolean)
+    ));
+    if (!complete) { unresolved = true; return path; }
+    changed = true;
+    return candidate;
+  }
+  for (const key of ['args', 'user_args', 'args_written']) {
+    const args = config[key];
+    if (!Array.isArray(args)) continue;
+    for (let i = 0; i + 1 < args.length; i++) {
+      if (['--native', '--ple-gguf'].includes(args[i])) args[++i] = relocate(args[i]);
+    }
+  }
+  for (const key of ['model', 'mmproj']) if (config.vision && key in config.vision) config.vision[key] = relocate(config.vision[key]);
+  if (!changed || unresolved) return false;
+  const temp = `${configPath}.${randomUUID()}.tmp`;
+  writeFileSync(temp, JSON.stringify(config, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
+  try { renameSync(temp, configPath); }
+  catch (error) { unlinkSync(temp); throw error; }
+  return true;
 }
 
 export function legacyLocalConfig(config, profile, args, dependencyDirs = null) {

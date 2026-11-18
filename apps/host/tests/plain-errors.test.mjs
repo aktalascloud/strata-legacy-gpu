@@ -31,6 +31,7 @@ const cases = [
   ['Loading took more than five minutes. Check the engine log and free memory.', 'slow-load', /taking too long/],
   ['No engine for this PC was found in C:/x/components: the component folder holds no engine package. The app never downloads an engine while it starts or serves.', 'engine-missing', /engine for this computer isn’t installed yet/],
   ['cannot reach huggingface.co (<urlopen error [Errno 11001] getaddrinfo failed>)', 'network', /couldn’t reach the internet/],
+  ['Failed to fetch', 'host-offline', /Engine host unreachable/],
   ['sha256 mismatch for Qwen3.8-Flash-Next-00001-of-00002.gguf', 'integrity', /safety check/],
   ['The agent component (DeepSeek Harness) is not installed.', 'assistant-missing', /coding assistant isn’t installed/],
   ['component-missing', 'assistant-missing', /coding assistant/],

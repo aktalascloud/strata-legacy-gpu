@@ -6,6 +6,7 @@ import { lazyScreen } from '../lib/lazy-screen';
 import { measureFrame } from '../lib/overlay-place';
 import { timeSkipPrompt, timeSkipTabId, type TimeSkipRun } from '../lib/time-skip';
 import { ChatToolbar } from '../components/ChatToolbar';
+import { canSendToFreeLlm } from '../lib/free-llm-helpers';
 import { ChatTelemetry } from '../components/TelemetryPopover';
 import { ArtifactCard } from '../components/ArtifactCard';
 import { ChatMedia } from '../components/ChatMedia';
@@ -479,7 +480,9 @@ export function ChatScreen() {
         }
         updateDraft('');
         if (session) clearQuotes(session.id);
-        void sendMessage(session ? quotedMessage(quotes, text) : text);
+        void sendMessage(session ? quotedMessage(quotes, text) : text, {
+            allowFreeLlmHelpers: canSendToFreeLlm(text, { direct: true, hasQuotes: !!quotes.length, hasImages: !!queuedPhotos.length }),
+        });
     }
     function onComposerKey(_e: React.KeyboardEvent) { }
     if (!session) {

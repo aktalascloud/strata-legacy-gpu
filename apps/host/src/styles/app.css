@@ -3632,10 +3632,11 @@ textarea.st-input {
 /* ---- connection state ------------------------------------------------------ */
 .connbar {
   flex: none;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
-  padding: 10px 28px;
+  gap: 6px 12px;
+  padding: 10px clamp(12px, 2vw, 28px);
   font-size: var(--st-fs-sm);
   background: var(--st-warn-tint);
   color: var(--st-warn-text);
@@ -3646,15 +3647,23 @@ textarea.st-input {
   color: var(--st-danger-text);
 }
 .connbar__dot {
-  flex: none;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: currentColor;
 }
 .connbar__text {
-  flex: 1;
-  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.connbar__note {
+  display: block;
+}
+.connbar__details {
+  grid-column: 2 / -1;
+  overflow-wrap: anywhere;
+}
+.connbar__details p {
+  margin: 4px 0 0;
 }
 
 /* The recommended model carries one step more weight than the rest.
@@ -4854,14 +4863,6 @@ textarea.config-editor.st-input {
   overflow-wrap: anywhere;
 }
 
-.connection-details {
-  flex-basis: 100%;
-  margin-inline-start: 24px;
-}
-.connectionbar {
-  flex-wrap: wrap;
-}
-
 /* Engine / models / onboarding: tactile controls, opaque information surfaces. */
 .eyebrow {
   display: block;
@@ -5915,6 +5916,8 @@ button.menu__item:disabled { opacity: .5; cursor: default; }
 .agent-summary__metrics { display: flex; flex-direction: column; gap: 5px; text-align: right; color: var(--st-ink-muted); font-size: var(--st-fs-xs); white-space: nowrap; }
 .anchored-popover { min-width: 0; max-height: calc(100dvh - 24px); overflow: auto; }
 .anchored-popover .telepop__head { justify-content: space-between; }
+.cloud-helper-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; }
+.media-gateway-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .popover-note { margin: 12px 0 0; line-height: 1.6; }
 .context-meter { height: 6px; margin: 8px 0 14px; background: var(--st-surface-2); border-radius: 999px; overflow: hidden; }
 .context-meter > span { display: block; height: 100%; background: var(--st-accent); border-radius: inherit; }

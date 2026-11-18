@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { makePrivate } from './private-file.mjs';
 import { FREELLM_MODELS, FREELLM_URL } from './freellm.mjs';
+import { isLanKobold } from './lan-kobold.mjs';
 
 export const PROVIDER_CATALOG = [
   { id: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', protocol: 'openai-responses' },
@@ -29,6 +30,7 @@ export const PROVIDER_CATALOG = [
   { id: 'xai', name: 'xAI', baseUrl: 'https://api.x.ai/v1', protocol: 'openai-responses' },
   { id: 'zai', name: 'Z.AI', baseUrl: 'https://api.z.ai/api/paas/v4', protocol: 'openai-chat' },
   { id: 'freellm', name: 'FreeLLM · Kilo', baseUrl: FREELLM_URL, protocol: 'openai-chat', keyOptional: true },
+  { id: 'koboldcpp-lan', name: 'KoboldCpp · LAN', baseUrl: '', protocol: 'openai-chat', keyOptional: true },
 ];
 const PROTOCOLS = ['openai-chat', 'openai-responses', 'anthropic'];
 const fail = message => { throw new Error(message); };
@@ -50,6 +52,7 @@ export function normalizeBaseUrl(value) {
   return url.href.replace(/\/+$/, '');
 }
 const publicConnection = ({ apiKey, ...connection }) => ({ ...connection, apiKeySet: !!apiKey });
+export const providerTarget = connection => JSON.stringify([connection.kind, connection.provider, connection.protocol, connection.baseUrl]);
 const numeric = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 const zeroPrice = value => (typeof value === 'number' || (typeof value === 'string' && value.trim() !== '')) && Number(value) === 0;
 
@@ -86,6 +89,9 @@ export function createModelProviders({ directory, changed = () => {}, fetchImpl 
     const apiKey = body.clearKey ? '' : text(body.apiKey, 4096) || (sameDestination ? existing.apiKey : '') || '';
     if (/[\r\n]/.test(apiKey)) fail('The API key contains an invalid character.');
     if (catalog?.id === 'freellm' && (baseUrl !== FREELLM_URL || protocol !== 'openai-chat' || apiKey)) fail('FreeLLM uses the official anonymous gateway without an API key.');
+    if (catalog?.id === 'koboldcpp-lan' && !isLanKobold({ provider: catalog.id, baseUrl, protocol })) {
+      fail('Use a private IPv4 address with /v1 for the KoboldCpp LAN provider.');
+    }
     if (kind === 'provider' && !catalog?.keyOptional && !apiKey) fail('Enter this provider’s API key.');
     const rows = Array.isArray(body.models) ? body.models : [];
     if (rows.length > 100) fail('Add up to 100 models to one connection.');
@@ -99,7 +105,7 @@ export function createModelProviders({ directory, changed = () => {}, fetchImpl 
   }
   function save(body) {
     const connection = draft(body);
-    if (!connection.models.length) fail('Choose at least one model or add its ID.');
+    if (!connection.models.length && !isLanKobold(connection)) fail('Choose at least one model or add its ID.');
     return persist(connections.some(c => c.id === connection.id) ? connections.map(c => c.id === connection.id ? connection : c) : [...connections, connection]);
   }
   function remove(id) { return persist(connections.filter(c => c.id !== id)); }
@@ -149,8 +155,9 @@ export function createModelProviders({ directory, changed = () => {}, fetchImpl 
     const models = [...new Map(eligible.filter(m => text(m.id, 256)).map(m => [m.id, { id: text(m.id, 256), name: text(m.display_name ?? m.name) || text(m.id, 256), contextMax: numeric(m.context_length ?? m.max_context_length ?? m.context_window), maxOutput: numeric(m.max_output_tokens ?? m.max_completion_tokens ?? m.top_provider?.max_completion_tokens), vision: modelReadsPictures(m), reasoning: modelSupportsReasoning(m) }])).values()];
     return { models: models.sort((a, b) => a.name.localeCompare(b.name)) };
   }
-  async function refresh(selection, signal) {
+  async function refresh(selection, signal, expectedTarget) {
     const { connection, model } = resolve(selection);
+    if (expectedTarget !== undefined && providerTarget(connection) !== expectedTarget) fail('This helper connection changed. Choose the helper again.');
     if (connection.provider === 'freellm') {
       const live = (await discover(connection, signal)).models.find(m => m.id === model.id);
       if (!live) fail('This free model is currently unavailable. Choose another model.');
@@ -159,8 +166,24 @@ export function createModelProviders({ directory, changed = () => {}, fetchImpl 
     }
     return { connection, model };
   }
-  async function stream({ selection, message, history = [], systemPrompt = '', images = [], thinking, signal, onFrame }) {
-    const { connection, model } = await refresh(selection, signal);
+  let lanDiscovery = null;
+  let nextLanDiscovery = 0;
+  function discoverPendingLan() {
+    if (lanDiscovery || Date.now() < nextLanDiscovery) return;
+    const pending = connections.filter(connection => isLanKobold(connection) && !connection.models.length);
+    if (!pending.length) return;
+    nextLanDiscovery = Date.now() + 30000;
+    lanDiscovery = Promise.allSettled(pending.map(async connection => {
+      const { models } = await discover(connection, AbortSignal.timeout(5000));
+      const available = models.filter(model => model.id.toLowerCase() !== 'inactive');
+      if (available.length && connections.includes(connection) && !connection.models.length) {
+        save({ ...connection, models: available.slice(0, 100) });
+      }
+    })).finally(() => { lanDiscovery = null; });
+  }
+  async function stream({ selection, message, history = [], systemPrompt = '', images = [], thinking, maxTokens, signal, onFrame, expectedTarget }) {
+    const { connection, model } = await refresh(selection, signal, expectedTarget);
+    if (expectedTarget !== undefined && !connections.includes(connection)) fail('This helper connection changed. Choose the helper again.');
     const started = Date.now();
     const messages = history.filter(m => ['user', 'assistant'].includes(m.role) && typeof m.content === 'string').slice(-40).map(m => ({ role: m.role, content: m.content }));
     // Pictures only go to OpenAI-style servers (the one protocol every local server shares); other protocols keep the text.
@@ -174,6 +197,9 @@ export function createModelProviders({ directory, changed = () => {}, fetchImpl 
         : { model: model.id, messages: [...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []), ...messages], stream: true, ...(['openai', 'deepseek', 'openrouter', 'google', 'moonshotai'].includes(connection.provider) ? { stream_options: { include_usage: true } } : {}) };
     // Match the native composer's effort names. Unknown support and other protocols keep provider defaults.
     const choice = typeof thinking === 'string' ? thinking.toLowerCase() : '';
+    if ((connection.provider === 'freellm' || isLanKobold(connection)) && Number.isInteger(maxTokens) && maxTokens > 0) {
+      payload.max_tokens = Math.min(maxTokens, model.maxOutput > 0 ? model.maxOutput : maxTokens);
+    }
     if (protocol === 'openai-chat' && (model.reasoning ?? knownThinks(connection, model.id)) === true && ['off', 'low', 'medium', 'high', 'max'].includes(choice)) {
       if (isOpenRouter(connection) || connection.provider === 'freellm') payload.reasoning = { effort: (connection.provider === 'freellm' ? FREELLM_EFFORTS : OPENROUTER_EFFORTS)[choice] };
       else payload.reasoning_effort = ({ off: 'none', max: 'high' })[choice] ?? choice;
@@ -245,5 +271,5 @@ export function createModelProviders({ directory, changed = () => {}, fetchImpl 
   }
   /** Connections WITH their keys, for the host's own agent bridge only; never serialised to a client. */
   function withSecrets() { return connections.map(c => ({ ...c, models: c.models.map(m => ({ ...m })) })); }
-  return { list, save, remove, discover, resolve, refresh, stream, withSecrets };
+  return { list, save, remove, discover, discoverPendingLan, resolve, refresh, stream, withSecrets };
 }
