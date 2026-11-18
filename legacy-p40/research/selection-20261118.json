@@ -1474,5 +1474,31 @@
         ]
       }
     }
-  }
+  },
+  "upstream_review": [
+    {
+      "pr": 5830,
+      "decision": "measured as patch 01; no reproducible whole-request gain"
+    },
+    {
+      "pr": 6124,
+      "decision": "earlier matched Swift trials found no stable gain; the PR targets a two-card split"
+    },
+    {
+      "pr": 6157,
+      "decision": "different staging path; the current single-GPU profile has its RAM expert arena fully pinned"
+    },
+    {
+      "pr": 6196,
+      "decision": "applies to repeated prefixes; the selected workload has no cache reads"
+    },
+    {
+      "pr": 6197,
+      "decision": "IQ4_XS expert-down support; the selected Swift IQ3_S profile does not use that path"
+    },
+    {
+      "pr": 6201,
+      "decision": "changes routing history; no measured gain for the selected profile"
+    }
+  ]
 }
