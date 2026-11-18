@@ -50,6 +50,14 @@ The three individual patches produced no established end-to-end gain. On the sam
 
 В Windows параллельный опрос CPU и GPU снизил медиану готовности App Host с 5,68 до 4,03 с в четырёх парных стартах. Поля железа совпали. Windows parallel probes cut median App Host readiness from 5.68 to 4.03 seconds in four paired starts, with identical hardware fields.
 
+На одинаковых 9 292 входных и 768 выходных токенах без чтения кэша Strata завершила запрос за **48,42 с**, официальный llama.cpp `b12503` — за **181,97 с**. llama.cpp работала с контекстом 256K, CUDA 12.4, CPU MoE и GPU-кэшем экспертов 12 000 МиБ, без MTP.
+
+For the same 9,292 input and 768 output tokens with no prompt cache reads, Strata took **48.42 s** and official llama.cpp `b12503` took **181.97 s**. The llama.cpp run used a 256K context, CUDA 12.4, CPU MoE and a 12,000 MiB GPU expert cache, with MTP disabled.
+
+Повторная серия из 20 запросов сравнила CUDA side mixer, адаптивный MTP, CPU-ядра ggml, 32K резидентного KV, CPU-пул, предзагрузку PLE, K8/V4, группировку экспертов и долю PCIe. Сохранили стоковый движок с проверенным профилем Q4 KV и Q2 MTP.
+
+A 20-request follow-up compared CUDA side mixing, adaptive MTP, ggml CPU quant, 32K resident KV, CPU pool sizing, PLE prefetch, K8/V4, grouped experts and the PCIe fraction. The selected build remains stock with the qualified Q4 KV and Q2 MTP profile.
+
 [Хеши, prefill, decode и ограничения измерений / Detailed results](legacy-p40/research/selection-20261118.json). [Предыдущие замеры стока, форка, MMQ, Vision и Setup / Earlier measurements](https://github.com/aktalascloud/strata-legacy-gpu/tree/18f4ae56b074c39e6ff0c93e2458b47ced4857bc/legacy-p40/research).
 
 На движке 0.1.61 запрос без чтения кэша с **261 998 входными и 128 выходными токенами** завершился без OOM за 913,43 с. Минимум свободной VRAM по выборке — 37 МиБ. `nvidia-smi` зарегистрировал температурное ограничение P40 при 89 °C.

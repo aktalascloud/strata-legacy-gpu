@@ -1500,5 +1500,859 @@
       "pr": 6201,
       "decision": "changes routing history; no measured gain for the selected profile"
     }
-  ]
+  ],
+  "follow_up": {
+    "date": "2026-11-18",
+    "upstream": "c77572806996349b49995e4f98d41b5294d36a21",
+    "desktop_release": "v0.2.15",
+    "profile_sha256": "9887dd02a996959c57c8b2ea493751cc7e28053a47b33475260bc0666f7082e7",
+    "method": "Separate fresh-process variants with 262144 native context and 210 MiB planning reserve. Fixed cases of 9292 and 24368 input tokens, 768 output tokens, no cache reads. Temporary launch used the same Swift files. Temperatures and free VRAM were sampled at case boundaries. Windows CPU usage is sampled for the whole system.",
+    "comparison": {
+      "arms": [
+        {
+          "arm": "stock-a",
+          "setting": {},
+          "engine_sha256": "740b39e4caec5075821a15e407ba391a9f66e4ad71b72eb3cd40a8584a6e49fa",
+          "kernel_sha256": "3f1a415be73bcb86b1ff67e8951a834c8b1a3c33debda8e539fbe872218e6bdc"
+        },
+        {
+          "arm": "side-mixer",
+          "setting": {
+            "STRATA_SIDE_MIXER": "2"
+          },
+          "engine_sha256": "740b39e4caec5075821a15e407ba391a9f66e4ad71b72eb3cd40a8584a6e49fa",
+          "kernel_sha256": "3f1a415be73bcb86b1ff67e8951a834c8b1a3c33debda8e539fbe872218e6bdc"
+        },
+        {
+          "arm": "spec-cost",
+          "setting": {
+            "STRATA_SPEC_COST": "1"
+          },
+          "engine_sha256": "740b39e4caec5075821a15e407ba391a9f66e4ad71b72eb3cd40a8584a6e49fa",
+          "kernel_sha256": "3f1a415be73bcb86b1ff67e8951a834c8b1a3c33debda8e539fbe872218e6bdc"
+        },
+        {
+          "arm": "ggml-cpu",
+          "setting": {
+            "binary": "ce3005741a9cebe76a38e2ce114e6f9396a231465d8d09fef60b60f5cdbc521f"
+          },
+          "engine_sha256": "ce3005741a9cebe76a38e2ce114e6f9396a231465d8d09fef60b60f5cdbc521f",
+          "kernel_sha256": "71f49cff22ccefaecf173b9be8fabc0b5c1faab4f6edcee90ef7f940e7c35eb4"
+        },
+        {
+          "arm": "kv32",
+          "setting": {
+            "--kv-resident": "32768"
+          },
+          "engine_sha256": "740b39e4caec5075821a15e407ba391a9f66e4ad71b72eb3cd40a8584a6e49fa",
+          "kernel_sha256": "3f1a415be73bcb86b1ff67e8951a834c8b1a3c33debda8e539fbe872218e6bdc"
+        },
+        {
+          "arm": "tasks90",
+          "setting": {
+            "--pool-tasks": "90"
+          },
+          "engine_sha256": "740b39e4caec5075821a15e407ba391a9f66e4ad71b72eb3cd40a8584a6e49fa",
+          "kernel_sha256": "3f1a415be73bcb86b1ff67e8951a834c8b1a3c33debda8e539fbe872218e6bdc"
+        },
+        {
+          "arm": "ple-startup",
+          "setting": {
+            "binary": "80372b3c72019e1177c9835d7c5fda82c0f4aa05d429c00074fccbec8815698e"
+          },
+          "engine_sha256": "80372b3c72019e1177c9835d7c5fda82c0f4aa05d429c00074fccbec8815698e",
+          "kernel_sha256": "71f49cff22ccefaecf173b9be8fabc0b5c1faab4f6edcee90ef7f940e7c35eb4"
+        },
+        {
+          "arm": "stock-b",
+          "setting": {},
+          "engine_sha256": "740b39e4caec5075821a15e407ba391a9f66e4ad71b72eb3cd40a8584a6e49fa",
+          "kernel_sha256": "3f1a415be73bcb86b1ff67e8951a834c8b1a3c33debda8e539fbe872218e6bdc"
+        }
+      ],
+      "measurements": [
+        {
+          "arm": "stock-a",
+          "inputs": 9292,
+          "seconds": 48.392,
+          "boot_seconds": 57.578,
+          "prefill_tps": 395.3,
+          "decode_tps": 30.9,
+          "mtp_accepted": 370,
+          "mtp_proposed": 522,
+          "host_numa_busy_pct": {
+            "prefill": {
+              "0": 51.4,
+              "1": 43.4
+            },
+            "decode": {
+              "0": 19.0,
+              "1": 4.8
+            }
+          },
+          "gpu_before": {
+            "temp_c": 51,
+            "free_mib": 155,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "gpu_after": {
+            "temp_c": 62,
+            "free_mib": 45,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "output_sha256": "7994a09ccc04eb6b1096412d494694593e9c42ddf7f6d2e38852b3f2ccb6f92d"
+        },
+        {
+          "arm": "stock-a",
+          "inputs": 24368,
+          "seconds": 87.973,
+          "boot_seconds": 57.578,
+          "prefill_tps": 384.3,
+          "decode_tps": 31.3,
+          "mtp_accepted": 359,
+          "mtp_proposed": 541,
+          "host_numa_busy_pct": {
+            "prefill": {
+              "0": 49.8,
+              "1": 41.7
+            },
+            "decode": {
+              "0": 16.9,
+              "1": 4.0
+            }
+          },
+          "gpu_before": {
+            "temp_c": 62,
+            "free_mib": 45,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "gpu_after": {
+            "temp_c": 76,
+            "free_mib": 81,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "output_sha256": "29222791823ebe3ea430729f6eb14e189cd11ef7246516c9a66a909ac04c9e21"
+        },
+        {
+          "arm": "side-mixer",
+          "inputs": 9292,
+          "seconds": 47.333,
+          "boot_seconds": 55.953,
+          "prefill_tps": 394.5,
+          "decode_tps": 32.3,
+          "mtp_accepted": 399,
+          "mtp_proposed": 556,
+          "host_numa_busy_pct": {
+            "prefill": {
+              "0": 50.3,
+              "1": 42.8
+            },
+            "decode": {
+              "0": 19.3,
+              "1": 5.9
+            }
+          },
+          "gpu_before": {
+            "temp_c": 64,
+            "free_mib": 137,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "gpu_after": {
+            "temp_c": 73,
+            "free_mib": 27,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "output_sha256": "a6f30a3a3dbc07b1610246fffc3c5ff98a559004a6d8c2acd7718523f68d1076"
+        },
+        {
+          "arm": "side-mixer",
+          "inputs": 24368,
+          "seconds": 88.963,
+          "boot_seconds": 55.953,
+          "prefill_tps": 385.7,
+          "decode_tps": 29.9,
+          "mtp_accepted": 359,
+          "mtp_proposed": 563,
+          "host_numa_busy_pct": {
+            "prefill": {
+              "0": 50.6,
+              "1": 43.2
+            },
+            "decode": {
+              "0": 15.8,
+              "1": 3.0
+            }
+          },
+          "gpu_before": {
+            "temp_c": 72,
+            "free_mib": 27,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "gpu_after": {
+            "temp_c": 83,
+            "free_mib": 63,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "output_sha256": "62c1641367074650c65009865cffd4d18dc8181bb88891fe61ee61fe50065620"
+        },
+        {
+          "arm": "spec-cost",
+          "inputs": 9292,
+          "seconds": 49.618,
+          "boot_seconds": 54.906,
+          "prefill_tps": 397.1,
+          "decode_tps": 29.3,
+          "mtp_accepted": 336,
+          "mtp_proposed": 473,
+          "host_numa_busy_pct": {
+            "prefill": {
+              "0": 50.1,
+              "1": 42.6
+            },
+            "decode": {
+              "0": 17.1,
+              "1": 3.3
+            }
+          },
+          "gpu_before": {
+            "temp_c": 68,
+            "free_mib": 155,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "gpu_after": {
+            "temp_c": 75,
+            "free_mib": 45,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "output_sha256": "4763842bcda0cad2adaa6329c6c48b1fd32ddaa8420918ebee90ca6589fd4267"
+        },
+        {
+          "arm": "spec-cost",
+          "inputs": 24368,
+          "seconds": 87.648,
+          "boot_seconds": 54.906,
+          "prefill_tps": 384.2,
+          "decode_tps": 31.8,
+          "mtp_accepted": 361,
+          "mtp_proposed": 462,
+          "host_numa_busy_pct": {
+            "prefill": {
+              "0": 50.5,
+              "1": 43.0
+            },
+            "decode": {
+              "0": 15.4,
+              "1": 2.5
+            }
+          },
+          "gpu_before": {
+            "temp_c": 75,
+            "free_mib": 45,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "gpu_after": {
+            "temp_c": 85,
+            "free_mib": 81,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "output_sha256": "c26079083c20df645150dee99318745d3e2d7bc1ab8895f334a3c6ebb019706d"
+        },
+        {
+          "arm": "ggml-cpu",
+          "inputs": 9292,
+          "seconds": 49.496,
+          "boot_seconds": 55.453,
+          "prefill_tps": 395.9,
+          "decode_tps": 29.5,
+          "mtp_accepted": 365,
+          "mtp_proposed": 575,
+          "host_numa_busy_pct": {
+            "prefill": {
+              "0": 50.4,
+              "1": 43.1
+            },
+            "decode": {
+              "0": 18.3,
+              "1": 5.1
+            }
+          },
+          "gpu_before": {
+            "temp_c": 69,
+            "free_mib": 155,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "gpu_after": {
+            "temp_c": 77,
+            "free_mib": 45,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "output_sha256": "be81bc0757f437740f866c7118e89d4fc4baa3c83a41c63ea101c02f2ddc7bd8"
+        },
+        {
+          "arm": "ggml-cpu",
+          "inputs": 24368,
+          "seconds": 87.65,
+          "boot_seconds": 55.453,
+          "prefill_tps": 385.3,
+          "decode_tps": 31.5,
+          "mtp_accepted": 377,
+          "mtp_proposed": 538,
+          "host_numa_busy_pct": {
+            "prefill": {
+              "0": 51.0,
+              "1": 43.0
+            },
+            "decode": {
+              "0": 15.5,
+              "1": 2.5
+            }
+          },
+          "gpu_before": {
+            "temp_c": 76,
+            "free_mib": 45,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "gpu_after": {
+            "temp_c": 86,
+            "free_mib": 81,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "output_sha256": "038e862c87fddb579ea14257148deebea30b7217db37c60cd67729077077fa69"
+        },
+        {
+          "arm": "kv32",
+          "inputs": 9292,
+          "seconds": 48.026,
+          "boot_seconds": 71.281,
+          "prefill_tps": 399.4,
+          "decode_tps": 31.1,
+          "mtp_accepted": 368,
+          "mtp_proposed": 563,
+          "host_numa_busy_pct": {
+            "prefill": {
+              "0": 53.2,
+              "1": 43.1
+            },
+            "decode": {
+              "0": 17.6,
+              "1": 2.4
+            }
+          },
+          "gpu_before": {
+            "temp_c": 67,
+            "free_mib": 155,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "gpu_after": {
+            "temp_c": 76,
+            "free_mib": 45,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "output_sha256": "907f3b8fb00be7447aa3b8ba80c101ebd3690b362c7aa2435f91c1d6cca4a621"
+        },
+        {
+          "arm": "kv32",
+          "inputs": 24368,
+          "seconds": 87.692,
+          "boot_seconds": 71.281,
+          "prefill_tps": 388.7,
+          "decode_tps": 30.8,
+          "mtp_accepted": 369,
+          "mtp_proposed": 528,
+          "host_numa_busy_pct": {
+            "prefill": {
+              "0": 52.3,
+              "1": 41.9
+            },
+            "decode": {
+              "0": 16.3,
+              "1": 4.4
+            }
+          },
+          "gpu_before": {
+            "temp_c": 75,
+            "free_mib": 45,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "gpu_after": {
+            "temp_c": 85,
+            "free_mib": 81,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "output_sha256": "120208e172857d5e31124fd6518603a87288188db1faa5b39ef204212db0d9ce"
+        },
+        {
+          "arm": "tasks90",
+          "inputs": 9292,
+          "seconds": 49.049,
+          "boot_seconds": 71.109,
+          "prefill_tps": 397.2,
+          "decode_tps": 30.0,
+          "mtp_accepted": 365,
+          "mtp_proposed": 552,
+          "host_numa_busy_pct": {
+            "prefill": {
+              "0": 50.5,
+              "1": 42.4
+            },
+            "decode": {
+              "0": 14.8,
+              "1": 1.9
+            }
+          },
+          "gpu_before": {
+            "temp_c": 67,
+            "free_mib": 155,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "gpu_after": {
+            "temp_c": 76,
+            "free_mib": 45,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "output_sha256": "9b81a2b9f4119a99aabab42e0f235c6a65dce2590e309c309b7047ced0ba319a"
+        },
+        {
+          "arm": "tasks90",
+          "inputs": 24368,
+          "seconds": 86.736,
+          "boot_seconds": 71.109,
+          "prefill_tps": 386.9,
+          "decode_tps": 32.4,
+          "mtp_accepted": 388,
+          "mtp_proposed": 546,
+          "host_numa_busy_pct": {
+            "prefill": {
+              "0": 50.7,
+              "1": 42.7
+            },
+            "decode": {
+              "0": 16.8,
+              "1": 4.4
+            }
+          },
+          "gpu_before": {
+            "temp_c": 75,
+            "free_mib": 45,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "gpu_after": {
+            "temp_c": 85,
+            "free_mib": 81,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "output_sha256": "0e1a3b7e4036823e78c7b94a90d8f79e6191d7da8a39851c3bd1192917c27690"
+        },
+        {
+          "arm": "ple-startup",
+          "inputs": 9292,
+          "seconds": 48.697,
+          "boot_seconds": 75.594,
+          "prefill_tps": 398.7,
+          "decode_tps": 30.3,
+          "mtp_accepted": 362,
+          "mtp_proposed": 565,
+          "host_numa_busy_pct": {
+            "prefill": {
+              "0": 52.8,
+              "1": 43.1
+            },
+            "decode": {
+              "0": 19.7,
+              "1": 5.5
+            }
+          },
+          "gpu_before": {
+            "temp_c": 67,
+            "free_mib": 155,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "gpu_after": {
+            "temp_c": 75,
+            "free_mib": 45,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "output_sha256": "745ecf411a3df0d0695e97e051d97677779adaf99cac6b1115219bb3078afdf9"
+        },
+        {
+          "arm": "ple-startup",
+          "inputs": 24368,
+          "seconds": 87.516,
+          "boot_seconds": 75.594,
+          "prefill_tps": 387.9,
+          "decode_tps": 31.2,
+          "mtp_accepted": 361,
+          "mtp_proposed": 564,
+          "host_numa_busy_pct": {
+            "prefill": {
+              "0": 51.9,
+              "1": 41.8
+            },
+            "decode": {
+              "0": 16.7,
+              "1": 2.3
+            }
+          },
+          "gpu_before": {
+            "temp_c": 75,
+            "free_mib": 45,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "gpu_after": {
+            "temp_c": 85,
+            "free_mib": 81,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "output_sha256": "89e2d7d62620ecee453c1b55712061f26399ed59e97cf301b125fb199bc4579c"
+        },
+        {
+          "arm": "stock-b",
+          "inputs": 9292,
+          "seconds": 48.444,
+          "boot_seconds": 72.594,
+          "prefill_tps": 392.9,
+          "decode_tps": 31.0,
+          "mtp_accepted": 376,
+          "mtp_proposed": 565,
+          "host_numa_busy_pct": {
+            "prefill": {
+              "0": 51.1,
+              "1": 43.7
+            },
+            "decode": {
+              "0": 15.1,
+              "1": 2.7
+            }
+          },
+          "gpu_before": {
+            "temp_c": 67,
+            "free_mib": 155,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "gpu_after": {
+            "temp_c": 75,
+            "free_mib": 45,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "output_sha256": "42be5cb83811a780a9176e27bfd669ceeb434e353bd79ff5bda157a1a2de0ff4"
+        },
+        {
+          "arm": "stock-b",
+          "inputs": 24368,
+          "seconds": 88.628,
+          "boot_seconds": 72.594,
+          "prefill_tps": 387.7,
+          "decode_tps": 29.9,
+          "mtp_accepted": 355,
+          "mtp_proposed": 552,
+          "host_numa_busy_pct": {
+            "prefill": {
+              "0": 50.7,
+              "1": 43.4
+            },
+            "decode": {
+              "0": 17.9,
+              "1": 3.7
+            }
+          },
+          "gpu_before": {
+            "temp_c": 75,
+            "free_mib": 45,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "gpu_after": {
+            "temp_c": 85,
+            "free_mib": 81,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "output_sha256": "6804949307de58cff31e69fc3188ba383261a2134809a987185a96162420372f"
+        }
+      ]
+    },
+    "calibration": {
+      "arms": [
+        {
+          "arm": "kv-k8v4",
+          "setting": {
+            "--kv": "k8v4"
+          },
+          "engine_sha256": "740b39e4caec5075821a15e407ba391a9f66e4ad71b72eb3cd40a8584a6e49fa",
+          "kernel_sha256": "3f1a415be73bcb86b1ff67e8951a834c8b1a3c33debda8e539fbe872218e6bdc"
+        },
+        {
+          "arm": "expert-v2",
+          "setting": {
+            "STRATA_EXPERT_V2": "1"
+          },
+          "engine_sha256": "740b39e4caec5075821a15e407ba391a9f66e4ad71b72eb3cd40a8584a6e49fa",
+          "kernel_sha256": "3f1a415be73bcb86b1ff67e8951a834c8b1a3c33debda8e539fbe872218e6bdc"
+        },
+        {
+          "arm": "pcie75",
+          "setting": {
+            "--pcie-frac": "0.75"
+          },
+          "engine_sha256": "740b39e4caec5075821a15e407ba391a9f66e4ad71b72eb3cd40a8584a6e49fa",
+          "kernel_sha256": "3f1a415be73bcb86b1ff67e8951a834c8b1a3c33debda8e539fbe872218e6bdc"
+        },
+        {
+          "arm": "stock-c",
+          "setting": {},
+          "engine_sha256": "740b39e4caec5075821a15e407ba391a9f66e4ad71b72eb3cd40a8584a6e49fa",
+          "kernel_sha256": "3f1a415be73bcb86b1ff67e8951a834c8b1a3c33debda8e539fbe872218e6bdc"
+        }
+      ],
+      "measurements": [
+        {
+          "arm": "kv-k8v4",
+          "inputs": 24368,
+          "seconds": 87.105,
+          "boot_seconds": 72.578,
+          "prefill_tps": 393.0,
+          "decode_tps": 30.7,
+          "mtp_accepted": 383,
+          "mtp_proposed": 568,
+          "host_numa_busy_pct": {
+            "prefill": {
+              "0": 52.8,
+              "1": 42.1
+            },
+            "decode": {
+              "0": 18.3,
+              "1": 6.1
+            }
+          },
+          "gpu_before": {
+            "temp_c": 54,
+            "free_mib": 155,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "gpu_after": {
+            "temp_c": 72,
+            "free_mib": 79,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "output_sha256": "dc581b73aa4f7771ffabd6fcc842fb40f6c988bf97b3a010a29908a8b079cb51"
+        },
+        {
+          "arm": "expert-v2",
+          "inputs": 24368,
+          "seconds": 87.507,
+          "boot_seconds": 57.5,
+          "prefill_tps": 394.6,
+          "decode_tps": 29.9,
+          "mtp_accepted": 371,
+          "mtp_proposed": 541,
+          "host_numa_busy_pct": {
+            "prefill": {
+              "0": 52.3,
+              "1": 43.2
+            },
+            "decode": {
+              "0": 17.3,
+              "1": 3.8
+            }
+          },
+          "gpu_before": {
+            "temp_c": 61,
+            "free_mib": 155,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "gpu_after": {
+            "temp_c": 77,
+            "free_mib": 81,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "output_sha256": "41685c64325c9c0d9bc551b6015b0d3b9dea5190efa3dd3bf9100d76d68be8f8"
+        },
+        {
+          "arm": "pcie75",
+          "inputs": 24368,
+          "seconds": 88.219,
+          "boot_seconds": 55.968,
+          "prefill_tps": 392.2,
+          "decode_tps": 29.5,
+          "mtp_accepted": 346,
+          "mtp_proposed": 551,
+          "host_numa_busy_pct": {
+            "prefill": {
+              "0": 52.7,
+              "1": 42.8
+            },
+            "decode": {
+              "0": 99.6,
+              "1": 91.7
+            }
+          },
+          "gpu_before": {
+            "temp_c": 65,
+            "free_mib": 157,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "gpu_after": {
+            "temp_c": 80,
+            "free_mib": 81,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "output_sha256": "ce57186a6d438443087025b027b8951559c69bf5e0c523f9c0b72a7a814b6f0e"
+        },
+        {
+          "arm": "stock-c",
+          "inputs": 24368,
+          "seconds": 87.57,
+          "boot_seconds": 56.563,
+          "prefill_tps": 392.8,
+          "decode_tps": 30.1,
+          "mtp_accepted": 359,
+          "mtp_proposed": 515,
+          "host_numa_busy_pct": {
+            "prefill": {
+              "0": 52.3,
+              "1": 42.5
+            },
+            "decode": {
+              "0": 16.1,
+              "1": 2.5
+            }
+          },
+          "gpu_before": {
+            "temp_c": 66,
+            "free_mib": 155,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "gpu_after": {
+            "temp_c": 81,
+            "free_mib": 81,
+            "sm_mhz": 1531,
+            "mem_mhz": 3615
+          },
+          "output_sha256": "db9e3f3ae4c09e4ab2fbb3dd09633a511afd1f7c609280fc21ec13a9305c81f6"
+        }
+      ]
+    },
+    "llama_cpp": {
+      "release": "b12503",
+      "source": "4577932fab595eaa8b27ad71734d5de1f3c07d8c",
+      "cuda": "12.4",
+      "release_zip_sha256": "9df9b6316051ce258debb234b3475762eecd8721e6bb41474f0743d54aad08aa",
+      "redist_zip_sha256": "8c79a9b226de4b3cacfd1f83d24f962d0773be79f1e7b75c6af4ded7e32ae1d6",
+      "configuration": "CUDA sm_61, actual n_ctx_slot=262144, CPU MoE and PLE, 12000 MiB GPU expert cache, Q4_0 KV, 14 CPU and batch threads, MTP off",
+      "qualification": {
+        "variant": "262144-moe12000",
+        "state": "slow_at_9k",
+        "context_requested": 262144,
+        "boot_seconds": 91.11,
+        "marker": true,
+        "gpu": {
+          "temp_c": 54,
+          "free_mib": 3513,
+          "sm_mhz": 1303,
+          "mem_mhz": 3615
+        }
+      },
+      "comparison": {
+        "case": 2681,
+        "elapsed_s": 181.96832770000037,
+        "ttft_s": 96.29894789999526,
+        "usage": {
+          "completion_tokens": 768,
+          "prompt_tokens": 9292,
+          "total_tokens": 10060,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 9292,
+          "prompt_ms": 96230.165,
+          "prompt_per_token_ms": 10.356238161859663,
+          "prompt_per_second": 96.56015865711132,
+          "predicted_n": 768,
+          "predicted_ms": 85668.871,
+          "predicted_per_token_ms": 111.69344328552803,
+          "predicted_per_second": 8.953077016738087
+        },
+        "finish": "length",
+        "text_sha256": "c990c0ca229a3ea959262eb05a35b1e99b5401d3aa46ccd558a3823bd329e778",
+        "end_to_end_tps": 4.220514689051563,
+        "variant": "262144-moe12000",
+        "input_expected": 9292
+      }
+    },
+    "decisions": {
+      "selected": "Installed stock 0.1.61 with the previously qualified Q4 KV and Q2 MTP profile",
+      "side_mixer": "Faster on 9292, slower on 24368",
+      "cost_aware_mtp": "Slower on 9292; 24368 change within control range after repeat",
+      "ggml_cpu": "Slower on 9292, near stock on 24368",
+      "kv_32768": "Slightly higher 24368 prefill; change in wall time within run variation",
+      "cpu_pool_90": "Slower short case, faster long case; no balanced gain",
+      "win_ple_prefetch": "75.59 seconds to ready, stock controls 57.58 and 72.59 seconds; no startup gain",
+      "kv_k8v4": "87.11 vs 87.57 seconds in the final control, within measured 24368 control drift",
+      "expert_v2": "87.51 vs 87.57 seconds in the final control",
+      "pcie_fraction_075": "88.22 vs 87.57 seconds in the final control",
+      "weight_quantization": "Original Swift IQ3_S weights used in every benchmark; calibration screened runtime and KV settings"
+    },
+    "pr_review": [
+      {
+        "pr": 6023,
+        "decision": "Reviewed updated diff; regular partially resident stream_all stays unchanged and the measured P2P/WMMA paths target Volta/NVLink"
+      },
+      {
+        "pr": 6157,
+        "decision": "Windows NUMA staging study; this single-GPU profile fully pins its host expert arena"
+      },
+      {
+        "pr": 5500,
+        "decision": "Returning-session L2 cache; needs a separate multi-session warm workload"
+      },
+      {
+        "pr": 6142,
+        "decision": "Gateway stacked on the L2 cache; warm restore data from a different topology"
+      },
+      {
+        "pr": 6205,
+        "decision": "External Ada sm_89 benchmark; no implementation change for Pascal"
+      }
+    ]
+  }
 }
