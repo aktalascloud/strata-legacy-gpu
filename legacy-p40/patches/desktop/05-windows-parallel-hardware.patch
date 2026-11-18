@@ -1,0 +1,16 @@
+diff --git a/apps/host/server/hardware.mjs b/apps/host/server/hardware.mjs
+index d53889e99..c92c9902d 100644
+--- a/apps/host/server/hardware.mjs
++++ b/apps/host/server/hardware.mjs
+@@ -51,8 +51,9 @@ export async function detect({ force = false } = {}) {
+   // os.freemem() ignores reclaimable pages, which reads as "0 GB free" on macOS.
+   const freeGb = forced?.freeGb ?? (await availableMemoryGb(platform)) ?? os.freemem() / 1024 ** 3;
+ 
+-  const cpu = await detectCpu(platform);
+-  const gpus = forced?.gpus ?? await detectGpus(platform, totalGb);
++  const [cpu, gpus] = platform === 'win32'
++    ? await Promise.all([detectCpu(platform), forced?.gpus ?? detectGpus(platform, totalGb)])
++    : [await detectCpu(platform), forced?.gpus ?? await detectGpus(platform, totalGb)];
+   const accelerator = pickAccelerator(gpus, cpu, totalGb);
+ 
+   const hw = {

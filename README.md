@@ -21,25 +21,28 @@ An independent Strata Desktop fork for Windows x64, Tesla P40 and AVX1 CPUs. Run
 
 ## Замеры / Measurements
 
-Windows, Tesla P40 24 GiB, два Xeon E5-2697 v2 (16 доступных ядер), 256 GiB RAM, CUDA 12.9, Swift IQ3_S с Q2 MTP. Чистые запросы с 768 выходными токенами; показатели зависят от нагрузки и принятия MTP.
+Windows, Tesla P40 24 GiB, два Xeon E5-2697 v2 (16 доступных ядер), 256 GiB RAM, CUDA 12.9. Каждый запрос Swift IQ3_S сгенерировал 768 токенов без чтения кэша. Варианты собирались отдельно на `c7757280` и запускались с одинаковым профилем.
 
-| Вход / Input | Prefill | Генерация / Decode | Полное время / Total |
-|---|---:|---:|---:|
-| 9 292 токена, контроль | 367.0 tok/s | 30.4 tok/s | 50.62 s |
-| 24 368 токенов, контроль | 344.6 tok/s | 32.5 tok/s | 94.39 s |
+Десктоп основан на upstream `v0.2.15`. Выбранный движок — `0.1.61` с CUDA `sm_61` и MMQ. Desktop is based on upstream `v0.2.15`; the selected engine is `0.1.61` with CUDA `sm_61` and MMQ.
 
-Повторное сравнение stock и fork использовало одинаковые AVX1, CUDA 12.9, `sm_61` и MMQ. Каждый запрос сгенерировал 768 токенов без чтения кэша.
+| Движок / Engine | 9 292 + 768 | 24 368 + 768 |
+|---|---:|---:|
+| Сток / Stock, median of two controls | 48.39 s | 87.79 s |
+| 01, AVX1 PLE | 48.21 s | 87.85 s |
+| 57, route prior safety | 49.14 s | 87.88 s |
+| 58, AVX1 FP16 scales | 49.52 s | 88.44 s |
 
-| Вход / Input | Stock, ABBA median | Fork, ABBA median | Setup engine |
-|---|---:|---:|---:|
-| 9 292 | 49.61 s | 49.49 s | 49.11 s |
-| 24 368 | 88.63 s | 88.39 s | 88.39 s |
+Патчи 01, 57 и 58 исключены из активной сборки. На одном стоковом бинарнике `ADAPT_FETCH=2` снизил задержку на 16,7% и 2,3% по сравнению с `0`. Оставлены 14 воркеров. PLE Compact не дала повторяемого выигрыша.
 
-Устойчивый выигрыш патчей в полной задержке не подтвердился. [Хеши, NUMA, VRAM, prefill и decode / Detailed comparison](legacy-p40/research/swift-desktop-ab-20261118.json).
+The three individual patches produced no established end-to-end gain. On the same stock binary, `ADAPT_FETCH=2` reduced latency by 16.7% and 2.3% versus `0`. The selected pool has 14 workers. PLE Compact did not give a repeatable gain.
 
-Один запрос без чтения кэша с **262 013 входными и 123 выходными токенами** завершился без OOM за 927,5 с. Минимум свободной VRAM по выборке — 37 МиБ; это результат конкретного теста, а не гарантия для любых задач.
+В Windows параллельный опрос CPU и GPU снизил медиану готовности App Host с 5,68 до 4,03 с в четырёх парных стартах. Поля железа совпали. Windows parallel probes cut median App Host readiness from 5.68 to 4.03 seconds in four paired starts, with identical hardware fields.
 
-One request with **262,013 input and 123 output tokens**, without a cache read, completed without OOM in 927.5 s. The sampled minimum free VRAM was 37 MiB; this is one workload, not a guarantee for every request.
+[Хеши, prefill, decode, ограничения измерений / Detailed results](legacy-p40/research/selection-20261118.json). [Предыдущий замер стока, форка и Setup / Earlier stock, fork and Setup comparison](legacy-p40/research/swift-desktop-ab-20261118.json).
+
+На движке 0.1.61 запрос без чтения кэша с **261 998 входными и 128 выходными токенами** завершился без OOM за 913,43 с. Минимум свободной VRAM по выборке — 37 МиБ. `nvidia-smi` зарегистрировал температурное ограничение P40 при 89 °C.
+
+On engine 0.1.61, a request with **261,998 input and 128 output tokens**, without a cache read, completed without OOM in 913.43 s. The sampled minimum free VRAM was 37 MiB. `nvidia-smi` reported P40 thermal slowdown at 89 °C.
 
 На двух изображениях CPU Vision, 16 потоков, A/B/B/A: медианы повторов нового кодировщика примерно **3.27 с против 8.06 с** и **2.91 с против 7.27 с**. Выходы не побитово идентичны: cosine около 0.99985; реальные OCR-проверки `4217` и `STRATA 42` прошли. Это не гарантия качества на всех изображениях.
 

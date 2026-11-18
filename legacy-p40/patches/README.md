@@ -1,3 +1,5 @@
-# Applied patches
+# Active patches
 
-The three earlier engine patches are indexed in [index.json](index.json). [desktop](desktop/) contains PR #6185, the Desktop integration and the skill parser, applied in that order on `9a0f759d0f7607c301ac1ab5706199862fc60e46`. PR #6124 was measured and not selected.
+The engine [index](index.json) lists the selected patches for upstream `c7757280`. The independent Swift screen covered 01, 57 and 58. None established a whole-request speedup. Patch 57 fixes invalid routing when route prior is on. This Swift profile runs with route prior off.
+
+[Desktop patches](desktop/) preserve the application features. Patch 05 overlaps CPU and GPU hardware probes on Windows. Median time to App Host HTTP 200 dropped from 5.68 s to 4.03 s across four paired starts.
