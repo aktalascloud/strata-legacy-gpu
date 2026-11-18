@@ -1,6 +1,7 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 try {
+  Import-Module (Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Utility\Microsoft.PowerShell.Utility.psd1')
   $service = New-Object -ComObject 'Schedule.Service'
   $service.Connect()
   $folder = $service.GetFolder('\')

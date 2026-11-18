@@ -201,6 +201,8 @@ Section "Install"
   Pop $0
   ${If} $0 != 0
     SetErrorLevel 28
+    IfSilent +2
+    MessageBox MB_ICONSTOP "Не удалось скопировать проверенные файлы Microsoft Visual C++. Проверьте диагностический вывод утилиты установки."
     Quit
   ${EndIf}
   ${If} $VerifyOnly == 1
