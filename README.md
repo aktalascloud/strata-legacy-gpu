@@ -1,6 +1,6 @@
 # Strata Desktop for Tesla P40
 
-[Русский](#русский) · [Release / Скачать](https://github.com/aktalascloud/strata-legacy-gpu/releases/tag/v0.2.15-p40-r3) · [Guide / Документация](#замеры--measurements) · [Evidence / Данные](https://github.com/aktalascloud/strata-legacy-gpu/blob/18f4ae56b074c39e6ff0c93e2458b47ced4857bc/legacy-p40/research/selection-20261118.json) · [Upstream](https://github.com/Niko1221/Strata)
+[Русский](#русский) · [Release / Скачать](https://github.com/aktalascloud/strata-legacy-gpu/releases/tag/v0.2.15-p40-r3) · [Guide / Документация](#замеры--measurements) · [Evidence / Данные](legacy-p40/research/selection-20261118.json) · [Upstream](https://github.com/Niko1221/Strata)
 
 Run Swift 1.5 Flash Next locally on Windows with a Tesla P40 and an Ivy Bridge AVX1 CPU. Strata manages the CUDA/MMQ backend, exposes an OpenAI-compatible API and can connect to a KoboldCpp media gateway on your LAN.
 
@@ -50,7 +50,7 @@ The three individual patches produced no established end-to-end gain. On the sam
 
 В Windows параллельный опрос CPU и GPU снизил медиану готовности App Host с 5,68 до 4,03 с в четырёх парных стартах. Поля железа совпали. Windows parallel probes cut median App Host readiness from 5.68 to 4.03 seconds in four paired starts, with identical hardware fields.
 
-[Хеши, prefill, decode, ограничения измерений / Detailed results](legacy-p40/research/selection-20261118.json). [Предыдущий замер стока, форка и Setup / Earlier stock, fork and Setup comparison](legacy-p40/research/swift-desktop-ab-20261118.json).
+[Хеши, prefill, decode и ограничения измерений / Detailed results](legacy-p40/research/selection-20261118.json). [Предыдущие замеры стока, форка, MMQ, Vision и Setup / Earlier measurements](https://github.com/aktalascloud/strata-legacy-gpu/tree/18f4ae56b074c39e6ff0c93e2458b47ced4857bc/legacy-p40/research).
 
 На движке 0.1.61 запрос без чтения кэша с **261 998 входными и 128 выходными токенами** завершился без OOM за 913,43 с. Минимум свободной VRAM по выборке — 37 МиБ. `nvidia-smi` зарегистрировал температурное ограничение P40 при 89 °C.
 
@@ -60,12 +60,14 @@ On engine 0.1.61, a request with **261,998 input and 128 output tokens**, withou
 
 On two images, 16-thread CPU Vision A/B/B/A median encoding times were about **3.27 s vs 8.06 s** and **2.91 s vs 7.27 s**. Embeddings were not bit-identical (cosine about 0.99985); real OCR checks returned `4217` and `STRATA 42`. This does not establish quality for every image.
 
-[Подробные данные и ограничения / Detailed evidence](legacy-p40/research/swift-20261118.json). PR #6124 и дополнительный общий AVX не показали устойчивого ускорения всей модели и не включены.
+PR #6124 и дополнительный общий AVX не показали устойчивого ускорения всей модели. PR #6124 and additional AVX flags showed no stable whole-model gain.
 
 ## Исходники / Source
 
 Проект основан на [Niko1221/Strata](https://github.com/Niko1221/Strata), распространяется по условиям лицензий проекта и включённых компонентов. Для сборки нужны Windows SDK, MSVC, CUDA и Rust; модель и её Q2 MTP pack предоставляются пользователем отдельно.
 
 Based on [Niko1221/Strata](https://github.com/Niko1221/Strata), subject to the project and bundled-component licenses. Building requires Windows SDK, MSVC, CUDA and Rust; the model and Q2 MTP pack are supplied separately.
+
+[Патчи / Patches](legacy-p40/patches/) · [Сборка установщика Desktop / Desktop installer build](legacy-p40/desktop/installer/) · [Сборка движка P40 / P40 engine build](legacy-p40/build.ps1)
 
 [All projects / Все проекты](https://github.com/aktalascloud)
