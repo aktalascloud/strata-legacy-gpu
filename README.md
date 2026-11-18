@@ -1,6 +1,6 @@
 # Strata Desktop for Tesla P40
 
-[Русский](#русский) · [Release / Скачать](https://github.com/aktalascloud/strata-legacy-gpu/releases/tag/v0.2.15-p40-r3) · [Guide / Документация](#замеры--measurements) · [Evidence / Данные](legacy-p40/research/selection-20261118.json) · [Upstream](https://github.com/Niko1221/Strata)
+[Русский](#русский) · [Release / Скачать](https://github.com/aktalascloud/strata-legacy-gpu/releases/tag/v0.2.15-p40-r4) · [Patches / Патчи](legacy-p40/patches/) · [Evidence / Данные](legacy-p40/research/selection-20261118.json) · [Upstream](https://github.com/Niko1221/Strata)
 
 Run Swift 1.5 Flash Next locally on Windows with a Tesla P40 and an Ivy Bridge AVX1 CPU. Strata manages the CUDA/MMQ backend, exposes an OpenAI-compatible API and can connect to a KoboldCpp media gateway on your LAN.
 

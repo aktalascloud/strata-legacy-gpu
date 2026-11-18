@@ -9,7 +9,7 @@ ${StrStr}
 
 Name "Strata Desktop (P40)"
 !ifndef VERSION
-  !define VERSION "0.2.15.3"
+  !define VERSION "0.2.15.4"
 !endif
 VIProductVersion "${VERSION}"
 VIAddVersionKey "ProductName" "Strata Desktop P40"

@@ -1,6 +1,6 @@
 # Strata Desktop P40 Setup
 
-The Windows x64 installer bundles Desktop, the patched Pascal CUDA engine, CPU Vision, Node.js, Python Control and Harness. It prepares the Swift pack from two existing IQ3_S GGUF shards. Model weights and the optional prepared Q2 MTP pack are supplied separately. The selected configuration starts locally on port 8093. Setup requires an NVIDIA driver, Microsoft Edge WebView2 Runtime and the official [Microsoft Visual C++ x64 runtime](https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist) 14.51.36247 or newer. Setup checks the Microsoft signatures and copies the Vision prerequisites from System32 during installation.
+The Windows x64 installer bundles Desktop, the Pascal CUDA build of the native engine, CPU Vision, Node.js, Python Control and Harness. It prepares the Swift pack from two existing IQ3_S GGUF shards. Model weights and the optional prepared Q2 MTP pack are supplied separately. The selected configuration starts locally on port 8093. Setup requires an NVIDIA driver, Microsoft Edge WebView2 Runtime and the official [Microsoft Visual C++ x64 runtime](https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist) 14.51.36247 or newer. Setup checks the Microsoft signatures and copies the Vision prerequisites from System32 during installation.
 
 Choose an empty installation directory. An existing startup entry stays in place, so disable older Strata startup entries before switching to this installation.
 

@@ -68,6 +68,27 @@ test('an edited connection cannot redirect a subtask while Swift is planning', a
   assert.equal(fetches, 0);
 });
 
+test('a KoboldCpp swarm helper can turn thinking off without advertised reasoning metadata', async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'strata-swarm-reasoning-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const requests = [];
+  const manager = createModelProviders({ directory, fetchImpl: async (_url, options) => {
+    requests.push(JSON.parse(options.body));
+    return new Response('data: {"choices":[{"delta":{"content":"Ready"},"finish_reason":"stop"}]}\n\n');
+  } });
+  for (const reasoning of [null, false]) {
+    const modelId = `koboldcpp/model-${reasoning}`;
+    const saved = manager.save({ provider: 'koboldcpp-lan', baseUrl: 'http://192.168.0.9:5001/v1', models: [{ id: modelId, reasoning }] }).connections.at(-1);
+    const helpers = selectSwarmHelpers([{ connectionId: saved.id, modelId }], manager);
+    const notes = await consultSwarm({
+      message: 'question', helpers, providers: manager, signal: AbortSignal.timeout(1000),
+      plan: async () => '["Give a short answer"]',
+    });
+    assert.equal(requests.at(-1).reasoning_effort, reasoning === null ? 'none' : undefined);
+    assert.deepEqual(notes, [{ model: modelId, answer: 'Ready' }]);
+  }
+});
+
 test('swarm accepts distinct saved FreeLLM models at the official endpoint only', () => {
   assert.equal(selectSwarmHelpers(selection, { resolve }).length, 2);
   assert.throws(() => selectSwarmHelpers([selection[0], selection[0]], { resolve }), /distinct/);

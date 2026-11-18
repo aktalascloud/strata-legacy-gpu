@@ -195,12 +195,14 @@ export function createModelProviders({ directory, changed = () => {}, fetchImpl 
       : protocol === 'openai-responses'
         ? { model: model.id, input: messages, instructions: systemPrompt, stream: true, store: false }
         : { model: model.id, messages: [...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []), ...messages], stream: true, ...(['openai', 'deepseek', 'openrouter', 'google', 'moonshotai'].includes(connection.provider) ? { stream_options: { include_usage: true } } : {}) };
-    // Match the native composer's effort names. Unknown support and other protocols keep provider defaults.
     const choice = typeof thinking === 'string' ? thinking.toLowerCase() : '';
-    if ((connection.provider === 'freellm' || isLanKobold(connection)) && Number.isInteger(maxTokens) && maxTokens > 0) {
+    const lanKobold = isLanKobold(connection);
+    if ((connection.provider === 'freellm' || lanKobold) && Number.isInteger(maxTokens) && maxTokens > 0) {
       payload.max_tokens = Math.min(maxTokens, model.maxOutput > 0 ? model.maxOutput : maxTokens);
     }
-    if (protocol === 'openai-chat' && (model.reasoning ?? knownThinks(connection, model.id)) === true && ['off', 'low', 'medium', 'high', 'max'].includes(choice)) {
+    // KoboldCpp understands an explicit Off even when /models omits reasoning metadata.
+    const supportsReasoning = model.reasoning ?? knownThinks(connection, model.id) ?? (lanKobold && choice === 'off');
+    if (protocol === 'openai-chat' && supportsReasoning === true && ['off', 'low', 'medium', 'high', 'max'].includes(choice)) {
       if (isOpenRouter(connection) || connection.provider === 'freellm') payload.reasoning = { effort: (connection.provider === 'freellm' ? FREELLM_EFFORTS : OPENROUTER_EFFORTS)[choice] };
       else payload.reasoning_effort = ({ off: 'none', max: 'high' })[choice] ?? choice;
     }
