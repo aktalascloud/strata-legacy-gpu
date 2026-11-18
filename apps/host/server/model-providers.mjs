@@ -1,10 +1,11 @@
 /** Saved API connections. Secrets never leave the host's private credentials file. */
 import { modelReadsPictures, modelSupportsReasoning } from './vision-probe.mjs';
-import { isOpenRouter, OPENROUTER_EFFORTS } from './agent/profile.mjs';
+import { FREELLM_EFFORTS, isOpenRouter, OPENROUTER_EFFORTS } from './agent/profile.mjs';
 import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { makePrivate } from './private-file.mjs';
+import { FREELLM_MODELS, FREELLM_URL } from './freellm.mjs';
 
 export const PROVIDER_CATALOG = [
   { id: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', protocol: 'openai-responses' },
@@ -27,6 +28,7 @@ export const PROVIDER_CATALOG = [
   { id: 'vercel-ai-gateway', name: 'Vercel AI Gateway', baseUrl: 'https://ai-gateway.vercel.sh/v1', protocol: 'openai-chat' },
   { id: 'xai', name: 'xAI', baseUrl: 'https://api.x.ai/v1', protocol: 'openai-responses' },
   { id: 'zai', name: 'Z.AI', baseUrl: 'https://api.z.ai/api/paas/v4', protocol: 'openai-chat' },
+  { id: 'freellm', name: 'FreeLLM · Kilo', baseUrl: FREELLM_URL, protocol: 'openai-chat', keyOptional: true },
 ];
 const PROTOCOLS = ['openai-chat', 'openai-responses', 'anthropic'];
 const fail = message => { throw new Error(message); };
@@ -49,6 +51,7 @@ export function normalizeBaseUrl(value) {
 }
 const publicConnection = ({ apiKey, ...connection }) => ({ ...connection, apiKeySet: !!apiKey });
 const numeric = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+const zeroPrice = value => (typeof value === 'number' || (typeof value === 'string' && value.trim() !== '')) && Number(value) === 0;
 
 export function createModelProviders({ directory, changed = () => {}, fetchImpl = fetch, knownThinks = () => null }) {
   mkdirSync(directory, { recursive: true });
@@ -82,11 +85,13 @@ export function createModelProviders({ directory, changed = () => {}, fetchImpl 
     // An unchanged blank key means keep it; changing the destination requires a new key.
     const apiKey = body.clearKey ? '' : text(body.apiKey, 4096) || (sameDestination ? existing.apiKey : '') || '';
     if (/[\r\n]/.test(apiKey)) fail('The API key contains an invalid character.');
-    if (kind === 'provider' && !apiKey) fail('Enter this provider’s API key.');
+    if (catalog?.id === 'freellm' && (baseUrl !== FREELLM_URL || protocol !== 'openai-chat' || apiKey)) fail('FreeLLM uses the official anonymous gateway without an API key.');
+    if (kind === 'provider' && !catalog?.keyOptional && !apiKey) fail('Enter this provider’s API key.');
     const rows = Array.isArray(body.models) ? body.models : [];
     if (rows.length > 100) fail('Add up to 100 models to one connection.');
     const models = rows.map(row => {
       const id = text(row.id, 256); if (!id || /[\r\n]/.test(id)) fail('Every model needs a model ID.');
+      if (catalog?.id === 'freellm' && !FREELLM_MODELS.includes(id)) fail('Choose a supported free model.');
       return { id, name: text(row.name) || id, contextMax: numeric(row.contextMax), maxOutput: numeric(row.maxOutput), vision: row.vision === true ? true : row.vision === false ? false : null, reasoning: row.reasoning === true ? true : row.reasoning === false ? false : null };
     });
     if (new Set(models.map(m => m.id)).size !== models.length) fail('Each model ID must be unique within this connection.');
@@ -140,11 +145,22 @@ export function createModelProviders({ directory, changed = () => {}, fetchImpl 
       if (connection.protocol !== 'anthropic' || !data.has_more) break;
       after = data.last_id; if (!after) break;
     }
-    const models = [...new Map(rows.filter(m => text(m.id, 256)).map(m => [m.id, { id: text(m.id, 256), name: text(m.display_name ?? m.name) || text(m.id, 256), contextMax: numeric(m.context_length ?? m.max_context_length ?? m.context_window), maxOutput: numeric(m.max_output_tokens ?? m.max_completion_tokens ?? m.top_provider?.max_completion_tokens), vision: modelReadsPictures(m), reasoning: modelSupportsReasoning(m) }])).values()];
+    const eligible = connection.provider === 'freellm' ? rows.filter(m => FREELLM_MODELS.includes(m.id) && m.isFree === true && zeroPrice(m.pricing?.prompt) && zeroPrice(m.pricing?.completion)) : rows;
+    const models = [...new Map(eligible.filter(m => text(m.id, 256)).map(m => [m.id, { id: text(m.id, 256), name: text(m.display_name ?? m.name) || text(m.id, 256), contextMax: numeric(m.context_length ?? m.max_context_length ?? m.context_window), maxOutput: numeric(m.max_output_tokens ?? m.max_completion_tokens ?? m.top_provider?.max_completion_tokens), vision: modelReadsPictures(m), reasoning: modelSupportsReasoning(m) }])).values()];
     return { models: models.sort((a, b) => a.name.localeCompare(b.name)) };
   }
-  async function stream({ selection, message, history = [], systemPrompt = '', images = [], thinking, signal, onFrame }) {
+  async function refresh(selection, signal) {
     const { connection, model } = resolve(selection);
+    if (connection.provider === 'freellm') {
+      const live = (await discover(connection, signal)).models.find(m => m.id === model.id);
+      if (!live) fail('This free model is currently unavailable. Choose another model.');
+      const updated = { ...model, contextMax: live.contextMax, maxOutput: live.maxOutput, reasoning: live.reasoning, vision: model.vision ?? live.vision };
+      if (JSON.stringify(model) !== JSON.stringify(updated)) { Object.assign(model, updated); persist(connections); }
+    }
+    return { connection, model };
+  }
+  async function stream({ selection, message, history = [], systemPrompt = '', images = [], thinking, signal, onFrame }) {
+    const { connection, model } = await refresh(selection, signal);
     const started = Date.now();
     const messages = history.filter(m => ['user', 'assistant'].includes(m.role) && typeof m.content === 'string').slice(-40).map(m => ({ role: m.role, content: m.content }));
     // Pictures only go to OpenAI-style servers (the one protocol every local server shares); other protocols keep the text.
@@ -159,7 +175,7 @@ export function createModelProviders({ directory, changed = () => {}, fetchImpl 
     // Match the native composer's effort names. Unknown support and other protocols keep provider defaults.
     const choice = typeof thinking === 'string' ? thinking.toLowerCase() : '';
     if (protocol === 'openai-chat' && (model.reasoning ?? knownThinks(connection, model.id)) === true && ['off', 'low', 'medium', 'high', 'max'].includes(choice)) {
-      if (isOpenRouter(connection)) payload.reasoning = { effort: OPENROUTER_EFFORTS[choice] };
+      if (isOpenRouter(connection) || connection.provider === 'freellm') payload.reasoning = { effort: (connection.provider === 'freellm' ? FREELLM_EFFORTS : OPENROUTER_EFFORTS)[choice] };
       else payload.reasoning_effort = ({ off: 'none', max: 'high' })[choice] ?? choice;
     }
     const requestSignal = signal ? AbortSignal.any([signal, AbortSignal.timeout(10 * 60 * 1000)]) : AbortSignal.timeout(10 * 60 * 1000);
@@ -229,5 +245,5 @@ export function createModelProviders({ directory, changed = () => {}, fetchImpl 
   }
   /** Connections WITH their keys, for the host's own agent bridge only; never serialised to a client. */
   function withSecrets() { return connections.map(c => ({ ...c, models: c.models.map(m => ({ ...m })) })); }
-  return { list, save, remove, discover, resolve, stream, withSecrets };
+  return { list, save, remove, discover, resolve, refresh, stream, withSecrets };
 }

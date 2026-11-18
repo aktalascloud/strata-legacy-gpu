@@ -12,10 +12,14 @@ export const catalogVersionLabel=(version:CatalogVersion)=>{const label=nativeVe
  */
 export const PICTURE_FETCH_FAMILIES = ['qwen', 'coder', 'unsloth', 'gyro', 'swift'];
 export const fetchesPictures = (version: { sourceFamily?: string } | undefined, packaged: boolean | undefined) => !!version && packaged === true && PICTURE_FETCH_FAMILIES.includes(version.sourceFamily ?? '');
+/** A prepared local profile is loaded by its own ID; never run the model installer over it. */
+export const localProfileLoadRequest = (version: Pick<CatalogVersion, 'id'|'localProfile'>) => version.localProfile ? { kind: 'load', args: { model: version.id, retrySafer: false } } : null;
+/** A saved choice is not evidence that the currently running instance used it. */
+export const localProfileUsesFullPerformance = (running: {resourceProfile?:string|null}|undefined, saved: {resourceProfile?:string|null}|undefined) => (running ? running.resourceProfile : saved?.resourceProfile) === 'performance';
 /** The one line that says how a version differs from its neighbours (the three NVFP4 versions); empty for the rest. */
 export const versionNote=(model:string)=>{const nv=nvfp4Version(model);return nv?tr(nv.note):'';};
 /** Display groups are distinct from the engine's installation family IDs. */
-export function nativeCatalogModels(families:NativeFamily[]):CatalogModel[]{
+export function nativeCatalogModels(families:NativeFamily[], installed: {model:string;catalogId?:string;ready:boolean}[] = []):CatalogModel[]{
  if(!families.length)return[];
  const groups:CatalogModel[]=[{family:'qwen3.8',title:'Qwen3.8-Flash-Next',about:'',experimental:false,images:false,sizes:[]},{family:'qwen3.6',title:'Qwen3.6-35B-A3B',about:'',experimental:false,images:false,sizes:[]}];
  for(const family of families){
@@ -25,6 +29,12 @@ export function nativeCatalogModels(families:NativeFamily[]):CatalogModel[]{
   const edition=target===groups[0]?({swift:'Swift 1.5',coder:'Coder',unsloth:'Unsloth',gyro:'Gyro'} as Record<string,string>)[family.family]??'':'';
   target.images ||= family.images;
   target.sizes.push(...family.sizes.map(size=>({...size,sourceFamily:family.family,edition,images:family.images})));
+ }
+ for (const item of installed) {
+  if (!item.ready || !item.catalogId || groups.some(group => group.sizes.some(size => size.id === item.model))) continue;
+  const group = groups.find(g => g.sizes.some(size => size.id === item.catalogId));
+  const template = group?.sizes.find(size => size.id === item.catalogId);
+  if (group && template) group.sizes.push({ ...template, id: item.model, edition: `${template.edition} · Local configuration`, installed: true, localProfile: true });
  }
  return groups;
 }

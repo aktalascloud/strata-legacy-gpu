@@ -15,8 +15,10 @@ import { migrateSetup } from './setup.mjs';
 import { skillEdit } from './skill-edits.mjs';
 import { materializeSkills, parseSkillFile, skillSlug, writeCreatedSkill } from './skill-files.mjs';
 import { systemFonts } from './fonts.mjs';
+import { acquireLegacyOwner, desktopAutostartConfig, shutdownLegacy, verifyLegacyDependencies, watchAutostartJob } from './desktop-autostart-profile.mjs';
 import { tuningDir } from './platform-paths.mjs';
 import { createAgentBridge, plainTurnFailure } from './agent/agent-bridge.mjs';
+import { compactionSettings } from './agent/compaction-settings.mjs';
 import { mcpSkippedNotices } from './agent/profile.mjs';
 import { createAgentTools } from './agent/tools-settings.mjs';
 import { withPlainStatus } from './agent/status.mjs';
@@ -131,7 +133,7 @@ const control = createControl({ control: CONTROL });
 // Files a run as administrator made in Strata's own folders (owner Administrators) are given back to the user at every start; best effort, never blocks.
 if (control && process.platform === 'win32' && !process.env.STRATA_NO_REPAIR_ACCESS) void control.repairAccess().catch(() => {});
 /* Which window shows the page (the app window or, when that cannot run, a browser tab) and what only the app window can do: app-ui.mjs. */
-const appUi = createAppUi({ shutdown: () => shutdown() });
+const appUi = createAppUi({ shutdown: () => shutdown('ui-quit') });
 /* The app's version has one source: the desktop shell passes it (STRATA_APP_VERSION, from apps/desktop/src-tauri/Cargo.toml). Outside the app it is read from the same file in a checkout, else 'dev'. */
 function appVersion() { return appVersionFrom({ env: process.env, here: HERE }); }
 const appUpdater = appUi.updater;
@@ -197,6 +199,7 @@ async function pictureRefusal(connection, model) {
   return `"${model.name}" is set not to read pictures (or its server says it cannot: a llama-server started without --mmproj, or a text-only model). If that is wrong, ${fix}. Otherwise choose a model that reads pictures.`;
 }
 const agent = createAgentBridge({
+  compactSettings: () => compactionSettings(store.get().compaction),
   tools: () => agentTools.profileView(),
   skillsDir: () => AGENT_SKILLS,
   onGoal: (chatId, goal) => hub.send('goal', { chatId, goal }),
@@ -592,6 +595,8 @@ async function runAgentTurn({ res, controller, chatId, body, message, workspaceI
   let choice, instance = null;
   if (body.remoteModel) {
     choice = { connectionId: String(body.remoteModel.connectionId), modelId: String(body.remoteModel.modelId) };
+    try { await modelProviders.refresh(choice, controller.signal); }
+    catch (error) { write({ type: 'error', message: error.message }); return; }
     // Does this server read pictures? Asked before the agent is built, so a picture is never sent to one that cannot.
     const own = modelProviders.withSecrets().find(c => c.id === choice.connectionId);
     if (own && own.protocol === 'openai-chat') await visionProbe.check(own, choice.modelId);
@@ -1358,7 +1363,7 @@ async function api(req, res, path, method, url) {
   if (path === '/api/control/shutdown' && method === 'POST') {
     if (!fromShell()) return error(res, 403, 'Not allowed.');
     json(res, 202, { stopping: true });
-    setImmediate(() => void shutdown());
+    setImmediate(() => void shutdown('shell-request'));
     return;
   }
 
@@ -1386,6 +1391,7 @@ async function api(req, res, path, method, url) {
     return json(res, status, body);
   }
   if ((path === '/api/engines/use' || path === '/api/engines/remove') && method === 'POST') {
+    if (process.env.STRATA_DESKTOP_AUTOSTART_MODEL) return error(res, 409, 'This Desktop uses a benchmark-verified engine. Update the fork and review the new engine before changing it.');
     const { status, body } = await changeEngine(control, path.endsWith('/use') ? 'use' : 'remove', await readBody(req), { modelsRunning: () => native.state().instances.length > 0 });
     if (status === 200) Promise.resolve(native.refresh?.(true)).catch(() => { /* the next poll reads it */ });
     return json(res, status, body);
@@ -1982,6 +1988,14 @@ async function api(req, res, path, method, url) {
     catch (e) { return error(res, e.code === 'approval-gone' ? 409 : 400, e.message); }
   }
   /* The desktop shell's own choices (#3402, #3477): the port it asks for, the tray, and a desktop notification through the shell. */
+  if (path === '/api/agent/compaction' && method === 'GET') return json(res, 200, compactionSettings(store.get().compaction));
+  if (path === '/api/agent/compaction' && method === 'POST') {
+    try {
+      const value = compactionSettings(await readBody(req));
+      store.update({ compaction: value });
+      return json(res, 200, value);
+    } catch (e) { return error(res, 400, e.message); }
+  }
   if (path === '/api/locale' && method === 'GET') return json(res, 200, systemLocale());
   if (path === '/api/shell' && method === 'GET') return json(res, 200, shellState());
   if (path === '/api/shell/prefs' && method === 'POST') {
@@ -2316,23 +2330,65 @@ server.on('error', error => {
   console.error(`[strata] ${listenProblem(error, PORT, HOST)}`);
   process.exit(1);
 });
+let legacyLock = null;
 server.listen(PORT, HOST, () => {
   if (process.send) process.send({ type: 'strata-ready', port: PORT });
   // Engines a lost owner left behind (an earlier crash, an older version): ended after a PID + start time + command-line check.
-  if (control && process.env.STRATA_PACKAGED === '1') control.cleanup().catch(() => {});
+  if (control && process.env.STRATA_PACKAGED === '1' && !process.env.STRATA_DESKTOP_AUTOSTART_MODEL) control.cleanup().catch(() => {});
+  void (async () => {
+    try {
+      const profile = desktopAutostartConfig();
+      if (!profile) return;
+      if (!control || process.env.STRATA_PACKAGED !== '1') throw new Error('Desktop autostart requires packaged Control.');
+      process.env.STRATA_KEEP_LEFTOVERS = '1';
+      legacyLock = await acquireLegacyOwner(control.control.python, process.env.STRATA_DESKTOP_LEGACY_LOCK_FILE, profile.port);
+      const held = legacyLock;
+      held.once('exit', () => { if (legacyLock === held && !stopping) { console.error('[strata] Legacy owner lock lost; stopping the host.'); void shutdown('owner-lock-lost'); } });
+      if (legacyLock.exitCode !== null) throw new Error('Legacy owner lock was lost.');
+      const dependencyDirs = await verifyLegacyDependencies(process.env.STRATA_DESKTOP_DLL_RECEIPT, process.env.STRATA_DESKTOP_DLL_RECEIPT_SHA256);
+      const state = await native.refresh(true);
+      if (!state.available) throw new Error(state.error ?? 'Native Control is unavailable.');
+      if (stopping || legacyLock !== held || held.exitCode !== null) throw new Error('Legacy owner lock was lost.');
+      native.enableLegacyAutostart(dependencyDirs);
+      const job = native.operation('load', { ...profile, retrySafer: false });
+      watchAutostartJob(native, job.id, reason => {
+        console.error(`[strata] Desktop autostart failed: ${reason}`);
+        void shutdown('autostart-job');
+      }, 500, state => console.error(`[strata] Autostart job ${job.id}: ${state}; stopping=${stopping}`));
+    } catch (error) {
+      console.error(`[strata] Desktop autostart failed: ${error.message}`);
+      native.enableLegacyAutostart(false);
+      if (legacyLock) { const held=legacyLock; legacyLock=null; held.stdin.end(); }
+    }
+  })();
 });
 
 let stopping=false;
-const shutdown = async () => {
+const shutdown = async (source = 'unknown') => {
+  console.error(`[strata] Host shutdown requested: ${source}; stopping=${stopping}; pid=${process.pid}; parent=${process.ppid}`);
   if(stopping)return;stopping=true;
   clearInterval(taskTimer);tasks.close();
+  if (legacyLock) {
+    server.close();
+    try {
+      await shutdownLegacy(native, async () => {
+        await Promise.allSettled([localShare.stop(),cloudflare.stop(),agent.close()]);
+        server.closeAllConnections?.();
+      }, legacyLock);
+    } catch (error) {
+      console.error(`[strata] Model did not stop; retaining the owner lock: ${error.message}`);
+      return;
+    }
+    process.exit(0);
+  }
   const timeout=setTimeout(()=>process.exit(0),control?45000:10000);timeout.unref();   // stopping an engine through Control: drained (15 s), then ended; the shell's deadline is longer
   server.close();server.closeAllConnections?.();
   await Promise.allSettled([localShare.stop(),cloudflare.stop(),native.close(),agent.close()]);
+  legacyLock?.stdin.end();
   process.exit(0);
 };
 // Every ordinary way of being told to stop takes the clean path: Ctrl+C, kill, the terminal closing (SIGHUP), Ctrl+Break.
-for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK']) { try { process.on(signal, shutdown); } catch { /* not on this platform */ } }
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK']) { try { process.on(signal, () => void shutdown(`signal:${signal}`)); } catch { /* not on this platform */ } }
 // Started by the desktop shell: when the shell is gone (killed, crashed, logged off) stop what this app started and leave.
 // POSIX re-parents us (ppid changes); Windows keeps the old ppid, so the pid is probed (signal 0 never signals).
 if (process.env.STRATA_EXIT_WITH_PARENT === '1') {
@@ -2341,7 +2397,7 @@ if (process.env.STRATA_EXIT_WITH_PARENT === '1') {
     if (process.ppid !== parent) return true;
     try { process.kill(parent, 0); return false; } catch (e) { return e.code === 'ESRCH'; }
   };
-  setInterval(() => { if (gone()) void shutdown(); }, 1000).unref();
+  setInterval(() => { if (gone()) void shutdown('parent-gone'); }, 1000).unref();
 }
 
 export { server, VARIANTS };

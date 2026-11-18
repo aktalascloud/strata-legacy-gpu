@@ -1,4 +1,6 @@
 {
+  "s8502": "No account or API key is needed. Fetch the list and select the free models.",
+  "s8501": "FreeLLM sends your messages to Kilo and its providers. They may use prompts and answers to improve models. Do not send confidential data. NVIDIA free models are for trial use.",
   "s0001": "% PCIe",
   "s7331": "結果は DuckDuckGo から取得し、DuckDuckGo が混み合っているときは Bing から取得します。アカウントもキーも不要です。",
   "s7321": "ウェブ検索が現在制限されているため、検索をやめて手元の情報で進めました。1分ほど待ってからもう一度試すか、「設定 → ツール → ウェブ検索」で検索キーを追加してください。",
@@ -3527,5 +3529,14 @@
   "s9035": "次のモデルファイルが見つかりません: {0}。",
   "s9036": "もう一度「ダウンロードして読み込む」を押すと取得します。すでにあるファイルはそのまま残ります。同じファイルがまた表示される場合は、詳細を開き、助けを求めるときに共有してください。",
   "s9037": "このアップデートは、アプリの再起動で中断されました。その後のアップデートが完了しているため、対応は不要です。",
-  "s9038": "このシステムでは、Strataによるポート{0}の使用が許可されていません。LinuxとmacOSでは、1024未満のポートには管理者権限が必要です。別のポート(STRATA_PORT)、たとえば8801でStrataを起動してください。"
+  "s9038": "このシステムでは、Strataによるポート{0}の使用が許可されていません。LinuxとmacOSでは、1024未満のポートには管理者権限が必要です。別のポート(STRATA_PORT)、たとえば8801でStrataを起動してください。",
+  "s9039": "Automatic compaction",
+  "s9040": "Summarize older conversation messages to make room.",
+  "s9041": "Compaction threshold (tokens; 0 = automatic)",
+  "s9042": "Recent messages to keep (0 = automatic)",
+  "s9043": "The threshold is limited by the model window and space for the reply. Changes apply to the next agent turn.",
+  "s9044": "Could not load compaction settings.",
+  "s9045": "Could not save compaction settings.",
+  "s9046": "Saved.",
+  "s9047": "These settings apply to agent chats. Plain chat and /compact use their existing behavior."
 }

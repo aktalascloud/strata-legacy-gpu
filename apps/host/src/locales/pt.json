@@ -1,4 +1,6 @@
 {
+  "s8502": "No account or API key is needed. Fetch the list and select the free models.",
+  "s8501": "FreeLLM sends your messages to Kilo and its providers. They may use prompts and answers to improve models. Do not send confidential data. NVIDIA free models are for trial use.",
   "s0001": "% PCIe",
   "s7331": "Os resultados vêm do DuckDuckGo, ou do Bing quando o DuckDuckGo está ocupado. Você não precisa de conta nem de chave.",
   "s7321": "A pesquisa na web está limitada agora, então parei de pesquisar e segui com o que tenho. Tente de novo em um minuto ou adicione uma chave de pesquisa em Configurações → Ferramentas → Pesquisa na web.",
@@ -3527,5 +3529,14 @@
   "s9035": "Estes arquivos do modelo estão faltando: {0}.",
   "s9036": "Pressione Baixar e carregar de novo para buscá-los. Os arquivos que já estão aí são mantidos. Se os mesmos arquivos aparecerem de novo, abra os Detalhes e compartilhe-os ao pedir ajuda.",
   "s9037": "Esta atualização foi interrompida quando o aplicativo reiniciou. Uma atualização posterior terminou, então não há nada a fazer.",
-  "s9038": "Este sistema não deixa o Strata usar a porta {0}. No Linux e no macOS, as portas abaixo de 1024 precisam de direitos de administrador. Inicie o Strata com outra porta (STRATA_PORT), por exemplo 8801."
+  "s9038": "Este sistema não deixa o Strata usar a porta {0}. No Linux e no macOS, as portas abaixo de 1024 precisam de direitos de administrador. Inicie o Strata com outra porta (STRATA_PORT), por exemplo 8801.",
+  "s9039": "Automatic compaction",
+  "s9040": "Summarize older conversation messages to make room.",
+  "s9041": "Compaction threshold (tokens; 0 = automatic)",
+  "s9042": "Recent messages to keep (0 = automatic)",
+  "s9043": "The threshold is limited by the model window and space for the reply. Changes apply to the next agent turn.",
+  "s9044": "Could not load compaction settings.",
+  "s9045": "Could not save compaction settings.",
+  "s9046": "Saved.",
+  "s9047": "These settings apply to agent chats. Plain chat and /compact use their existing behavior."
 }

@@ -1,4 +1,6 @@
 {
+  "s8502": "No account or API key is needed. Fetch the list and select the free models.",
+  "s8501": "FreeLLM sends your messages to Kilo and its providers. They may use prompts and answers to improve models. Do not send confidential data. NVIDIA free models are for trial use.",
   "s0001": "% PCIe",
   "s7331": "Los resultados vienen de DuckDuckGo, o de Bing cuando DuckDuckGo está ocupado. No necesitas cuenta ni clave.",
   "s7321": "La búsqueda web está limitada ahora mismo, así que dejé de buscar y seguí con lo que tengo. Inténtalo de nuevo en un minuto o añade una clave de búsqueda en Ajustes → Herramientas → Búsqueda web.",
@@ -3527,5 +3529,14 @@
   "s9035": "Faltan estos archivos del modelo: {0}.",
   "s9036": "Pulse de nuevo «Descargar y cargar» para obtenerlos. Los archivos que ya están se conservan. Si vuelven a aparecer los mismos archivos, abra los detalles y compártalos cuando pida ayuda.",
   "s9037": "Esta actualización se interrumpió cuando la aplicación se reinició. Una actualización posterior terminó, así que no hay nada que hacer.",
-  "s9038": "Este sistema no deja que Strata use el puerto {0}. En Linux y macOS, los puertos por debajo de 1024 necesitan derechos de administrador. Inicia Strata con otro puerto (STRATA_PORT), por ejemplo 8801."
+  "s9038": "Este sistema no deja que Strata use el puerto {0}. En Linux y macOS, los puertos por debajo de 1024 necesitan derechos de administrador. Inicia Strata con otro puerto (STRATA_PORT), por ejemplo 8801.",
+  "s9039": "Automatic compaction",
+  "s9040": "Summarize older conversation messages to make room.",
+  "s9041": "Compaction threshold (tokens; 0 = automatic)",
+  "s9042": "Recent messages to keep (0 = automatic)",
+  "s9043": "The threshold is limited by the model window and space for the reply. Changes apply to the next agent turn.",
+  "s9044": "Could not load compaction settings.",
+  "s9045": "Could not save compaction settings.",
+  "s9046": "Saved.",
+  "s9047": "These settings apply to agent chats. Plain chat and /compact use their existing behavior."
 }

@@ -290,9 +290,15 @@ fn resource_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
             return Ok(plain_path(dir));
         }
     }
-    // development: apps/desktop/src-tauri -> ../../host  and  ./resources
-    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    Ok(manifest)
+    resource_or_development(None)
+}
+
+fn resource_or_development(packaged: Option<PathBuf>) -> Result<PathBuf, String> {
+    if let Some(path) = packaged { return Ok(path); }
+    #[cfg(debug_assertions)]
+    { Ok(PathBuf::from(env!("CARGO_MANIFEST_DIR"))) }
+    #[cfg(not(debug_assertions))]
+    { Err("The packaged Strata host resources are missing.".into()) }
 }
 
 /// Tauri returns Windows paths in the verbatim form (`\\?\C:\...`). Node cannot take such a path as
@@ -544,6 +550,11 @@ fn start_host(app: &tauri::AppHandle) -> Result<u16, String> {
 /// How long the host gets to stop the engines this app started (drain, then end) before it is ended. The host's own
 /// deadline is shorter; whatever is still running when the shell exits is ended by the job object / the owners.
 const HOST_STOP_SECONDS: u64 = 60;
+fn legacy_desktop_profile() -> bool {
+    std::env::var("STRATA_DESKTOP_AUTOSTART_MODEL").map(|v| !v.is_empty()).unwrap_or(false)
+        && std::env::var("STRATA_DESKTOP_AUTOSTART_PORT").as_deref() == Ok("8093")
+}
+fn host_stop_seconds() -> u64 { if legacy_desktop_profile() { 420 } else { HOST_STOP_SECONDS } }
 
 /// Stop the App Host, and with it the engines this app started.
 ///
@@ -579,7 +590,7 @@ fn kill_host(app: &tauri::AppHandle) {
 fn stop_host_child(child: &mut Child, port: Option<u16>, token: Option<&str>) {
     if let (Some(port), Some(token)) = (port, token) {
         let _ = http_post(&format!("http://127.0.0.1:{port}/api/control/shutdown"), &[("x-strata-shutdown", token)]);
-        let deadline = Instant::now() + Duration::from_secs(HOST_STOP_SECONDS);
+        let deadline = Instant::now() + Duration::from_secs(host_stop_seconds());
         while Instant::now() < deadline {
             if let Ok(Some(_)) = child.try_wait() {
                 return;
@@ -587,6 +598,8 @@ fn stop_host_child(child: &mut Child, port: Option<u16>, token: Option<&str>) {
             std::thread::sleep(Duration::from_millis(100));
         }
     }
+    // The profile's lock must survive an uncertain engine stop.
+    if legacy_desktop_profile() { let _ = child.wait(); return; }
     let _ = child.kill();
     let _ = child.wait();
 }
@@ -681,20 +694,10 @@ fn run_self_test(report_path: &str) -> i32 {
     let exe = std::env::current_exe().unwrap_or_default();
     let packaged_res = packaged_resource_dir(&exe);
 
-    let res = match packaged_res {
-        Some(p) => {
-            record("resources-packaged", true, p.display().to_string());
-            p
-        }
-        None => {
-            let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-            record(
-                "resources-packaged",
-                false,
-                format!("not a packaged layout; using development root {}", dev.display()),
-            );
-            dev
-        }
+    let packaged = packaged_res.is_some();
+    let res = match resource_or_development(packaged_res) {
+        Ok(p) => { record("resources-packaged", packaged, p.display().to_string()); p }
+        Err(e) => { record("resources-packaged", false, e.clone()); return write_self_test_report(report_path, steps, &e); }
     };
 
     let host_dir = if res.join("host").join("server").join("index.mjs").exists() {
@@ -738,6 +741,9 @@ fn run_self_test(report_path: &str) -> i32 {
     let mut cmd = Command::new(&node);
     cmd.arg(&entry)
         .current_dir(&host_dir)
+        .env_remove("STRATA_DESKTOP_AUTOSTART_MODEL")
+        .env_remove("STRATA_DESKTOP_AUTOSTART_PORT")
+        .env_remove("STRATA_DESKTOP_LEGACY_LOCK_FILE")
         .env("STRATA_PORT", port.to_string())
         .env("STRATA_DIST", &dist)
         .env("STRATA_PACKAGED", "1")
@@ -1406,6 +1412,16 @@ mod tests {
         assert_eq!(a.len(), 64);
         assert_ne!(a, b);
         assert!(a.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    #[cfg(not(debug_assertions))]
+    fn release_without_packaged_resources_refuses_to_start() {
+        let missing = scratch("missing-resources");
+        let exe = missing.join("strata-desktop.exe");
+        assert!(packaged_resource_dir(&exe).is_none());
+        assert!(resource_or_development(packaged_resource_dir(&exe)).unwrap_err().contains("resources are missing"));
+        let _ = std::fs::remove_dir_all(missing);
     }
 
     #[test]

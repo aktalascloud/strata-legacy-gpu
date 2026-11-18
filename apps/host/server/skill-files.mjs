@@ -26,9 +26,21 @@ export function parseSkillFile(text) {
   const raw = String(text ?? '').replace(/^﻿/, '').replace(/\r\n/g, '\n');
   const m = /^---\n([\s\S]*?)\n---\n?/.exec(raw);
   if (!m) return { name: null, title: null, description: null, body: raw.trim() };
+  const lines = m[1].split('\n');
   const field = key => {
-    const line = new RegExp(`^${key}:\\s*(.*)$`, 'mi').exec(m[1])?.[1]?.trim();
+    const pattern = new RegExp(`^${key}:[ \\t]*(.*)$`, 'i');
+    const index = lines.findIndex(line => pattern.test(line));
+    const line = index < 0 ? undefined : pattern.exec(lines[index])?.[1]?.trim();
     if (line === undefined) return null;
+    // Descriptions are shown on one line: fold YAML block text without changing the source file.
+    if (/^>(?:[1-9][+-]?|[+-][1-9]?|)(?:[ \t]+#.*)?$/.test(line)) {
+      const pieces = [];
+      for (const next of lines.slice(index + 1)) {
+        if (next.trim() && !/^[ \t]/.test(next)) break;
+        if (next.trim()) pieces.push(next.trim());
+      }
+      return pieces.join(' ') || null;
+    }
     try { if (/^["']/.test(line)) return typeof JSON.parse(line.replace(/^'(.*)'$/, '"$1"')) === 'string' ? JSON.parse(line.replace(/^'(.*)'$/, '"$1"')) : line; } catch { /* plain scalar */ }
     return line;
   };

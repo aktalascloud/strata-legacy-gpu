@@ -11,6 +11,7 @@ import { AboutVersions, SettingsUpdates } from '../components/SettingsUpdates';
 import { NativeOperations } from '../components/NativeOperations';
 import { FontChoice } from '../components/FontChoice';
 import { ElectricityPrice } from '../components/ElectricityPrice';
+import { CompactionSettings } from '../components/CompactionSettings';
 import { ApprovalNotifySetting, DoneSoundSetting, PortSetting, TraySetting, useShellState } from '../components/ShellSettings';
 import { LANGUAGES } from '../lib/i18n';
 import { setLanguage, setWhileBusy } from '../lib/store';
@@ -29,6 +30,7 @@ export function SettingsScreen() {
         control: ReactNode;
     }[] = [
         { section: 'General', label: 'Language', hint: 'Choose the language used throughout Strata.', control: <Select translateLabels={false} ariaLabel={tr("Language")} value={prefs.language} options={[...LANGUAGES]} onChange={value => setLanguage(value as typeof prefs.language)}/> },
+        { section: 'General', label: 'Automatic compaction', hint: 'Summarize older conversation messages to make room.', control: <CompactionSettings /> },
         { section: 'General', label: 'While an answer is being written', hint: 'What Enter does when you send a message while the assistant is still answering.', aliases: 'interrupt wait queue interject busy send after stop enter', control: <Select value={prefs.whileBusy} ariaLabel={tr("While an answer is being written")} options={[{ value: 'wait', label: 'Wait for the answer' }, { value: 'queue', label: 'Send after the answer' }, { value: 'interject', label: 'Interrupt the answer' }]} onChange={value => setWhileBusy(value as typeof prefs.whileBusy)}/> },
         { section: 'General', label: 'Sound when work finishes', hint: 'Plays a short sound when an answer or task that took a while is finished, or when Strata is in the background.', aliases: 'audio chime done complete notification', control: <DoneSoundSetting /> },
         { section: 'General', label: 'Notify me when Strata needs an answer', hint: 'In Manual mode, shows a desktop notification when the assistant waits for your approval and Strata is in the background.', aliases: 'approval permission alert notification manual', control: <ApprovalNotifySetting /> },

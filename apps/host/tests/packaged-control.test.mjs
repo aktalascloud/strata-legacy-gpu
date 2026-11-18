@@ -90,10 +90,12 @@ test('runCli passes the arguments untouched (no shell) and reads JSON', async ()
 
 // ---------------------------------------------------------------------------------- native-control in packaged mode
 
-function packagedFixture({ engineUsable = true, updater = null, repair = false, ids = ['iq2_xs', 'iq3_s'], controlVersion = '0.1.45', extraSizes = [], cliStartWait = 'old', installPoll = null } = {}) {
+function packagedFixture({ engineUsable = true, updater = null, repair = false, ids = ['iq2_xs', 'iq3_s'], controlVersion = '0.1.45', extraSizes = [], cliStartWait = 'old', installPoll = null, createPortServer } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'strata-packaged-test-'));
   const install = join(root, 'install'), data = join(root, 'data');
   mkdirSync(install, { recursive: true });
+  mkdirSync(join(root, 'engine'));
+  writeFileSync(join(root, 'engine', 'engine-component.json'), JSON.stringify({ entrypoint: 'strata.exe', files: ['strata.exe','strata_kq.dll','strata-vision.exe'].map(path => ({ path, sha256: 'a'.repeat(64) })) }));
   /* The Control this app found, as it is on disk. The app reads the start-wait ceiling out of these files instead of trusting
      the version, because a start wait is checked three times before the engine is reached and a released Control has those
      three ceilings disagreeing:
@@ -122,6 +124,8 @@ function packagedFixture({ engineUsable = true, updater = null, repair = false, 
   const spawned = [];
   const rpc = [];
   let startFailure = null, startFailureLeft = Infinity;
+  let gate = null;
+  const hold = async step => { if (gate?.step === step) { gate.reached(); await gate.wait; } };
   let statusAnswer = { state: 'ready' }, metricsDown = false, healthDown = false;
   const control = {
     control: { dir: join(root, 'control'), python: join(root, 'control', 'python', 'python.exe') }, version: controlVersion,
@@ -129,13 +133,13 @@ function packagedFixture({ engineUsable = true, updater = null, repair = false, 
     async engine() {
       calls.push(['engine']);
       return engineUsable
-        ? { usable: true, backend: 'cuda', components_dir: 'E:\\c', engine: { version: '0.1.45', platform: 'windows-x86_64', backend: 'cuda', exe: 'E:\\engine\\strata.exe', root: 'E:\\engine' } }
+        ? { usable: true, backend: 'cuda', components_dir: 'E:\\c', engine: { version: '0.1.45', platform: 'windows-x86_64', backend: 'cuda', exe: join(root, 'engine', 'strata.exe'), root: join(root, 'engine') } }
         : { usable: false, notice: 'No engine for this PC was found in E:\\c: the component folder holds no engine package. The app never downloads an engine while it starts or serves.', backend: 'cuda', engine: null, components_dir: 'E:\\c' };
     },
     async importPlan(path) { calls.push(['importPlan', path]); return { file_set_status: 'plausible', candidate_selection: { family: 'qwen', model: 'IQ3_S' }, file_count: 2, total_bytes: 1e9, issues: [] }; },
-    async saveProfile(name, path) { calls.push(['saveProfile', name, basename(path)]); saved.push(JSON.parse(readFileSync(path, 'utf8'))); return {}; },
-    async start(name, options) { calls.push(['start', name, options?.waitSeconds]); if (startFailure && startFailureLeft-- > 0) { const e = new Error(startFailure.message); e.output = startFailure.output; throw e; } return { ok: true, state: 'ready' }; },
-    async stop(name) { calls.push(['stop', name]); return { ok: true, state: 'stopped' }; },
+    async saveProfile(name, path) { calls.push(['saveProfile', name, basename(path)]); saved.push(JSON.parse(readFileSync(path, 'utf8'))); await hold('save'); return {}; },
+    async start(name, options) { calls.push(['start', name, options?.waitSeconds, options]); await hold('start'); if (startFailure && startFailureLeft-- > 0) { const e = new Error(startFailure.message); e.output = startFailure.output; throw e; } return { ok: true, state: 'ready' }; },
+    async stop(name, options) { calls.push(options ? ['stop', name, options] : ['stop', name]); return { ok: true, state: 'stopped' }; },
     async status(name) { calls.push(['status', name]); return typeof statusAnswer === 'function' ? statusAnswer(name) : statusAnswer; },
     ...(repair ? { async repairAccess() { calls.push(['repairAccess']); return { ok: true }; } } : {}),
     ...(updater ? { async updateCheck() { calls.push(['updateCheck']); return updater.report; }, async update(options) { calls.push(['update', options.engine, options.control]); return updater.update(options); } } : {}),
@@ -176,11 +180,158 @@ function packagedFixture({ engineUsable = true, updater = null, repair = false, 
     } };
     return child;
   };
-  const native = createNativeControl({ control, directory: data, spawnProcess, fetcher, requests: () => requests });
+  const makeNative = () => createNativeControl({ control, directory: data, spawnProcess, fetcher, ...(createPortServer ? { createPortServer } : {}), requests: () => requests });
+  const native = makeNative();
   const others = () => spawned.filter(s => !String(s.args[0]).endsWith('strata_mcp.py'));
-  return { native, calls, saved, spawned, others, rpc, setStatus: v => { statusAnswer = v; }, setMetricsDown: v => { metricsDown = v; }, setHealthDown: v => { healthDown = v; }, failStart: (v, times = Infinity) => { startFailure = v; startFailureLeft = times; }, catalog, hardware, install, root, cleanup: () => { if (earlierInstallEnv === undefined) delete process.env.STRATA_INSTALL_DIR; else process.env.STRATA_INSTALL_DIR = earlierInstallEnv; rmSync(root, { recursive: true, force: true }); } };
+  return { native, makeNative, calls, saved, spawned, others, rpc, block(step) { let reached, release; const waiting = new Promise(resolve => { reached=resolve; }); const wait = new Promise(resolve => { release=resolve; }); gate={ step, reached, wait }; return { waiting, release }; }, setStatus: v => { statusAnswer = v; }, setMetricsDown: v => { metricsDown = v; }, setHealthDown: v => { healthDown = v; }, failStart: (v, times = Infinity) => { startFailure = v; startFailureLeft = times; }, catalog, hardware, install, root, cleanup: () => { if (earlierInstallEnv === undefined) delete process.env.STRATA_INSTALL_DIR; else process.env.STRATA_INSTALL_DIR = earlierInstallEnv; rmSync(root, { recursive: true, force: true }); } };
 }
 const finish = async (native, id) => { for (let i = 0; i < 400; i++) { const job = native.state().jobs.find(j => j.id === id); if (job.state !== 'running') return job; await new Promise(r => setTimeout(r, 10)); } throw new Error('job did not finish'); };
+
+test('the opted-in profile saves settings and reloads them after a new host without changing its local API', async () => {
+  const prevModel = process.env.STRATA_DESKTOP_AUTOSTART_MODEL, prevPort = process.env.STRATA_DESKTOP_AUTOSTART_PORT;
+  process.env.STRATA_DESKTOP_AUTOSTART_MODEL = 'iq2_xs'; process.env.STRATA_DESKTOP_AUTOSTART_PORT = '8093';
+  const createPortServer = () => { const s = new EventEmitter(); s.listen = (_port, _host, done) => queueMicrotask(done); s.close = done => done(); return s; };
+  const f = packagedFixture({ createPortServer }); let next;
+  try {
+    const dirs = [join(f.root, 'cuda'), join(f.root, 'vision')], path = join(f.install, 'strata-iq2_xs.json');
+    const cfg = JSON.parse(readFileSync(path, 'utf8')); Object.assign(cfg, { host: '127.0.0.1', port: 8093, api_key: 'none', lib_dirs: dirs });
+    writeFileSync(path, JSON.stringify(cfg));
+    const proof = { directories: dirs, components: new Map(['strata.exe','strata_kq.dll','strata-vision.exe'].map(name => [name, 'a'.repeat(64)])) };
+    await f.native.refresh(true); f.native.enableLegacyAutostart(proof);
+    const first = await finish(f.native, f.native.operation('load', { model: 'iq2_xs', port: 8093, retrySafer: false }).id);
+    assert.equal(first.state, 'done', first.error);
+    assert.equal(f.saved.at(-1).port, 8093); assert.equal(f.saved.at(-1).api_key, 'none');
+    assert.equal(f.calls.filter(c => c[0] === 'start').at(-1)[3].drainSeconds, 300);
+    f.native.save('iq2_xs', { values: { sampling: { top_k: 25 } } });
+    await f.native.close();
+    assert.equal(f.calls.filter(c => c[0] === 'stop').at(-1)[2].waitSeconds, 330);
+    next = f.makeNative(); await next.refresh(true); next.enableLegacyAutostart(proof);
+    const restarted = await finish(next, next.operation('load', { model: 'iq2_xs', port: 8093, retrySafer: false }).id);
+    assert.equal(restarted.state, 'done', restarted.error);
+    assert.equal(f.saved.at(-1).sampling.top_k, 25); assert.equal(f.saved.at(-1).port, 8093); assert.equal(f.saved.at(-1).api_key, 'none');
+  } finally {
+    await next?.close(); await f.native.close(); f.cleanup();
+    if (prevModel === undefined) delete process.env.STRATA_DESKTOP_AUTOSTART_MODEL; else process.env.STRATA_DESKTOP_AUTOSTART_MODEL = prevModel;
+    if (prevPort === undefined) delete process.env.STRATA_DESKTOP_AUTOSTART_PORT; else process.env.STRATA_DESKTOP_AUTOSTART_PORT = prevPort;
+  }
+});
+
+test('the running local Swift profile reports its own ID, KV and CPU vision settings', async () => {
+  const prevModel = process.env.STRATA_DESKTOP_AUTOSTART_MODEL, prevPort = process.env.STRATA_DESKTOP_AUTOSTART_PORT;
+  process.env.STRATA_DESKTOP_AUTOSTART_MODEL = 'swift-1.5-iq3-s'; process.env.STRATA_DESKTOP_AUTOSTART_PORT = '8093';
+  const createPortServer = () => { const s = new EventEmitter(); s.listen = (_port, _host, done) => queueMicrotask(done); s.close = done => done(); return s; };
+  const f = packagedFixture({ createPortServer, ids: ['swift-1.5-iq3-s'] });
+  try {
+    const dirs = [join(f.root, 'cuda'), join(f.root, 'vision')], path = join(f.install, 'strata-swift-1.5-iq3-s.json'), vision = join(f.root, 'engine', 'strata-vision.exe');
+    writeFileSync(vision, 'fixture');
+    const cfg = JSON.parse(readFileSync(path, 'utf8')); Object.assign(cfg, { host: '127.0.0.1', port: 8093, api_key: 'none', lib_dirs: dirs, args: ['--max-context','262144','--kv','q4_0'], vision: { gpu: false, threads: 16, exe: vision } });
+    writeFileSync(path, JSON.stringify(cfg)); await f.native.refresh(true);
+    const model = f.native.state().installed.models[0];
+    assert.equal(model.model, 'swift-1.5-iq3-s'); assert.equal(model.catalogId, 'swift-iq3_s'); assert.equal(model.kv, 'q4_0'); assert.equal(model.visionDevice, 'cpu');
+    f.native.enableLegacyAutostart({ directories: dirs, components: new Map(['strata.exe','strata_kq.dll','strata-vision.exe'].map(name => [name, 'a'.repeat(64)])) });
+    const job = await finish(f.native, f.native.operation('load', { model: model.model, port: 8093 }).id);
+    assert.equal(job.state, 'done', job.error);
+    assert.deepEqual(f.native.resolveInstance(model.model).runSettings, { context: 262144, kv: 'q4_0', vision: 'cpu', visionThreads: 16 });
+  } finally {
+    await f.native.close(); f.cleanup();
+    if (prevModel === undefined) delete process.env.STRATA_DESKTOP_AUTOSTART_MODEL; else process.env.STRATA_DESKTOP_AUTOSTART_MODEL = prevModel;
+    if (prevPort === undefined) delete process.env.STRATA_DESKTOP_AUTOSTART_PORT; else process.env.STRATA_DESKTOP_AUTOSTART_PORT = prevPort;
+  }
+});
+
+test('the no-repair-access flag preserves ACLs after a failed start', async () => {
+  const prior = process.env.STRATA_NO_REPAIR_ACCESS; process.env.STRATA_NO_REPAIR_ACCESS = '1';
+  const f = packagedFixture({ repair: true });
+  try {
+    await f.native.refresh(true); f.failStart({ message: 'PermissionError' });
+    const job = await finish(f.native, f.native.operation('load', { model: 'iq2_xs' }).id);
+    assert.equal(job.state, 'error'); assert.match(job.error, /PermissionError/);
+    assert.equal(f.calls.filter(c => c[0] === 'repairAccess').length, 0);
+    assert.equal(f.calls.filter(c => c[0] === 'start').length, 1);
+  } finally {
+    await f.native.close(); f.cleanup();
+    if (prior === undefined) delete process.env.STRATA_NO_REPAIR_ACCESS; else process.env.STRATA_NO_REPAIR_ACCESS = prior;
+  }
+});
+
+test('the opted-in exact profile does not retry with smaller memory settings', async () => {
+  const prevModel = process.env.STRATA_DESKTOP_AUTOSTART_MODEL, prevPort = process.env.STRATA_DESKTOP_AUTOSTART_PORT;
+  process.env.STRATA_DESKTOP_AUTOSTART_MODEL = 'iq2_xs'; process.env.STRATA_DESKTOP_AUTOSTART_PORT = '8093';
+  const createPortServer = () => { const s = new EventEmitter(); s.listen = (_port, _host, done) => queueMicrotask(done); s.close = done => done(); return s; };
+  const f = packagedFixture({ createPortServer });
+  try {
+    const dirs = [join(f.root, 'cuda'), join(f.root, 'vision')], path = join(f.install, 'strata-iq2_xs.json');
+    const cfg = JSON.parse(readFileSync(path, 'utf8')); Object.assign(cfg, { host: '127.0.0.1', port: 8093, api_key: 'none', lib_dirs: dirs });
+    writeFileSync(path, JSON.stringify(cfg)); await f.native.refresh(true); f.native.enableLegacyAutostart({ directories: dirs, components: new Map(['strata.exe','strata_kq.dll','strata-vision.exe'].map(name => [name, 'a'.repeat(64)])) });
+    f.failStart({ message: 'server_exited: out of memory' });
+    const job = await finish(f.native, f.native.operation('load', { model: 'iq2_xs', port: 8093, retrySafer: false }).id);
+    assert.equal(job.state, 'error'); assert.equal(f.calls.filter(c => c[0] === 'start').length, 1);
+  } finally {
+    await f.native.close(); f.cleanup();
+    if (prevModel === undefined) delete process.env.STRATA_DESKTOP_AUTOSTART_MODEL; else process.env.STRATA_DESKTOP_AUTOSTART_MODEL = prevModel;
+    if (prevPort === undefined) delete process.env.STRATA_DESKTOP_AUTOSTART_PORT; else process.env.STRATA_DESKTOP_AUTOSTART_PORT = prevPort;
+  }
+});
+
+test('the opted-in desktop refuses replacing its verified engine', async () => {
+  const prevModel = process.env.STRATA_DESKTOP_AUTOSTART_MODEL, prevPort = process.env.STRATA_DESKTOP_AUTOSTART_PORT;
+  process.env.STRATA_DESKTOP_AUTOSTART_MODEL = 'iq2_xs'; process.env.STRATA_DESKTOP_AUTOSTART_PORT = '8093';
+  const f = packagedFixture();
+  try {
+    await f.native.refresh(true);
+    for (const kind of ['update-engine', 'update-strata', 'rollback', 'install-engine-file']) {
+      assert.throws(() => f.native.operation(kind, {}), /benchmark-verified engine/);
+    }
+    assert.equal(f.calls.filter(c => ['update', 'rollback', 'installEngineFile'].includes(c[0])).length, 0);
+  } finally {
+    await f.native.close(); f.cleanup();
+    if (prevModel === undefined) delete process.env.STRATA_DESKTOP_AUTOSTART_MODEL; else process.env.STRATA_DESKTOP_AUTOSTART_MODEL = prevModel;
+    if (prevPort === undefined) delete process.env.STRATA_DESKTOP_AUTOSTART_PORT; else process.env.STRATA_DESKTOP_AUTOSTART_PORT = prevPort;
+  }
+});
+
+test('an absent verified engine is not automatically downloaded during model install', async () => {
+  const prevModel = process.env.STRATA_DESKTOP_AUTOSTART_MODEL, prevPort = process.env.STRATA_DESKTOP_AUTOSTART_PORT;
+  process.env.STRATA_DESKTOP_AUTOSTART_MODEL = 'iq2_xs'; process.env.STRATA_DESKTOP_AUTOSTART_PORT = '8093';
+  const f = packagedFixture({ engineUsable: false, updater: { update: () => { throw new Error('must not acquire'); } } });
+  try {
+    await f.native.refresh(true);
+    const job = await finish(f.native, f.native.operation('install', { family: 'qwen', model: 'Q2_0' }).id);
+    assert.equal(job.state, 'error'); assert.match(job.error, /benchmark-verified engine is missing/);
+    assert.equal(f.calls.filter(c => c[0] === 'update').length, 0);
+  } finally {
+    await f.native.close(); f.cleanup();
+    if (prevModel === undefined) delete process.env.STRATA_DESKTOP_AUTOSTART_MODEL; else process.env.STRATA_DESKTOP_AUTOSTART_MODEL = prevModel;
+    if (prevPort === undefined) delete process.env.STRATA_DESKTOP_AUTOSTART_PORT; else process.env.STRATA_DESKTOP_AUTOSTART_PORT = prevPort;
+  }
+});
+
+test('closing waits for an in-flight profile save or start before returning ownership', async () => {
+  const prevModel = process.env.STRATA_DESKTOP_AUTOSTART_MODEL, prevPort = process.env.STRATA_DESKTOP_AUTOSTART_PORT;
+  process.env.STRATA_DESKTOP_AUTOSTART_MODEL = 'iq2_xs'; process.env.STRATA_DESKTOP_AUTOSTART_PORT = '8093';
+  const createPortServer = () => { const s = new EventEmitter(); s.listen = (_port, _host, done) => queueMicrotask(done); s.close = done => done(); return s; };
+  try {
+    for (const step of ['save','start']) {
+      const f = packagedFixture({ createPortServer });
+      let blocked;
+      try {
+        const dirs = [join(f.root, 'cuda'), join(f.root, 'vision')], path = join(f.install, 'strata-iq2_xs.json');
+        const cfg = JSON.parse(readFileSync(path, 'utf8')); Object.assign(cfg, { host: '127.0.0.1', port: 8093, api_key: 'none', lib_dirs: dirs });
+        writeFileSync(path, JSON.stringify(cfg)); await f.native.refresh(true);
+        f.native.enableLegacyAutostart({ directories: dirs, components: new Map(['strata.exe','strata_kq.dll','strata-vision.exe'].map(name => [name, 'a'.repeat(64)])) });
+        blocked = f.block(step); f.native.operation('load', { model: 'iq2_xs', port: 8093 }); await blocked.waiting;
+        let closed = false; const close = f.native.close().then(() => { closed = true; });
+        await new Promise(resolve => setTimeout(resolve, 20)); assert.equal(closed, false, 'shutdown cannot return ownership while a start step is pending');
+        blocked.release(); await close;
+        assert.equal(f.calls.filter(c => c[0] === 'start').length, step === 'save' ? 0 : 1);
+        assert.equal(f.calls.at(-1)[0], 'stop', 'the owned profile is stopped before close returns');
+      } finally { blocked?.release(); await f.native.close(); f.cleanup(); }
+    }
+  } finally {
+    if (prevModel === undefined) delete process.env.STRATA_DESKTOP_AUTOSTART_MODEL; else process.env.STRATA_DESKTOP_AUTOSTART_MODEL = prevModel;
+    if (prevPort === undefined) delete process.env.STRATA_DESKTOP_AUTOSTART_PORT; else process.env.STRATA_DESKTOP_AUTOSTART_PORT = prevPort;
+  }
+});
 
 test('packaged: models come from Control, no python, git or engine process is started by the host', async () => {
   const f = packagedFixture();

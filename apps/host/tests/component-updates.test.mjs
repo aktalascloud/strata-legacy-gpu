@@ -8,6 +8,14 @@ import { tmpdir } from 'node:os';
 import { bundledPython, controlEnvironment, createControl, findControl, runCli, updatedControlDirectory } from '../server/control-runtime.mjs';
 import { checkComponentUpdates, engineFirstRun } from '../server/updates.mjs';
 import { createAppUpdater } from '../server/app-updater.mjs';
+
+test('a protected custom desktop cannot install an upstream app over the fork', async () => {
+  let requests = 0;
+  const updater = createAppUpdater({ env: { STRATA_SHELL_BRIDGE: 'http://127.0.0.1:4000', STRATA_SHELL_TOKEN: 'tok', STRATA_DESKTOP_AUTOSTART_MODEL: 'swift' },
+    fetcher: async () => { requests++; return Response.json({ state: 'done' }); } });
+  await assert.rejects(updater.install(), /Update it from your fork/);
+  assert.equal(requests, 0);
+});
 import { createNativeControl } from '../server/native-control.mjs';
 
 const isWin = process.platform === 'win32';

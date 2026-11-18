@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { build, transform } from 'esbuild';
 import { fileURLToPath } from 'node:url';
+import { createServer } from 'node:http';
 import { chooseFolder } from '../server/folder-dialog.mjs';
 
 const env = { STRATA_SHELL_BRIDGE: 'http://127.0.0.1:12345', STRATA_SHELL_TOKEN: 'private-token' };
@@ -24,6 +25,24 @@ test('Windows desktop uses the authenticated shell bridge and preserves Unicode 
 test('native cancellation is not a failure and never invokes a second picker', async () => {
   assert.deepEqual(await chooseFolder('Pick', { platform: 'win32', env, run: noShell,
     fetcher: async () => ({ ok: true, json: async () => ({ cancelled: true }) }) }), { cancelled: true });
+});
+
+test('a stalled bridge times out, but a person may keep a confirmed dialog open', async () => {
+  const stalled = await chooseFolder('Pick', { platform: 'win32', env, run: noShell, bridgeReadyMs: 10,
+    fetcher: (_url, { signal }) => new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('timeout')), { once: true })) });
+  assert.equal(stalled.unavailable, true);
+  let signal;
+  const picked = await chooseFolder('Pick', { platform: 'win32', env, run: noShell, bridgeReadyMs: 10,
+    fetcher: async (_url, options) => { signal = options.signal; return { ok: true, json: () => new Promise(resolve => setTimeout(() => resolve({ path: 'D:\\folder' }), 40)) }; } });
+  assert.equal(picked.path, 'D:\\folder'); assert.equal(signal.aborted, false);
+});
+
+test('bridge response headers acknowledge an open dialog without limiting the user', async t => {
+  const server = createServer((_req, res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.flushHeaders(); setTimeout(() => res.end(JSON.stringify({ path: 'C:\\chosen' })), 200); });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const picked = await chooseFolder('Pick', { platform: 'win32', env: { ...env, STRATA_SHELL_BRIDGE: `http://127.0.0.1:${server.address().port}` }, run: noShell, bridgeReadyMs: 100 });
+  assert.equal(picked.path, 'C:\\chosen');
 });
 
 test('an unavailable or malformed native response offers typing, never PowerShell', async () => {

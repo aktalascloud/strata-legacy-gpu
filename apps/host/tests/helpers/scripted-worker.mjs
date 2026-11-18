@@ -37,7 +37,7 @@ import { createHash } from 'node:crypto';
 
 const delay = ms => new Promise(r => setTimeout(r, ms));
 
-export async function startScriptedWorker({ port = 0, chunkDelayMs = 40, model = 'scripted-model', serial = false, window = 0, charsPerToken = 0, noCount = false } = {}) {
+export async function startScriptedWorker({ port = 0, chunkDelayMs = 40, model = 'scripted-model', serial = false, window = 0, charsPerToken = 0, noCount = false, overflowLongToolOnce = false } = {}) {
   // `window` + `charsPerToken` make it behave like the engine: every request's prompt is counted (its size over charsPerToken), the usage it
   // reports is that count, and a prompt that leaves no room to answer is refused with the engine's own 400 ("requests are never truncated").
   // `serial` stands in for an engine with one request slot: the next request waits until the one before it has finished.
@@ -46,6 +46,7 @@ export async function startScriptedWorker({ port = 0, chunkDelayMs = 40, model =
   const requests = [];
   const counts = [];
   let aborted = 0;
+  let refusedLongTool = false;
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x');
     const json = (code, body) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
@@ -85,6 +86,11 @@ export async function startScriptedWorker({ port = 0, chunkDelayMs = 40, model =
       authSha: req.headers.authorization ? createHash('sha256').update(req.headers.authorization).digest('hex') : null,
       promptChars: raw.length, raw,
     });
+    if (overflowLongToolOnce && !refusedLongTool && directive?.[1] === 'read' && messages.some(m => m.role === 'tool' && text(m).length > 8192)) {
+      refusedLongTool = true;
+      requests.at(-1).refused = 'long-tool';
+      return json(400, { error: { type: 'invalid_request_error', message: 'request exceeds the context window: too many tokens' } });
+    }
     const counted = charsPerToken > 0 ? Math.ceil(raw.length / charsPerToken) : 0;
     if (window > 0 && counted > 0 && counted > window - 64) {
       requests.at(-1).refused = counted;

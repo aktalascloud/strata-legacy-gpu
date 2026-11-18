@@ -28,6 +28,19 @@ test('a skill name becomes the kebab-case name the agent requires, and its file 
   assert.deepEqual(parseSkillFile('just text'), { name: null, title: null, description: null, body: 'just text' });
 });
 
+test('folded YAML descriptions are read without changing the skill instructions', () => {
+  for (const marker of ['>', '>-', '>+', '>2-', '>+2', '> # comment']) {
+    const source = `\uFEFF---\r\nname: ponytail\r\ndescription: ${marker}\r\n  Lazy senior dev mode: use this\r\n  for programming, fixes and tests.\r\n\r\n  Keep it small.\r\nlicense: MIT\r\n---\r\n# Ponytail\r\n\r\nOriginal instructions.\r\n`;
+    const parsed = parseSkillFile(source);
+    assert.equal(parsed.name, 'ponytail');
+    assert.equal(parsed.description, 'Lazy senior dev mode: use this for programming, fixes and tests. Keep it small.');
+    assert.equal(parsed.body, '# Ponytail\n\nOriginal instructions.');
+    assert.match(source, /license: MIT/);
+  }
+  assert.equal(parseSkillFile('---\nname: x\ndescription: >\nlicense: MIT\n---\nbody').description, null);
+  assert.equal(parseSkillFile('---\nname: x\ndescription: plain text\n---\nbody').description, 'plain text');
+});
+
 test('writing a skill refuses a duplicate and an empty name, and materializing makes the agent folder match the list exactly', () => {
   const dir = mkdtempSync(join(tmpdir(), 'strata-skill-files-'));
   try {

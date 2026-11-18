@@ -18,11 +18,13 @@
  * the profile file, a prompt, or a log.
  */
 import { createHash } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { standardPreset } from './preset.mjs';
+import { compactPolicy, compactionSettings } from './compaction-settings.mjs';
 import { validMcpName } from '../mcp-names.mjs';
 import { BUDGETS, isPrivateHost } from './llm-shape.mjs';
 import { DDG_PROVIDER_ID } from '../web-search-ddg.mjs';
+import { FREELLM_URL } from '../freellm.mjs';
 
 const PROTOCOL = { 'openai-chat': 'openai-completions', 'openai-responses': 'openai-responses', anthropic: 'anthropic-messages' };
 
@@ -58,6 +60,7 @@ export const GATE_PLUGIN = fileURLToPath(new URL('./plugins/strata-gate.mjs', im
 /** The app's web search (DuckDuckGo, or the person's own Exa / Perplexity key), registered with the Harness's web seam. */
 /** Compaction that measures the real prompt and summarises in pieces that fit the window (plugins/strata-context.mjs). */
 export const CONTEXT_PLUGIN = fileURLToPath(new URL('./plugins/strata-context.mjs', import.meta.url));
+export const COMPACTION_PLUGIN = pathToFileURL(fileURLToPath(new URL('./plugins/strata-compaction.mjs', import.meta.url))).href;
 export const MODELS_PLUGIN = fileURLToPath(new URL('./plugins/strata-models.mjs', import.meta.url));
 export const SEARCH_PLUGIN = fileURLToPath(new URL('./plugins/strata-search.mjs', import.meta.url));
 /** The app's own tool server for the tools a person writes (instructions, commands). */
@@ -165,6 +168,7 @@ export const EFFORT_LEVEL = Object.freeze({ off: 'off', low: 'low', medium: 'med
  * OpenRouter's model list names `reasoning` among its supported parameters; the Harness (pi-ai) writes `reasoning: { effort }` into the request.
  */
 export const OPENROUTER_EFFORTS = Object.freeze({ off: 'none', low: 'low', medium: 'medium', high: 'high', max: 'xhigh' });
+export const FREELLM_EFFORTS = Object.freeze({ ...OPENROUTER_EFFORTS, max: 'high' });
 /** Whether a connection is OpenRouter (the catalog entry, or its address), whatever address it is reached at. */
 export const isOpenRouter = conn => conn?.provider === 'openrouter' || (() => { try { return /(^|.)openrouter.ai$/i.test(new URL(conn.baseUrl).hostname); } catch { return false; } })();
 export const effortOf = value => EFFORT_LEVEL[String(value ?? '').toLowerCase()] ?? null;
@@ -193,9 +197,11 @@ export function outputBudget(context, maxOutput = null) {
 /** What a local model, or an OpenAI-style server on this network, takes for the thinking level (see the comment where a local route is built). */
 const THINKING_COMPAT = { supportsStore: false, thinkingFormat: 'chat-template', chatTemplateKwargs: { enable_thinking: { $var: 'thinking.enabled' }, reasoning_effort: { $var: 'thinking.effort', omitWhenOff: true } } };
 
-export function buildProfile({ local = [], connections = [], gate = true, tools = NO_TOOLS_SETTINGS, skillsDir = null, proxyBase = null, searchMock = null, defaultLocalId = null }) {
+export function buildProfile({ local = [], connections = [], gate = true, tools = NO_TOOLS_SETTINGS, skillsDir = null, proxyBase = null, proxyNonce = null, searchMock = null, defaultLocalId = null, compact = {} }) {
   const providers = {};
   const env = {};
+  compact = compactionSettings(compact);
+  if (compact.keepMessages) env.STRATA_COMPACTION_KEEP_MESSAGES = String(compact.keepMessages);
   const routes = [];
   const mcpEnv = {};
   // Helper agents: at least as many as the engine has request slots (a local model); API models take the Harness's own limit.
@@ -204,6 +210,7 @@ export function buildProfile({ local = [], connections = [], gate = true, tools 
   const compaction = [];
   /** Routes the person's Response settings can reach: a copy of the provider whose address is this host's forwarding endpoint (see llm-shape.mjs). */
   const shapeTargets = {};
+  const privateSubagentProviders = new Set();
   function addShaped(route, def, realBase) {
     if (!proxyBase) return null;
     const keys = {};
@@ -211,7 +218,7 @@ export function buildProfile({ local = [], connections = [], gate = true, tools 
       const key = `${route}~s${budget}`;
       providers[key] = { ...def, displayName: `${def.displayName} (with your response settings)`, baseURL: `${proxyBase}/${key}/v1`, ...(budget ? { headers: { ...(def.headers ?? {}), 'x-strata-budget': String(budget) } } : {}) };
       shapeTargets[key] = realBase;
-      for (const m of def.models) { const w = m.contextWindow, out = m.maxTokens; compaction.push({ provider: key, model: m.id, headroomTokens: compactionHeadroom(w, out) }); }
+      for (const m of def.models) { const w = m.contextWindow, out = m.maxTokens; compaction.push(compactPolicy(key, m.id, w, out, compactionHeadroom(w, out), compact)); }
       keys[budget] = key;
     }
     return keys;
@@ -241,7 +248,7 @@ export function buildProfile({ local = [], connections = [], gate = true, tools 
         reasoning: true, reasoningEfforts: LOCAL_EFFORTS,
       }],
     };
-    compaction.push({ provider: route, model: inst.modelId, headroomTokens: compactionHeadroom(context, localOutputBudget(context)) });
+    compaction.push(compactPolicy(route, inst.modelId, context, localOutputBudget(context), compactionHeadroom(context, localOutputBudget(context)), compact));
     slots = Math.max(slots, Number.isFinite(inst.slots) && inst.slots >= 1 ? Math.floor(inst.slots) : 1);
     const shaped = addShaped(route, providers[route], inst.baseUrl);
     routes.push({ route, fp: fingerprint(providers[route], env[keyEnv]), kind: 'local', connectionName: 'this computer', instanceId: inst.id, modelId: inst.modelId, name: inst.label || inst.modelId, contextWindow: context, ...(shaped ? { shaped } : {}) });
@@ -255,14 +262,23 @@ export function buildProfile({ local = [], connections = [], gate = true, tools 
     // A model server on this network that wants no key (llama.cpp, LM Studio, another Strata) still needs some value: the OpenAI-style client
     // refuses to send anything without one, and the person saw "the model rejected the credentials".
     const keyless = !conn.apiKey && protocol === 'openai-completions';
+    // pi-ai requires a placeholder credential, but the anonymous gateway rejects it.
+    const freeGateway = conn.provider === 'freellm' && keyless && conn.baseUrl === FREELLM_URL;
+    if (conn.provider === 'freellm' && (!freeGateway || !proxyBase || !proxyNonce)) return;
+    privateSubagentProviders.add(route);
     if (conn.apiKey) env[keyEnv] = conn.apiKey;
     else if (keyless) env[keyEnv] = 'not-needed';
     let baseURL = conn.baseUrl;
+    if (freeGateway) {
+      const key = `${route}~free-${proxyNonce}`;
+      shapeTargets[key] = { base: FREELLM_URL, anonymousFree: true, ownerRoute: route };
+      baseURL = `${proxyBase}/${key}/v1`;
+    }
     if (protocol === 'anthropic-messages') baseURL = baseURL.replace(/\/v1\/?$/, '');
     // A model server on this computer or network (another Strata PC, llama.cpp, LM Studio) takes the same thinking vocabulary as a local model:
     // without it the Reasoning menu did nothing for a connection to another Strata machine.
     const openRouter = protocol === 'openai-completions' && isOpenRouter(conn);
-    const ownServer = protocol === 'openai-completions' && !openRouter && isPrivateHost(baseURL);
+    const ownServer = protocol === 'openai-completions' && !openRouter && !freeGateway && isPrivateHost(baseURL);
     // A model server on this computer or network has a window of its own size like a local model: the reply keeps half of it, so the Harness can compact the conversation
     // before the window is full (with nearly all of it reserved for the reply a long task ended with "the prompt leaves no room to answer").
     const reply = m => (ownServer && Number.isFinite(m.contextMax) && m.contextMax > 0 && !m.maxOutput ? localOutputBudget(m.contextMax) : outputBudget(m.contextMax ?? ASSUMED_API_CONTEXT, m.maxOutput));
@@ -271,19 +287,19 @@ export function buildProfile({ local = [], connections = [], gate = true, tools 
       api: protocol,
       baseURL,
       ...(conn.apiKey || keyless ? { apiKeyEnv: keyEnv } : {}),
-      ...(ownServer ? { compat: THINKING_COMPAT } : openRouter ? { compat: { thinkingFormat: 'openrouter' } } : {}),
+      ...(ownServer ? { compat: THINKING_COMPAT } : openRouter || freeGateway ? { compat: { thinkingFormat: 'openrouter' } } : {}),
       models: conn.models.map(m => ({
         id: m.id, name: m.name || m.id,
         contextWindow: m.contextMax ?? ASSUMED_API_CONTEXT, maxTokens: reply(m),
         // Pictures are on by default (owner rule): only an explicit no (the person's switch, or the server's own model list or /props) leaves them out.
         // (any OpenAI-style API: a cloud model the person marked, or whose model list says it reads pictures, takes image_url the same way)
         input: protocol === 'openai-completions' && m.vision !== false ? ['text', 'image'] : ['text'],
-        ...(ownServer ? { reasoning: true, reasoningEfforts: LOCAL_EFFORTS } : openRouter && m.reasoning === true ? { reasoning: true, reasoningEfforts: OPENROUTER_EFFORTS } : {}),
+        ...(ownServer ? { reasoning: true, reasoningEfforts: LOCAL_EFFORTS } : (openRouter || freeGateway) && m.reasoning === true ? { reasoning: true, reasoningEfforts: freeGateway ? FREELLM_EFFORTS : OPENROUTER_EFFORTS } : {}),
       })),
     };
     const fp = fingerprint(providers[route], conn.apiKey ?? '');
     const shaped = ownServer ? addShaped(route, providers[route], baseURL) : null;
-    for (const m of conn.models) { const ctx = m.contextMax ?? ASSUMED_API_CONTEXT; compaction.push({ provider: route, model: m.id, headroomTokens: compactionHeadroom(ctx, reply(m)) }); }
+    for (const m of conn.models) { const ctx = m.contextMax ?? ASSUMED_API_CONTEXT; compaction.push(compactPolicy(route, m.id, ctx, reply(m), compactionHeadroom(ctx, reply(m)), compact)); }
     for (const m of conn.models) routes.push({ route, fp, kind: 'api', connectionId: conn.id, connectionName: conn.name, modelId: m.id, name: m.name || m.id, contextWindow: m.contextMax ?? ASSUMED_API_CONTEXT, ...(shaped ? { shaped } : {}) });
   });
 
@@ -310,7 +326,8 @@ export function buildProfile({ local = [], connections = [], gate = true, tools 
     : [{ id: 'web', config: { searchProvider: keyed ?? DDG_PROVIDER_ID, fetchProvider: 'http' } }, { id: 'web-search-deepseek', disabled: true },
       { insert: [{ id: 'strata-web-search', name: SEARCH_PLUGIN, config: { provider: keyed ?? 'duckduckgo', keyEnv: 'STRATA_SEARCH_KEY', ...(searchMock ? { mock: searchMock } : {}) } }] }];
   /** The models a helper agent may be started on: the table the model-choice plugin and the Harness's allow-list are written from. */
-  const subagentRoutes = routes.map(r => ({ provider: r.route, model: r.modelId, name: r.name, connection: r.connectionName, local: r.kind === 'local' }));
+  const subagentRoutes = routes.filter(r => r.kind === 'local').map(r => ({ provider: r.route, model: r.modelId, name: r.name, connection: r.connectionName, local: true }));
+  const localDelegationRoutes = routes.filter(r => r.kind === 'local').flatMap(r => [r.route, ...Object.values(r.shaped ?? {})].map(provider => ({ provider, model: r.modelId })));
   const entries = [
     ...(defaultRoute ? [{ id: 'agent-default-model', name: '@deepseek-ai/dsh-agent-default-model', config: { provider: defaultRoute.route, model: defaultRoute.modelId } }] : []),
     { id: 'llm-pi-ai', name: '@deepseek-ai/dsh-llm-pi-ai', config: { providers } },
@@ -322,13 +339,13 @@ export function buildProfile({ local = [], connections = [], gate = true, tools 
     ...(gate ? [{ insert: [{ id: 'strata-gate', name: GATE_PLUGIN, config: { web: { provider: SEARCH_NAMES[keyed ?? 'builtin'], skipAsk: tools.webWithoutAsking === true } } }] }] : []),
     // Compaction decides from what the model server measured, and its summary requests always fit the window (plugins/strata-context.mjs).
     { insert: [{ id: 'strata-context', name: CONTEXT_PLUGIN, config: {} }] },
-    // Helper agents on a model the person names: every model the app can reach is allowed, and the plugin makes the choice forgiving (plugins/strata-models.mjs).
+    // Helpers only use local model routes; remote providers require an explicit choice for the main chat.
     ...(subagentRoutes.length ? [{ id: 'subagent-model-selection-settings', config: { enabled: true, allowedModels: subagentRoutes.map(r => ({ provider: r.provider, model: r.model })) } }] : []),
-    ...(subagentRoutes.length ? [{ insert: [{ id: 'strata-models', name: MODELS_PLUGIN, config: { routes: subagentRoutes } }] }] : []),
+    ...(subagentRoutes.length || privateSubagentProviders.size ? [{ insert: [{ id: 'strata-models', name: MODELS_PLUGIN, config: { routes: subagentRoutes, ...(privateSubagentProviders.size ? { blockedInheritedProviders: [...privateSubagentProviders], localDelegationRoutes } : {}) } }] }] : []),
     ...(mcp.length || ownRows.length ? [{ insert: [...mcp, ...ownRows] }] : []),
     ...webRows,
     // The reminder tools would be a second scheduler beside the app's Tasks. The tool groups the person switched off in Settings -> Tools are left out.
-    { id: 'preset-standard', name: '@deepseek-ai/dsh-agent-preset', config: standardPreset({ off: tools.off, search: searchOn, skillsDir, compaction }) },
+    { id: 'preset-standard', name: '@deepseek-ai/dsh-agent-preset', config: standardPreset({ off: tools.off, search: searchOn, skillsDir, compaction, ...(compact.keepMessages ? { compactionEngine: COMPACTION_PLUGIN, protectMessages: true } : {}) }) },
     // Strata names its chats itself; the Harness's own title request would be an extra model call on
     // every first prompt (and, for an API route, an unrequested one).
     { id: 'session-title-llm', disabled: true },
@@ -344,7 +361,7 @@ export function buildProfile({ local = [], connections = [], gate = true, tools 
   const signature = createHash('sha256').update(patch).update(JSON.stringify(Object.entries(env).sort())).digest('hex').slice(0, 16);
   // What the agent is offered (tool groups, web search, tool servers, the person's own tools) decides whether a running agent must be
   // restarted for the next message; the routes are compared separately (a changed context size alone does not restart it).
-  const toolsSignature = createHash('sha256').update(JSON.stringify([mcp, ownRows, webRows, entries.find(e => e.id === 'preset-standard'), env.STRATA_SEARCH_KEY ?? '', mcpEnv])).digest('hex').slice(0, 16);
+  const toolsSignature = createHash('sha256').update(JSON.stringify([mcp, ownRows, webRows, entries.find(e => e.id === 'preset-standard'), env.STRATA_SEARCH_KEY ?? '', env.STRATA_COMPACTION_KEEP_MESSAGES ?? '', mcpEnv])).digest('hex').slice(0, 16);
   return { patch, env, routes, defaultRoute, signature, toolsSignature, shapeTargets, mcpSkipped };
 }
 

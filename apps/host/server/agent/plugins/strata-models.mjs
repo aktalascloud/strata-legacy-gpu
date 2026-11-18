@@ -20,7 +20,7 @@
 import { modelProblem, resolveModel, routeList } from '../model-routes.mjs';
 
 export const name = 'strata-models';
-export const inject = ['tools'];
+export const inject = ['tools', 'subagents', 'agents'];
 
 /** What the assistant is told in the tool's own text, so every model (a small local one and a hosted one alike) knows when and how. */
 export const SUBAGENT_GUIDANCE = ' Use this tool whenever the person asks you to ask a subagent, a helper or another model ("ask a subagent", "ask DeepSeek", "use the local model", "ask model X"): start it with this tool and do not look for the model yourself with shell commands, in the environment or on this computer. To use a particular model, give `model` as its name or id (for example "DeepSeek V3.2" or "deepseek/deepseek-v3.2", or "local" for the model running on this computer); `provider` is optional. `list_subagent_models` shows what can be used. After starting a helper, do not wait with sleep or commands: end your turn and its answer arrives as a new message.';
@@ -39,17 +39,81 @@ export function subagentArgs(routes, args) {
 
 export function apply(ctx, config = {}) {
   const routes = Array.isArray(config.routes) ? config.routes : [];
+  const blocked = new Set(Array.isArray(config.blockedInheritedProviders) ? config.blockedInheritedProviders : []);
+  const allowed = Array.isArray(config.localDelegationRoutes) ? config.localDelegationRoutes : [];
+  let guarded = false;
+  let resumeGuarded = false;
+  let messagingGuarded = false;
+  if (blocked.size) {
+    try {
+      const service = ctx.subagents ?? ctx.get('subagents');
+      const agents = ctx.agents ?? ctx.get('agents');
+      const permits = (provider, model) => allowed.some(route => route.provider === provider && route.model === model);
+      const install = (object, key, wrapper) => {
+        const original = object?.[key];
+        if (typeof original !== 'function') return false;
+        const guard = wrapper(original);
+        object[key] = guard;
+        const installed = Object.getOwnPropertyDescriptor(object, key)?.value === guard;
+        if (installed && ctx.effect) ctx.effect(() => () => { if (Object.getOwnPropertyDescriptor(object, key)?.value === guard) object[key] = original; });
+        return installed;
+      };
+      resumeGuarded = install(agents, 'resume', original => function(options) {
+        if (options?.parentAgent && !permits(options.agentOptions?.provider, options.agentOptions?.model)) throw new Error('Only a verified local helper can be resumed.');
+        return original.call(this, options);
+      });
+      const checkTarget = (parent, targetId) => {
+        const target = agents?.get?.(targetId);
+        if (!target) { if (!resumeGuarded) throw new Error('Cannot verify the helper model.'); return; }
+        let current;
+        try { current = target.session?.requestHeader?.()?.config ?? target.options; } catch { /* fail closed */ }
+        if (!permits(current?.provider, current?.model)) throw new Error('Only a verified local helper can receive messages.');
+      };
+      const sendGuard = original => function(sender, targetId, ...rest) {
+        if (sender?.session?.header?.parentSession !== targetId) checkTarget(sender, targetId);
+        return original.call(this, sender, targetId, ...rest);
+      };
+      const sendGuarded = install(service, 'sendMessage', sendGuard);
+      const deliverGuarded = install(service, Symbol.for('dsh.subagent.deliverPrompt'), original => function(parent, targetId, ...rest) {
+        checkTarget(parent, targetId);
+        return original.call(this, parent, targetId, ...rest);
+      });
+      messagingGuarded = sendGuarded && deliverGuarded && resumeGuarded;
+      if (!resumeGuarded || !sendGuarded || !deliverGuarded) throw new Error('Helper delivery protection is unavailable.');
+      const original = service?.startActivation;
+      if (typeof original === 'function') {
+        const guard = function (spec) {
+          const parent = spec?.request?.parent;
+          let current;
+          try { current = parent?.session?.requestHeader?.()?.config ?? parent?.options; } catch { /* fail closed */ }
+          const selected = spec?.request?.agentOptions ?? {};
+          const provider = selected.provider ?? current?.provider;
+          const model = selected.model ?? current?.model;
+          if (!permits(provider, model)) throw new Error('Helpers may use local models only.');
+          return original.call(this, spec);
+        };
+        service.startActivation = guard;
+        guarded = Object.getOwnPropertyDescriptor(service, 'startActivation')?.value === guard;
+        if (guarded && ctx.effect) ctx.effect(() => () => { if (Object.getOwnPropertyDescriptor(service, 'startActivation')?.value === guard) service.startActivation = original; });
+      }
+    } catch { /* the workflow tool below fails closed if service interception is unavailable */ }
+  }
 
   const wrapSubagent = def => {
     if (wrapped.has(def)) return;
     wrapped.add(def);
     const original = def.execute;
-    def.description = `${def.description}${SUBAGENT_GUIDANCE}`;
+    def.description = `${def.description}${blocked.size ? ' Use this tool when the person asks to ask a subagent or helper; do not look for the model yourself in files or the environment. Helpers can use local models only; cloud models must be selected for the main chat.' : SUBAGENT_GUIDANCE}`;
     const props = def.parameters?.properties;
-    if (props?.model) props.model = { ...props.model, description: MODEL_WORDS };
-    if (props?.provider) props.provider = { ...props.provider, description: PROVIDER_WORDS };
+    if (props?.model) props.model = { ...props.model, description: blocked.size ? 'The local model to use for the helper: its name or "local". Omit it to inherit a local chat model.' : MODEL_WORDS };
+    if (props?.provider) props.provider = { ...props.provider, description: blocked.size ? 'Optional local model provider.' : PROVIDER_WORDS };
     def.execute = function execute(args, exec) {
       const request = args && typeof args === 'object' ? args : {};
+      if (blocked.size && !request.provider && !request.model) {
+        let current;
+        try { current = exec?.agent?.session?.requestHeader?.()?.config?.provider ?? exec?.agent?.options?.provider; } catch { /* fail closed */ }
+        if (!current || blocked.has(current)) throw new Error('Choose an allowed model for a helper. This cloud model cannot be inherited by a helper.');
+      }
       const problem = modelProblem(routes, request);
       if (problem) throw new Error(problem);
       const settled = subagentArgs(routes, request);
@@ -75,6 +139,18 @@ export function apply(ctx, config = {}) {
       try {
         const sub = ctx.tools.get('subagent', agent);
         if (sub) wrapSubagent(sub);
+        const fork = ctx.tools.get('subagent_fork', agent);
+        if (fork && blocked.size) wrapSubagent(fork);
+        const workflow = ctx.tools.get('workflow', agent);
+        if (workflow && blocked.size && !guarded && !wrapped.has(workflow)) {
+          wrapped.add(workflow);
+          workflow.execute = () => { throw new Error('Workflow is unavailable while cloud models are connected.'); };
+        }
+        const message = ctx.tools.get('send_message', agent);
+        if (message && blocked.size && !messagingGuarded && !wrapped.has(message)) {
+          wrapped.add(message);
+          message.execute = () => { throw new Error('Helper messaging is unavailable while cloud models are connected.'); };
+        }
         const list = ctx.tools.get('list_subagent_models', agent);
         if (list) wrapList(list);
       } catch { /* a tool that is not there yet is wrapped at the next change */ }

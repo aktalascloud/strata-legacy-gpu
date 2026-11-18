@@ -70,7 +70,7 @@ export function agentPromptFor(platform = process.platform) {
  * @param {{platform?: string, search?: boolean}} [options]
  * @returns {object} the `config` of the `preset-standard` row
  */
-export function standardPreset({ platform = process.platform, search = false, off = new Set(), skillsDir = null, compaction = [] } = {}) {
+export function standardPreset({ platform = process.platform, search = false, off = new Set(), skillsDir = null, compaction = [], compactionEngine = '@deepseek-ai/dsh-compaction-basic', protectMessages = false } = {}) {
   const windows = platform === 'win32';
   const plugins = [
     { id: 'persona', name: '@deepseek-ai/dsh-persona', config: { prefix: agentPromptFor(platform), complete: true, includeRuntimeContext: false } },
@@ -90,9 +90,10 @@ export function standardPreset({ platform = process.platform, search = false, of
     {
       id: 'compaction', name: 'cordis:group', group: true, isolate: { compaction: true, toolResultPruner: true },
       config: [
-        { id: 'compaction-basic', name: '@deepseek-ai/dsh-compaction-basic', ...(compaction.length ? { config: { modelPolicies: compaction } } : {}) },
+        { id: 'compaction-basic', name: compactionEngine, ...(compaction.length ? { config: { modelPolicies: compaction } } : {}) },
         { id: 'command-compact', name: '@deepseek-ai/dsh-command-compact' },
-        { id: 'tool-result-pruner', name: '@deepseek-ai/dsh-compaction-tool-result-pruner', config: { thresholdChars: 8192, headChars: 4096, tailChars: 1024 } },
+        // The upstream pruner rewrites every large tool result, including protected recent messages.
+        ...(!protectMessages ? [{ id: 'tool-result-pruner', name: '@deepseek-ai/dsh-compaction-tool-result-pruner', config: { thresholdChars: 8192, headChars: 4096, tailChars: 1024 } }] : []),
       ],
     },
     {

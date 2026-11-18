@@ -12,6 +12,7 @@
 
 import http from 'node:http';
 import https from 'node:https';
+import { FREELLM_MODELS } from '../freellm.mjs';
 
 /** The thinking budgets the composer offers (0 = no limit is not a budget). */
 export const BUDGETS = Object.freeze([2048, 8192, 32768]);
@@ -86,21 +87,34 @@ export function createLlmProxy({ targetOf, samplingNow }) {
   return function handle(req, res, key, rest) {
     const remote = req.socket?.remoteAddress ?? '';
     if (!/^(::1|127\.|::ffff:127\.)/.test(remote)) { res.writeHead(403, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: 'This endpoint is for the assistant on this computer only.' })); return; }
-    const base = targetOf(key);
-    if (!base) { res.writeHead(404, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: 'Unknown model route.' })); return; }
-    const chunks = [];
-    req.on('data', c => chunks.push(c));
+    const destination = targetOf(key);
+    if (!destination) { res.writeHead(404, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: 'Unknown model route.' })); return; }
+    const anonymous = typeof destination === 'object' && destination.anonymousFree === true;
+    const base = anonymous ? destination.base : destination;
+    const chunks = []; let size = 0, tooLarge = false;
+    req.on('data', c => { size += c.length; if (anonymous && size > 20 * 1024 * 1024) { tooLarge = true; chunks.length = 0; } else if (!tooLarge) chunks.push(c); });
     req.on('error', () => res.destroy());
     req.on('end', () => {
+      if (tooLarge) { res.writeHead(413, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: 'This model API accepts requests up to 20 MB.' })); return; }
       let body = Buffer.concat(chunks);
       const budget = nearestBudget(req.headers['x-strata-budget']);
-      if (req.method === 'POST' && /\/chat\/completions\/?$/.test(rest) && body.length) {
+      if (anonymous) {
+        let model;
+        try { model = JSON.parse(body.toString('utf8')).model; } catch { /* invalid request */ }
+        if (req.method !== 'POST' || !/^\/(?:v1\/)?chat\/completions\/?$/.test(rest) || !FREELLM_MODELS.includes(model) || !destination.allowedModels?.includes(model)) {
+          res.writeHead(400, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: 'Choose a supported free model.' })); return;
+        }
+        const current = targetOf(key);
+        const valid = current?.anonymousFree === true && current.base === destination.base && current.ownerRoute === destination.ownerRoute &&
+          destination.allowedPermits?.some(prior => prior.model === model && current.allowedPermits?.some(active => active.id === prior.id && active.model === model));
+        if (!valid) { res.writeHead(403, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: 'The selected model turn has ended.' })); return; }
+      } else if (req.method === 'POST' && /\/chat\/completions\/?$/.test(rest) && body.length) {
         try { body = Buffer.from(JSON.stringify(shapeBody(JSON.parse(body.toString('utf8')), { sampling: samplingNow(), budget }))); } catch { /* not JSON: pass it on untouched */ }
       }
       // The route's address is the model's own base (it ends in /v1): the assistant's /v1 is that same prefix.
       const target = new URL(base.replace(/\/+$/, '') + rest.replace(/^\/v1(?=\/|$|\?)/, ''));
       const headers = {};
-      for (const [k, v] of Object.entries(req.headers)) if (!HOP.has(k) && !k.startsWith('x-strata-')) headers[k] = v;
+      for (const [k, v] of Object.entries(req.headers)) if (!HOP.has(k) && !k.startsWith('x-strata-') && (!anonymous || ['content-type', 'accept'].includes(k))) headers[k] = v;
       headers['content-length'] = String(body.length);
       const lib = target.protocol === 'https:' ? https : http;
       const upstream = lib.request(target, { method: req.method, headers }, reply => {

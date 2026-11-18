@@ -83,6 +83,7 @@ test('every API key preset discovers and streams with its configured protocol', 
   assert.equal(new Set(PROVIDER_CATALOG.map(p => p.id)).size, PROVIDER_CATALOG.length);
   for (const preset of PROVIDER_CATALOG) {
     if (preset.baseUrl) assert.equal(normalizeBaseUrl(preset.baseUrl), preset.baseUrl);
+    if (preset.keyOptional) continue; // Anonymous providers are tested separately.
     const draft = { kind: 'provider', provider: preset.id, baseUrl: mock.baseUrl, apiKey: 'test-key', models: [{ id: 'mock-chat' }] };
     assert.ok((await service.discover(draft)).models.length > 0, preset.name);
     const connection = service.save(draft).connections.at(-1);

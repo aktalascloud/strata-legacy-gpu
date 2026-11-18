@@ -29,6 +29,7 @@ export function createAppUpdater({ env = process.env, fetcher = fetch, sleep = m
      * the app first, so the host may be stopped before this returns.
      */
     async install({ onProgress = () => {}, signal = null, pollMs = 500 } = {}) {
+      if (env.STRATA_DESKTOP_AUTOSTART_MODEL) throw new Error('This custom Desktop uses a protected local profile. Update it from your fork instead.');
       await call('/app-update/install', 'POST');
       for (;;) {
         if (signal?.aborted) throw new Error('The app update was stopped.');

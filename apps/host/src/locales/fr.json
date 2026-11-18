@@ -1,4 +1,6 @@
 {
+  "s8502": "No account or API key is needed. Fetch the list and select the free models.",
+  "s8501": "FreeLLM sends your messages to Kilo and its providers. They may use prompts and answers to improve models. Do not send confidential data. NVIDIA free models are for trial use.",
   "s0001": "% PCIe",
   "s7331": "Les résultats viennent de DuckDuckGo, ou de Bing quand DuckDuckGo est saturé. Vous n’avez besoin ni de compte ni de clé.",
   "s7321": "La recherche web est limitée en ce moment, j’ai donc arrêté de chercher et poursuivi avec ce que j’ai. Réessayez dans une minute, ou ajoutez une clé de recherche dans Paramètres → Outils → Recherche web.",
@@ -3527,5 +3529,14 @@
   "s9035": "Ces fichiers du modèle sont manquants : {0}.",
   "s9036": "Appuyez à nouveau sur Télécharger et charger pour les récupérer. Les fichiers déjà présents sont conservés. Si les mêmes fichiers sont listés à nouveau, ouvrez Détails et partagez-les quand vous demandez de l’aide.",
   "s9037": "Cette mise à jour a été interrompue au redémarrage de l’application. Une mise à jour plus récente s’est terminée, il n’y a donc rien à faire.",
-  "s9038": "Ce système ne laisse pas Strata utiliser le port {0}. Sous Linux et macOS, les ports inférieurs à 1024 nécessitent des droits d’administrateur. Lancez Strata avec un autre port (STRATA_PORT), par exemple 8801."
+  "s9038": "Ce système ne laisse pas Strata utiliser le port {0}. Sous Linux et macOS, les ports inférieurs à 1024 nécessitent des droits d’administrateur. Lancez Strata avec un autre port (STRATA_PORT), par exemple 8801.",
+  "s9039": "Automatic compaction",
+  "s9040": "Summarize older conversation messages to make room.",
+  "s9041": "Compaction threshold (tokens; 0 = automatic)",
+  "s9042": "Recent messages to keep (0 = automatic)",
+  "s9043": "The threshold is limited by the model window and space for the reply. Changes apply to the next agent turn.",
+  "s9044": "Could not load compaction settings.",
+  "s9045": "Could not save compaction settings.",
+  "s9046": "Saved.",
+  "s9047": "These settings apply to agent chats. Plain chat and /compact use their existing behavior."
 }

@@ -7,7 +7,7 @@ const catalogs=Object.fromEntries(await Promise.all(languages.map(async language
 const english=catalogs.en;
 const slots=text=>[...text.matchAll(/\{\d+\}/g)].map(match=>match[0]).sort();
 const compiled=await build({stdin:{contents:"export * from './src/lib/i18n'; export * from './src/lib/native-catalog'; export * from './src/lib/session-title';",resolveDir:process.cwd()},bundle:true,write:false,platform:'node',format:'esm'});
-const {tr,setTranslationLanguage,currentLanguage,localeTag,nativeCatalogModels,catalogVersionLabel,sessionTitle,loadCatalog }=await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
+const {tr,setTranslationLanguage,currentLanguage,localeTag,nativeCatalogModels,catalogVersionLabel,localProfileLoadRequest,localProfileUsesFullPerformance,sessionTitle,loadCatalog }=await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
 for (const l of ['zh', 'ja', 'de', 'es', 'ru', 'pt', 'ko', 'fr']) await loadCatalog(l);  // the non-English catalogs load on first use (src/lib/i18n.ts loadCatalog); load them before the first tr()
 test('every language covers every interface key and preserves interpolation slots',()=>{
  for(const language of languages){
@@ -35,6 +35,19 @@ test('language switching translates static and formatted UI without changing sup
 });
 const size=(id,model)=>({id,model,download_gb:4,ram_needed_gb:8,about:'',installed:false});
 const family=(id,title,images,sizes)=>({family:id,title,images,sizes,about:'',experimental:false});
+test('an explicitly mapped local Swift profile keeps its real model ID in the picker',()=>{
+ const raw=[family('swift','Swift 1.5',true,[size('swift-iq3_s','IQ3_S')])];
+ const groups=nativeCatalogModels(raw,[{model:'swift-1.5-iq3-s',catalogId:'swift-iq3_s',ready:true}]);
+ const local=groups[0].sizes.find(row=>row.id==='swift-1.5-iq3-s');
+ assert.equal(local?.localProfile,true);assert.equal(local?.sourceFamily,'swift');assert.equal(local?.model,'IQ3_S');
+ assert.deepEqual(localProfileLoadRequest(local),{kind:'load',args:{model:'swift-1.5-iq3-s',retrySafer:false}});
+ assert.equal(localProfileLoadRequest(groups[0].sizes[0]),null);
+ assert.equal(localProfileUsesFullPerformance({resourceProfile:'performance'},{resourceProfile:'work'}),true);
+ assert.equal(localProfileUsesFullPerformance({resourceProfile:null},{resourceProfile:'performance'}),false);
+ assert.equal(localProfileUsesFullPerformance(undefined,{resourceProfile:'performance'}),true);
+ assert.equal(raw[0].sizes.length,1,'the upstream catalog is not mutated');
+ assert.equal(nativeCatalogModels(raw,[{model:'unknown',catalogId:'missing',ready:true}])[0].sizes.length,1);
+});
 test('only the two requested display families exist; engine IDs and per-version capabilities survive grouping',()=>{
  setTranslationLanguage('en');
  const raw=[family('qwen','Qwen3.8-Flash-Next',true,[size('q2_0','Q2_0')]),family('swift','Swift 1.5',false,[size('swift-iq2_xs','IQ2_XS')]),family('coder','Coder',false,[size('coder-iq1_m','IQ1_M')]),family('unsloth','Unsloth',true,[size('unsloth-ud-q4_k_xl','UD-Q4_K_XL')])];

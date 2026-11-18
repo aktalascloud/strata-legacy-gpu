@@ -15,14 +15,31 @@
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::sync::{atomic::{AtomicUsize, Ordering}, Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use tauri::AppHandle;
 use tauri_plugin_updater::UpdaterExt;
 
 /// Where an endpoint other than the one in `tauri.conf.json` may come from: a local test feed. Only loopback or https.
 const ENDPOINT_ENV: &str = "STRATA_UPDATE_APP_ENDPOINT";
+const MAX_BRIDGE_WORKERS: usize = 8;
+
+struct WorkerPermit(Arc<AtomicUsize>);
+
+impl WorkerPermit {
+    fn acquire(active: &Arc<AtomicUsize>) -> Option<Self> {
+        active.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
+            (n < MAX_BRIDGE_WORKERS).then_some(n + 1)
+        }).ok().map(|_| Self(active.clone()))
+    }
+}
+
+impl Drop for WorkerPermit {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::Relaxed);
+    }
+}
 
 #[derive(Clone, Default)]
 struct Progress {
@@ -171,17 +188,29 @@ fn same(a: &str, b: &str) -> bool {
     a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
-fn handle(mut stream: TcpStream, app: &AppHandle, token: &str, progress: &Arc<Mutex<Progress>>) {
-    let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
+fn read_request_head(stream: &mut TcpStream, timeout: Duration) -> Option<String> {
+    let deadline = Instant::now() + timeout;
     let mut buf = Vec::new();
     let mut chunk = [0u8; 1024];
     while !buf.windows(4).any(|w| w == b"\r\n\r\n") && buf.len() < 8192 {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() || stream.set_read_timeout(Some(remaining)).is_err() {
+            return None;
+        }
         match stream.read(&mut chunk) {
-            Ok(0) | Err(_) => break,
+            Ok(0) | Err(_) => return None,
             Ok(n) => buf.extend_from_slice(&chunk[..n]),
         }
     }
-    let head = String::from_utf8_lossy(&buf).to_string();
+    if !buf.windows(4).any(|w| w == b"\r\n\r\n") { return None; }
+    Some(String::from_utf8_lossy(&buf).to_string())
+}
+
+fn handle(mut stream: TcpStream, app: &AppHandle, token: &str, progress: &Arc<Mutex<Progress>>) {
+    if stream.set_write_timeout(Some(Duration::from_secs(5))).is_err() {
+        return;
+    }
+    let Some(head) = read_request_head(&mut stream, Duration::from_secs(5)) else { return; };
     let mut lines = head.lines();
     let request = lines.next().unwrap_or_default().to_string();
     let supplied = lines
@@ -199,6 +228,9 @@ fn handle(mut stream: TcpStream, app: &AppHandle, token: &str, progress: &Arc<Mu
             Err(e) => respond(&mut stream, "502 Bad Gateway", &serde_json::json!({ "error": e })),
         },
         ("POST", "/app-update/install") => {
+            if crate::legacy_desktop_profile() {
+                return respond(&mut stream, "403 Forbidden", &serde_json::json!({ "error": "This custom Desktop uses a protected local profile. Update it from your fork instead." }));
+            }
             {
                 let mut p = progress.lock().unwrap();
                 if p.state == "downloading" || p.state == "installing" {
@@ -223,15 +255,18 @@ fn handle(mut stream: TcpStream, app: &AppHandle, token: &str, progress: &Arc<Mu
                 return respond(&mut stream, "503 Service Unavailable", &serde_json::json!({ "error": "The Strata window is not available." }));
             };
             let title = crate::shell::clean_text(&crate::shell::query_value(p, "title").unwrap_or_default(), 200);
+            // Headers acknowledge the bridge before the user begins choosing a folder.
+            if stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n").is_err() { return; }
             let picked = app.dialog().file().set_parent(&window).set_title(title).blocking_pick_folder();
             let value = match picked {
                 Some(path) => match path.into_path() {
                     Ok(path) => serde_json::json!({ "path": path.to_string_lossy() }),
-                    Err(e) => return respond(&mut stream, "502 Bad Gateway", &serde_json::json!({ "error": e.to_string() })),
+                    Err(e) => serde_json::json!({ "error": e.to_string() }),
                 },
                 None => serde_json::json!({ "cancelled": true }),
             };
-            respond(&mut stream, "200 OK", &value);
+            let text = value.to_string();
+            let _ = stream.write_all(format!("{:X}\r\n{}\r\n0\r\n\r\n", text.len(), text).as_bytes());
         }
         // The host asks for a desktop notification (an approval is waiting): title and body are in the query, bounded and cleaned here.
         ("POST", p) if p.starts_with("/shell/notify") => {
@@ -253,6 +288,7 @@ pub fn start(app: &AppHandle, token: String) -> Option<Bridge> {
     let listener = TcpListener::bind(("127.0.0.1", 0)).ok()?;
     let port = listener.local_addr().ok()?.port();
     let progress = Arc::new(Mutex::new(Progress::default()));
+    let active = Arc::new(AtomicUsize::new(0));
     let app = app.clone();
     let secret = token.clone();
     std::thread::spawn(move || {
@@ -260,8 +296,18 @@ pub fn start(app: &AppHandle, token: String) -> Option<Bridge> {
             // A folder window can stay open while notifications and update status still need the bridge.
             #[cfg(windows)]
             {
+                let Some(permit) = WorkerPermit::acquire(&active) else {
+                    let mut stream = stream;
+                    let _ = stream.set_write_timeout(Some(Duration::from_millis(250)));
+                    respond(&mut stream, "503 Service Unavailable", &serde_json::json!({ "error": "The bridge is busy." }));
+                    continue;
+                };
                 let (app, secret, progress) = (app.clone(), secret.clone(), progress.clone());
-                std::thread::spawn(move || handle(stream, &app, &secret, &progress));
+                // A failed spawn drops the closure and its permit; unwinding a worker does too.
+                let _ = std::thread::Builder::new().spawn(move || {
+                    let _permit = permit;
+                    handle(stream, &app, &secret, &progress);
+                });
             }
             #[cfg(not(windows))]
             handle(stream, &app, &secret, &progress);
@@ -282,6 +328,89 @@ pub fn apply_env(cmd: &mut std::process::Command, app: &AppHandle, bridge: Optio
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bridge_worker_limit_releases_capacity() {
+        let active = Arc::new(AtomicUsize::new(0));
+        let mut permits: Vec<_> = (0..MAX_BRIDGE_WORKERS)
+            .map(|_| WorkerPermit::acquire(&active).expect("slot available"))
+            .collect();
+        assert!(WorkerPermit::acquire(&active).is_none());
+        drop(permits.pop());
+        let replacement = WorkerPermit::acquire(&active).expect("released slot available");
+        drop(replacement);
+        drop(permits);
+        assert_eq!(active.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn bridge_worker_permit_is_released_on_unwind_and_dropped_closure() {
+        let active = Arc::new(AtomicUsize::new(0));
+        let permit = WorkerPermit::acquire(&active).unwrap();
+        assert!(std::thread::spawn(move || {
+            let _permit = permit;
+            panic!("worker failure");
+        }).join().is_err());
+        assert_eq!(active.load(Ordering::Relaxed), 0);
+
+        // Builder::spawn drops its closure when the OS cannot create the worker.
+        let permit = WorkerPermit::acquire(&active).unwrap();
+        let unspawned = move || drop(permit);
+        drop(unspawned);
+        assert_eq!(active.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn bridge_other_worker_runs_while_one_is_waiting() {
+        let active = Arc::new(AtomicUsize::new(0));
+        let picker = WorkerPermit::acquire(&active).unwrap();
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let waiting = std::thread::spawn(move || {
+            let _picker = picker;
+            ready_tx.send(()).unwrap();
+            let _ = release_rx.recv();
+        });
+        ready_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        let status = WorkerPermit::acquire(&active).expect("status can run while picker waits");
+        std::thread::spawn(move || drop(status)).join().unwrap();
+        assert_eq!(active.load(Ordering::Relaxed), 1);
+        release_tx.send(()).unwrap();
+        waiting.join().unwrap();
+        assert_eq!(active.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn bridge_reads_complete_headers_and_times_out_incomplete_ones() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let mut client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (mut server, _) = listener.accept().unwrap();
+        client.write_all(b"GET /app-update/status HTTP/1.1\r\n\r\n").unwrap();
+        assert!(read_request_head(&mut server, Duration::from_secs(1)).unwrap().starts_with("GET /app-update/status"));
+
+        let mut partial = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (mut server, _) = listener.accept().unwrap();
+        partial.write_all(b"GET / HTTP/1.1\r\n").unwrap();
+        assert!(read_request_head(&mut server, Duration::from_millis(20)).is_none());
+    }
+
+    #[test]
+    fn bridge_header_deadline_is_not_reset_by_trickled_bytes() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let mut client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (mut server, _) = listener.accept().unwrap();
+        let writer = std::thread::spawn(move || {
+            for _ in 0..30 {
+                if client.write_all(b"x").is_err() { break; }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        });
+        let start = Instant::now();
+        assert!(read_request_head(&mut server, Duration::from_millis(80)).is_none());
+        assert!(start.elapsed() < Duration::from_millis(500));
+        drop(server);
+        writer.join().unwrap();
+    }
 
     #[test]
     fn token_comparison_needs_every_byte() {

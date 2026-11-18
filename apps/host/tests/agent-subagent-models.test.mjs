@@ -76,7 +76,7 @@ async function rig(t) {
   return { local, remote, bridge, call, ws };
 }
 
-test('the real Harness: the model sees guidance and the discovery list, and a name starts the helper on that model', { skip }, async (t) => {
+test('the real Harness: remote providers are not offered to local helpers', { skip }, async (t) => {
   const r = await rig(t);
   const first = await r.call('m1', { description: 'Weather', prompt: 'SCRIPT:echo grey', model: 'DeepSeek V3.2' });
   const tools = JSON.parse([...r.local.requests].reverse().find(q => q.toolNames.length).raw).tools;
@@ -84,19 +84,20 @@ test('the real Harness: the model sees guidance and the discovery list, and a na
   assert.match(sub.description, /ask a subagent/); assert.match(sub.description, /do not look for the model yourself/);
   assert.match(sub.parameters.properties.model.description, /"local"/);
   assert.ok(tools.some(x => x.function.name === 'list_subagent_models'));
-  // the helper ran on the remote route, not on the chat's model
-  for (let i = 0; i < 60 && !r.remote.requests.length; i++) await new Promise(res => setTimeout(res, 250));
-  assert.ok(r.remote.requests.length >= 1, `the helper reached the OpenRouter mock (${first.text})`);
+  assert.match(first.text, /No model is called/);
+  assert.equal(r.remote.requests.length, 0, 'remote helper was not started');
 });
 
 test('the real Harness: a close guess and an unknown model are answered in plain words and start nothing', { skip }, async (t) => {
   const r = await rig(t);
   const guess = await r.call('m2', { description: 'Weather', prompt: 'x', model: 'deepseek v3' });
-  assert.match(guess.text, /Did you mean DeepSeek V3\.2/);
+  assert.match(guess.text, /No model is called/);
   const none = await r.call('m3', { description: 'Weather', prompt: 'x', model: 'llama banana' });
   assert.match(none.text, /No model is called "llama banana"/);
-  const seen = [...r.local.requests].reverse().find(q => q.lastRole === 'tool').raw;
-  assert.match(seen, /DeepSeek V3.2/, 'the list the assistant read names the models');
+  const seen = JSON.parse([...r.local.requests].reverse().find(q => q.lastRole === 'tool').raw);
+  const toolReply = seen.messages.filter(message => message.role === 'tool').at(-1).content;
+  assert.match(toolReply, /Local Scripted/);
+  assert.doesNotMatch(toolReply, /DeepSeek V3.2/, 'the helper list excludes cloud models');
   await new Promise(res => setTimeout(res, 1500));
   assert.equal(r.remote.requests.length, 0, 'nothing was started');
 });
@@ -117,11 +118,11 @@ test('the real Harness: a helper that finishes while the chat model is still ans
   const fast = await startScriptedWorker({ model: 'deepseek/deepseek-v3.2', chunkDelayMs: 5 });
   const dir = mkdtempSync(join(tmpdir(), 'strata-race-')); const ws = join(dir, 'ws'); mkdirSync(ws, { recursive: true });
   const bridge = createAgentBridge({ dataDir: dir, env: process.env, startTimeoutMs: 90_000,
-    localInstances: () => [{ id: 'inst-1', label: 'Slow chat model', baseUrl: slow.url, modelId: 'scripted-model', context: 32768, slots: 2 }],
-    connections: () => [{ id: 'conn-1', name: 'OpenRouter', baseUrl: fast.url, protocol: 'openai-chat', apiKey: 'k', models: [{ id: 'deepseek/deepseek-v3.2', name: 'DeepSeek V3.2', contextMax: 32768 }] }] });
+    localInstances: () => [{ id: 'inst-1', label: 'Slow chat model', baseUrl: slow.url, modelId: 'scripted-model', context: 32768, slots: 2 }, { id: 'inst-2', label: 'Fast local model', baseUrl: fast.url, modelId: 'deepseek/deepseek-v3.2', context: 32768, slots: 2 }],
+    connections: () => [] });
   t.after(async () => { await bridge.close(); await slow.close(); await fast.close(); try { rmSync(dir, { recursive: true, force: true, maxRetries: 3 }); } catch { /* best effort */ } });
   const frames = [];
-  await bridge.runTurn({ chatId: 'race', message: `SCRIPT:call subagent ${JSON.stringify({ description: 'Quick', prompt: 'SCRIPT:echo hi', model: 'DeepSeek V3.2' })}`, workspacePath: ws, mode: 'bypass', onFrame: f => frames.push(f) });
+  await bridge.runTurn({ chatId: 'race', message: `SCRIPT:call subagent ${JSON.stringify({ description: 'Quick', prompt: 'SCRIPT:echo hi', model: 'Fast local model' })}`, workspacePath: ws, mode: 'bypass', onFrame: f => frames.push(f) });
   assert.ok(!frames.some(f => f.type === 'error'), `no error: ${JSON.stringify(frames.filter(f => f.type === 'error'))}`);
   assert.equal(frames.at(-1).type, 'done');
   assert.match(frames.filter(f => f.type === 'delta').map(f => f.text).join(''), /Tool finished/, 'the chat model got to answer');

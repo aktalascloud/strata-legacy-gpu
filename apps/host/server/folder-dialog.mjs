@@ -80,13 +80,16 @@ export function watchedWindowsDialog(shell, args, { readyMs = 30_000, openMs = 2
  */
 export async function chooseFolder(prompt, options = {}) {
   const { platform = process.platform, run = exec, portal = portalFolder, windowsDialog = options.run ? null : watchedWindowsDialog,
-    env = process.env, fetcher = fetch } = options;
+    env = process.env, fetcher = fetch, bridgeReadyMs = 30_000 } = options;
   if (platform === 'win32' && env.STRATA_SHELL_BRIDGE && env.STRATA_SHELL_TOKEN) {
     // The shell owns the native dialog. Never fall back to PowerShell when the desktop bridge fails (#3831).
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), bridgeReadyMs);
     try {
       const response = await fetcher(`${env.STRATA_SHELL_BRIDGE}/shell/folder?${new URLSearchParams({ title: prompt })}`, {
-        method: 'POST', headers: { authorization: `Bearer ${env.STRATA_SHELL_TOKEN}` },
+        method: 'POST', headers: { authorization: `Bearer ${env.STRATA_SHELL_TOKEN}` }, signal: controller.signal,
       });
+      clearTimeout(timer); // The bridge accepted the request; the person may take as long as needed.
       if (!response.ok) throw new Error(`exit ${response.status}`);
       const picked = await response.json();
       if (picked.cancelled === true) return { cancelled: true };
@@ -94,6 +97,8 @@ export async function chooseFolder(prompt, options = {}) {
       return { path: cleanChosenPath(picked.path) };
     } catch {
       return { unavailable: true, failed: true, reason: 'The folder window could not open. Type the folder path instead.' };
+    } finally {
+      clearTimeout(timer);
     }
   }
   if (platform === 'darwin') {

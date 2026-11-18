@@ -10,7 +10,7 @@ import { fitOn, recommendedVersions, versionFit, versionGroups, type CacheChoice
 /** The name a version goes by in the list: the quantization, with the maker only where the quantization alone would be ambiguous. */
 export function versionName(v: CatalogVersion): string {
   switch (v.sourceFamily) {
-    case 'swift': return `Swift ${v.model}`;
+    case 'swift': return `Swift ${v.model}${v.localProfile ? ` · ${tr('Local')}` : ''}`;
     case 'unsloth': return `Unsloth ${v.model}`;
     case 'nvfp4': return tr(nvfp4Version(v.model)?.name ?? v.model);
     case 'coder': return `Coder ${v.model}`;

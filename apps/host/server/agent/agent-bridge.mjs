@@ -122,7 +122,7 @@ const deferred = () => { let resolve; const promise = new Promise(r => { resolve
  * @param {string} [options.nodePath]                   the Node runtime that runs the Harness
  * @param {(line:string)=>void} [options.log]
  */
-export function createAgentBridge({ dataDir, componentsDir = null, bundledDir = null, gate = true, localInstances, connections, tools = () => undefined, defaultLocalId = () => null, skillsDir = () => null, onGoal = () => {}, onPlan = () => {}, onQueue = () => {}, proxyBase = null, searchMock = null, expertSampling = () => null, engineProgress = () => null, engineGraceMs = 30 * 60_000, stallMs = 4 * 60_000, stallToolMs = 20 * 60_000, env = process.env, nodePath = process.execPath, log = () => {}, startTimeoutMs = 120_000, sessionReadyMs = 60_000, sessionRetryMs = 1_500 }) {
+export function createAgentBridge({ dataDir, componentsDir = null, bundledDir = null, gate = true, localInstances, connections, tools = () => undefined, defaultLocalId = () => null, skillsDir = () => null, compactSettings = () => ({}), onGoal = () => {}, onPlan = () => {}, onQueue = () => {}, proxyBase = null, searchMock = null, expertSampling = () => null, engineProgress = () => null, engineGraceMs = 30 * 60_000, stallMs = 4 * 60_000, stallToolMs = 20 * 60_000, env = process.env, nodePath = process.execPath, log = () => {}, startTimeoutMs = 120_000, sessionReadyMs = 60_000, sessionRetryMs = 1_500 }) {
   const root = join(dataDir, 'agent');
   const home = join(root, 'home');
   const sessionsFile = join(root, 'sessions.json');
@@ -181,12 +181,18 @@ export function createAgentBridge({ dataDir, componentsDir = null, bundledDir = 
 
   /** The agent's profile now, plus where its shaped routes really lead (read by the forwarding endpoint). */
   let shapeTargets = {};
+  const proxyNonce = randomUUID().replaceAll('-', '');
   function buildProfileNow() {
-    const profile = buildProfile({ local: localInstances(), connections: connections(), gate, tools: tools(), skillsDir: skillsDir(), proxyBase, searchMock, defaultLocalId: defaultLocalId() });
+    const profile = buildProfile({ local: localInstances(), connections: connections(), gate, tools: tools(), skillsDir: skillsDir(), proxyBase, proxyNonce, searchMock, defaultLocalId: defaultLocalId(), compact: compactSettings() });
     shapeTargets = profile.shapeTargets ?? {};
     return profile;
   }
-  const llmTarget = key => shapeTargets[key] ?? null;
+  const llmTarget = key => {
+    const target = shapeTargets[key];
+    if (!target?.anonymousFree) return target ?? null;
+    const allowedPermits = [...chats.values()].map(c => c.turn).filter(turn => turn && !turn.finished && !turn.stopping && turn.route?.kind === 'api' && turn.route.route === target.ownerRoute).map(turn => ({ id: turn.permitId, model: turn.route.modelId }));
+    return allowedPermits.length ? { ...target, allowedModels: allowedPermits.map(permit => permit.model), allowedPermits } : null;
+  };
 
   function harnessInfo() { return resolveHarness({ env, componentsDir, bundledDir }); }
   /** Where the agent component is (the browser tool server lives inside it), or null. */
@@ -447,7 +453,9 @@ export function createAgentBridge({ dataDir, componentsDir = null, bundledDir = 
         emit({ type: 'error', message: text, key: FIT_TEXT.tooLarge, values, code: 'CONTEXT_MESSAGE_TOO_LARGE', tokens: fit.tokens, window: fit.window });
         return { error: text };
       }
-      if (fit?.action === 'summarize') {
+      // The manual /compact API bypasses the Harness's automatic retention policy.
+      // With a protected tail, let the between-step backend compact after the turn begins.
+      if (fit?.action === 'summarize' && !compactSettings()?.keepMessages) {
         reporter.set({ phase: 'compacting', code: 'compacting', text: FIT_TEXT.summarizing, key: FIT_TEXT.summarizing, values: [] });
         const done = await compactChat(runtime, sessionId);
         reporter.clear();
@@ -459,7 +467,7 @@ export function createAgentBridge({ dataDir, componentsDir = null, bundledDir = 
     if (!goal) guard = new TurnGuard({ plan: !!planTask, contextMax: route.kind === 'local' ? route.contextWindow : 0 });   // a saved connection's window is often only assumed: never judged by a guess
     projector.onStatus = update => { if (!turn?.parentOpen && turn?.children.size && [...turn.children.values()].some(h => !h.done) && update.phase === 'waiting') return; reporter.set(update); };
     const turn = {
-      sessionId, projector, route, requestId, live: false, lastSeq: -1,
+      sessionId, projector, route, requestId, permitId: randomUUID(), live: false, lastSeq: -1,
       ended: deferred(), follow: null, snapshot: deferred(), finished: false, prompted: false, stopBeforePrompt: false,
       abortFromRuntime: reason => finishTurn(reason), finish: failure => finishTurn(failure),
       // Helper agents (subagents) the Harness started for this chat, and the state of the run around them.
@@ -554,7 +562,7 @@ ${note.text}`, key: note.key, values: note.values, noteReason: 'cut' });
       turn.ended.resolve({ reason: projector.ended, failure: failure ?? null });
       notifyIdle();
       // A turn that filled the context, or that the guard stopped, leaves a long history behind: summarise the older part now so the next message has room.
-      if (noteReason === 'context' || noteReason === 'searches' || noteReason === 'searches-failed' || noteReason === 'rewrites' || /context window|too long|exceeds/i.test(String(projector.ended?.error?.message ?? ''))) void compactSession(runtime, sessionId);
+      if (!compactSettings()?.keepMessages && (noteReason === 'context' || noteReason === 'searches' || noteReason === 'searches-failed' || noteReason === 'rewrites' || /context window|too long|exceeds/i.test(String(projector.ended?.error?.message ?? '')))) void compactSession(runtime, sessionId);
     }
 
     emit({ type: 'start', model: route.name, contextMax: route.contextWindow, demo: false, remoteModel: route.kind === 'api', agent: true, mode: appliedMode, sessionId, requestId, skills: [], ...(planTask ? { planning: true } : {}) });
@@ -1328,7 +1336,8 @@ ${note.text}
     const pressure = now?.tokens ?? 0;
     // Where the Harness starts summarising by itself on this window (profile.mjs: the reply keeps its room, then the headroom).
     const reply = localOutputBudget(window);
-    const threshold = Math.floor(Math.min(window * 0.8, window - reply - compactionHeadroom(window, reply)));
+    const requested = compactSettings()?.thresholdTokens || window * 0.8;
+    const threshold = Math.floor(Math.min(requested, window - reply - compactionHeadroom(window, reply)));
     let verdict = decideFit({ window, pressure, messageTokens: tokens, threshold });
     // The earlier conversation carried into a fresh session is what pushed it over: send the message alone instead.
     if (verdict.action === 'too-large' && carried !== message) {

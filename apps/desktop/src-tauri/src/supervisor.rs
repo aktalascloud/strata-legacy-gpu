@@ -237,7 +237,7 @@ pub fn started_by_shell(shell_env: Option<&str>, parent: u32) -> bool {
 
 /// How long a restarted app waits for the old one (its shell stops the host and the engines first, up to HOST_STOP_SECONDS).
 pub fn old_shell_wait() -> Duration {
-    Duration::from_secs(crate::HOST_STOP_SECONDS + 20)
+    Duration::from_secs(crate::host_stop_seconds() + 20)
 }
 
 fn b64_value(c: u8) -> Option<u32> {
@@ -412,7 +412,7 @@ pub fn quit_running() -> i32 {
             return 1;
         }
     }
-    let deadline = Instant::now() + Duration::from_secs(crate::HOST_STOP_SECONDS + 10);
+    let deadline = Instant::now() + Duration::from_secs(crate::host_stop_seconds() + 10);
     while Instant::now() < deadline {
         if !pid_alive(s.pid) {
             println!("Strata has stopped.");
@@ -501,7 +501,10 @@ pub fn run(opts: &Options) -> i32 {
     let log = Log::open();
     let (host_ring, window_ring) = (Ring::default(), Ring::default());
     let exe = std::env::current_exe().unwrap_or_default();
-    let res = crate::packaged_resource_dir(&exe).unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")));
+    let res = match crate::resource_or_development(crate::packaged_resource_dir(&exe)) {
+        Ok(path) => path,
+        Err(error) => { say(&log, &error); return 1; }
+    };
     let port = match crate::pick_stable_port() {
         Ok(p) => p,
         Err(e) => {
