@@ -1,8 +1,20 @@
-# Strata Desktop · Legacy GPU
+# Strata Desktop for Tesla P40
 
-Русскоязычный форк Strata Desktop для Windows x64, Tesla P40 и процессоров с AVX1. Работает локально со Swift 1.5 Flash Next IQ3_S; модели в репозиторий и установщик не входят.
+[Русский](#русский) · [Release / Скачать](https://github.com/aktalascloud/strata-legacy-gpu/releases/tag/v0.2.15-p40-r3) · [Guide / Документация](#замеры--measurements) · [Evidence / Данные](https://github.com/aktalascloud/strata-legacy-gpu/blob/18f4ae56b074c39e6ff0c93e2458b47ced4857bc/legacy-p40/research/selection-20261118.json) · [Upstream](https://github.com/Niko1221/Strata)
 
-An independent Strata Desktop fork for Windows x64, Tesla P40 and AVX1 CPUs. Runs Swift 1.5 Flash Next IQ3_S locally; model weights are not included.
+Run Swift 1.5 Flash Next locally on Windows with a Tesla P40 and an Ivy Bridge AVX1 CPU. Strata manages the CUDA/MMQ backend, exposes an OpenAI-compatible API and can connect to a KoboldCpp media gateway on your LAN.
+
+**Quick start.** Use the Windows installer with your Swift IQ3_S GGUF files. The optional Q2 MTP pack is a separate download. The NVIDIA driver, Edge WebView2 and VC++ x64 Runtime are required.
+
+**Evidence.** On engine `0.1.61`, one Swift IQ3_S request on P40 produced 128 tokens from a 261,998-token prompt in 913.43 s without a cache read. On the same system, four paired startup tests took a median 5.68 → 4.03 s for App Host readiness.
+
+## Русский
+
+Запускайте Swift 1.5 Flash Next локально на Windows с Tesla P40 и процессором Ivy Bridge AVX1. Strata управляет движком CUDA/MMQ, предоставляет OpenAI-совместимый API и подключается к медиашлюзу KoboldCpp в локальной сети.
+
+**Запуск.** Установите сборку Windows и укажите свои файлы Swift IQ3_S GGUF. Дополнительный пакет Q2 MTP загружается отдельно. Нужны драйвер NVIDIA, Edge WebView2 и VC++ x64 Runtime.
+
+**Проверка.** На движке `0.1.61` одна сессия Swift IQ3_S на P40 обработала 261 998 входных токенов и выдала 128 токенов за 913,43 с без чтения кэша. В четырёх парных стартах медиана готовности App Host составила 5,68 → 4,03 с.
 
 ## Возможности / Features
 
@@ -55,3 +67,5 @@ On two images, 16-thread CPU Vision A/B/B/A median encoding times were about **3
 Проект основан на [Niko1221/Strata](https://github.com/Niko1221/Strata), распространяется по условиям лицензий проекта и включённых компонентов. Для сборки нужны Windows SDK, MSVC, CUDA и Rust; модель и её Q2 MTP pack предоставляются пользователем отдельно.
 
 Based on [Niko1221/Strata](https://github.com/Niko1221/Strata), subject to the project and bundled-component licenses. Building requires Windows SDK, MSVC, CUDA and Rust; the model and Q2 MTP pack are supplied separately.
+
+[All projects / Все проекты](https://github.com/aktalascloud)
