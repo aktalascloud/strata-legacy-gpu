@@ -62,7 +62,11 @@ def reviewed_component(root: Path) -> Path:
                     or obj.get("entrypoint") != "strata.exe"):
                 continue
             listed = obj.get("files")
-            if not isinstance(listed, list) or {r.get("path") for r in listed} != {"strata.exe", "strata_kq.dll", "strata-vision.exe"} or len(listed) != 3:
+            if not isinstance(listed, list):
+                continue
+            names = {record.get("path") for record in listed}
+            required = {"strata.exe", "strata-vision.exe"}
+            if len(names) != len(listed) or not required <= names <= required | {"strata_kq.dll"}:
                 continue
             if any(not regular_file(manifest.parent / r["path"]) or (manifest.parent / r["path"]).is_symlink()
                    or (manifest.parent / r["path"]).stat().st_size != r.get("bytes")

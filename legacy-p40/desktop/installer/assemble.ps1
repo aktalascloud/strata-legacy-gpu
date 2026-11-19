@@ -39,8 +39,10 @@ if ((Get-FileHash -LiteralPath $MplSourceBundle -Algorithm SHA256).Hash -ine $Mp
 if ((Get-FileHash -LiteralPath $manifest -Algorithm SHA256).Hash -ine $ComponentManifestSha256) { throw 'Component manifest does not match the reviewed build.' }
 $engine = Get-Content -LiteralPath $manifest -Raw | ConvertFrom-Json
 if ($engine.id -ne 'strata-engine' -or $engine.backend -ne 'cuda' -or $engine.platform -ne 'windows-x86_64' -or $engine.entrypoint -ne 'strata.exe' -or 'sm_61' -notin $engine.archs) { throw 'Unexpected component architecture or identity.' }
-$expected = @('strata.exe','strata_kq.dll','strata-vision.exe')
-if (@($engine.files).Count -ne 3 -or @($engine.files | Where-Object { $_.path -notin $expected }).Count) { throw 'The component must contain exactly the reviewed engine, MMQ and vision executables.' }
+$expected = @('strata.exe','strata-vision.exe')
+$names = @($engine.files | ForEach-Object path)
+if ($names.Count -eq 3) { $expected += 'strata_kq.dll' }
+if ($names.Count -ne $expected.Count -or (Compare-Object $expected $names)) { throw 'The component must contain exactly the reviewed engine and vision files, plus the MMQ DLL for older builds.' }
 foreach ($entry in $engine.files) {
   $file = Join-Path $ComponentRoot $entry.path
   if ((Get-Item -LiteralPath $file).Length -ne $entry.bytes -or (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ine $entry.sha256) { throw "Component mismatch: $($entry.path)" }

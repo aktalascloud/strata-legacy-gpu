@@ -2354,5 +2354,823 @@
         "decision": "External Ada sm_89 benchmark; no implementation change for Pascal"
       }
     ]
+  },
+  "november_19": {
+    "upstream": "58ee3227720629ff2e41d640165ebe89c880dfef",
+    "upstream_desktop_tag": "v0.2.16",
+    "upstream_tag_commit": "64524fb9fc82222ddce554c0643b64f056ec8366",
+    "build": "MSVC 14.44 Release, AVX1 floor, CUDA 12.9 sm_61 with experimental SM60 support, native prefill",
+    "method": "Windows, Tesla P40, dual Ivy Bridge Xeon. Same Swift IQ3_S, Q2 MTP, 262144 context and 210 MiB planning reserve. The same server and frontend handled all requests. Individual arms used fresh model processes, fixed token lengths and zero cache reads. VRAM and GPU temperature were sampled every five seconds for the long workloads.",
+    "base_profile_sha256": "9887dd02a996959c57c8b2ea493751cc7e28053a47b33475260bc0666f7082e7",
+    "bench_sha256": "44bcf5411824ee268fc76922478caa7806d20c89a6bdae6fe1f96da27d0b6141",
+    "server_sha256": "2b2be9d2f543923d830b82a9144b879dd9000e0c20fba11aadb2a9e4e951bf85",
+    "frontend_sha256": "21ac1219849c7363fc887c13091657b56d3e705f3a61c52c9f054b4db21e86d5",
+    "trials": [
+      {
+        "arm": "old-a",
+        "setting": {},
+        "engine_sha256": "cceb726abd9b3a1f928bac60d9f7dadc69c75657ddabe65972fabada32fe8a64",
+        "kernel_sha256": "26c174bd821354922cd8459001172f92c48abac346de1990cb2dabcfa255abd2",
+        "input_tokens": 9292,
+        "boot_seconds": 56.125,
+        "gpu_before": {
+          "temp_c": 51,
+          "free_mib": 155,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "gpu_after": {
+          "temp_c": 62,
+          "free_mib": 45,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "case": 2681,
+        "elapsed_s": 49.45664509999915,
+        "ttft_s": 23.689402899995912,
+        "usage": {
+          "prompt_tokens": 9292,
+          "completion_tokens": 768,
+          "total_tokens": 10060,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 9292,
+          "prompt_ms": 23627.8,
+          "prompt_per_token_ms": 2.543,
+          "prompt_per_second": 393.3,
+          "predicted_n": 768,
+          "predicted_ms": 25801.7,
+          "predicted_per_token_ms": 33.596,
+          "predicted_per_second": 29.8,
+          "draft_n": 559,
+          "draft_n_accepted": 362
+        },
+        "finish": "length",
+        "text_sha256": "c902dd66bdcf5c96e13006f3a10a5e32e654b01ac25d275f06bbb13c23ce6f01",
+        "end_to_end_tps": 15.528752474963435,
+        "host_numa_busy_pct": {
+          "prefill": {
+            "0": 54.0,
+            "1": 45.7
+          },
+          "decode": {
+            "0": 31.0,
+            "1": 5.7
+          }
+        }
+      },
+      {
+        "arm": "old-a",
+        "setting": {},
+        "engine_sha256": "cceb726abd9b3a1f928bac60d9f7dadc69c75657ddabe65972fabada32fe8a64",
+        "kernel_sha256": "26c174bd821354922cd8459001172f92c48abac346de1990cb2dabcfa255abd2",
+        "input_tokens": 24368,
+        "boot_seconds": 56.125,
+        "gpu_before": {
+          "temp_c": 62,
+          "free_mib": 45,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "gpu_after": {
+          "temp_c": 75,
+          "free_mib": 81,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "case": 2682,
+        "elapsed_s": 87.91315649999888,
+        "ttft_s": 63.035570999985794,
+        "usage": {
+          "prompt_tokens": 24368,
+          "completion_tokens": 768,
+          "total_tokens": 25136,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 24368,
+          "prompt_ms": 62943.3,
+          "prompt_per_token_ms": 2.583,
+          "prompt_per_second": 387.1,
+          "predicted_n": 768,
+          "predicted_ms": 24917.1,
+          "predicted_per_token_ms": 32.444,
+          "predicted_per_second": 30.8,
+          "draft_n": 522,
+          "draft_n_accepted": 371
+        },
+        "finish": "length",
+        "text_sha256": "556370bf3033d10de0397a06fafe8e1877be7a386d9ce391508560d8d78f4817",
+        "end_to_end_tps": 8.735893813572828,
+        "host_numa_busy_pct": {
+          "prefill": {
+            "0": 53.0,
+            "1": 45.8
+          },
+          "decode": {
+            "0": 18.8,
+            "1": 3.1
+          }
+        }
+      },
+      {
+        "arm": "new",
+        "setting": {
+          "binary": "afb69b796177d16d0cc1f2c3116cb71acaf841b165596b73b6b38edf2eb0dd0a"
+        },
+        "engine_sha256": "afb69b796177d16d0cc1f2c3116cb71acaf841b165596b73b6b38edf2eb0dd0a",
+        "kernel_sha256": null,
+        "input_tokens": 9292,
+        "boot_seconds": 72.828,
+        "gpu_before": {
+          "temp_c": 62,
+          "free_mib": 153,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "gpu_after": {
+          "temp_c": 71,
+          "free_mib": 37,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "case": 2681,
+        "elapsed_s": 48.5873812000209,
+        "ttft_s": 23.87373039999511,
+        "usage": {
+          "prompt_tokens": 9292,
+          "completion_tokens": 768,
+          "total_tokens": 10060,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 9292,
+          "prompt_ms": 23810.5,
+          "prompt_per_token_ms": 2.562,
+          "prompt_per_second": 390.2,
+          "predicted_n": 768,
+          "predicted_ms": 24749.1,
+          "predicted_per_token_ms": 32.225,
+          "predicted_per_second": 31.0,
+          "draft_n": 548,
+          "draft_n_accepted": 370
+        },
+        "finish": "length",
+        "text_sha256": "a474dc2542f73b6ed1b84dea360b2ee2d953cade5876880a7d959fb2cb959695",
+        "end_to_end_tps": 15.806573250744982,
+        "host_numa_busy_pct": {
+          "prefill": {
+            "0": 55.7,
+            "1": 47.0
+          },
+          "decode": {
+            "0": 18.8,
+            "1": 3.4
+          }
+        }
+      },
+      {
+        "arm": "new",
+        "setting": {
+          "binary": "afb69b796177d16d0cc1f2c3116cb71acaf841b165596b73b6b38edf2eb0dd0a"
+        },
+        "engine_sha256": "afb69b796177d16d0cc1f2c3116cb71acaf841b165596b73b6b38edf2eb0dd0a",
+        "kernel_sha256": null,
+        "input_tokens": 24368,
+        "boot_seconds": 72.828,
+        "gpu_before": {
+          "temp_c": 70,
+          "free_mib": 37,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "gpu_after": {
+          "temp_c": 81,
+          "free_mib": 73,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "case": 2682,
+        "elapsed_s": 87.96768000000156,
+        "ttft_s": 63.221746499999426,
+        "usage": {
+          "prompt_tokens": 24368,
+          "completion_tokens": 768,
+          "total_tokens": 25136,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 24368,
+          "prompt_ms": 63125.6,
+          "prompt_per_token_ms": 2.591,
+          "prompt_per_second": 386.0,
+          "predicted_n": 768,
+          "predicted_ms": 24787.6,
+          "predicted_per_token_ms": 32.276,
+          "predicted_per_second": 31.0,
+          "draft_n": 555,
+          "draft_n_accepted": 378
+        },
+        "finish": "length",
+        "text_sha256": "0af6c73f900f0774d5f2de1bb2f67ca011f94d765504e00c5640d40b3749ac14",
+        "end_to_end_tps": 8.730479194176615,
+        "host_numa_busy_pct": {
+          "prefill": {
+            "0": 53.3,
+            "1": 44.1
+          },
+          "decode": {
+            "0": 16.7,
+            "1": 2.4
+          }
+        }
+      },
+      {
+        "arm": "new-prefill",
+        "setting": {
+          "--prefill": "2048"
+        },
+        "engine_sha256": "afb69b796177d16d0cc1f2c3116cb71acaf841b165596b73b6b38edf2eb0dd0a",
+        "kernel_sha256": null,
+        "input_tokens": 9292,
+        "boot_seconds": 57.469,
+        "gpu_before": {
+          "temp_c": 66,
+          "free_mib": 153,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "gpu_after": {
+          "temp_c": 74,
+          "free_mib": 69,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "case": 2681,
+        "elapsed_s": 48.71170130002429,
+        "ttft_s": 24.22391980001703,
+        "usage": {
+          "prompt_tokens": 9292,
+          "completion_tokens": 768,
+          "total_tokens": 10060,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 9292,
+          "prompt_ms": 24161.5,
+          "prompt_per_token_ms": 2.6,
+          "prompt_per_second": 384.6,
+          "predicted_n": 768,
+          "predicted_ms": 24521.8,
+          "predicted_per_token_ms": 31.929,
+          "predicted_per_second": 31.3,
+          "draft_n": 548,
+          "draft_n_accepted": 379
+        },
+        "finish": "length",
+        "text_sha256": "7c52f54a8864867186eee07866d0d8a133993c718e33735bdb3a765a0c29fd72",
+        "end_to_end_tps": 15.766232332345515,
+        "host_numa_busy_pct": {
+          "prefill": {
+            "0": 44.1,
+            "1": 31.7
+          },
+          "decode": {
+            "0": 17.5,
+            "1": 3.3
+          }
+        }
+      },
+      {
+        "arm": "new-prefill",
+        "setting": {
+          "--prefill": "2048"
+        },
+        "engine_sha256": "afb69b796177d16d0cc1f2c3116cb71acaf841b165596b73b6b38edf2eb0dd0a",
+        "kernel_sha256": null,
+        "input_tokens": 24368,
+        "boot_seconds": 57.469,
+        "gpu_before": {
+          "temp_c": 74,
+          "free_mib": 69,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "gpu_after": {
+          "temp_c": 83,
+          "free_mib": 69,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "case": 2682,
+        "elapsed_s": 87.56171740000718,
+        "ttft_s": 63.23553400000674,
+        "usage": {
+          "prompt_tokens": 24368,
+          "completion_tokens": 768,
+          "total_tokens": 25136,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 24368,
+          "prompt_ms": 63144.6,
+          "prompt_per_token_ms": 2.591,
+          "prompt_per_second": 385.9,
+          "predicted_n": 768,
+          "predicted_ms": 24363.5,
+          "predicted_per_token_ms": 31.723,
+          "predicted_per_second": 31.5,
+          "draft_n": 541,
+          "draft_n_accepted": 375
+        },
+        "finish": "length",
+        "text_sha256": "d3ff7b0af01e2191dce45d7e09db7f6fb689a9d7c3b4f2fd38d3e204dda22ba7",
+        "end_to_end_tps": 8.770956335764344,
+        "host_numa_busy_pct": {
+          "prefill": {
+            "0": 46.0,
+            "1": 35.3
+          },
+          "decode": {
+            "0": 19.7,
+            "1": 5.0
+          }
+        }
+      },
+      {
+        "arm": "new-qfuse",
+        "setting": {
+          "STRATA_QFUSE": "1"
+        },
+        "engine_sha256": "afb69b796177d16d0cc1f2c3116cb71acaf841b165596b73b6b38edf2eb0dd0a",
+        "kernel_sha256": null,
+        "input_tokens": 9292,
+        "boot_seconds": 57.546,
+        "gpu_before": {
+          "temp_c": 67,
+          "free_mib": 157,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "gpu_after": {
+          "temp_c": 75,
+          "free_mib": 41,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "case": 2681,
+        "elapsed_s": 48.958402999996906,
+        "ttft_s": 23.945382699981565,
+        "usage": {
+          "prompt_tokens": 9292,
+          "completion_tokens": 768,
+          "total_tokens": 10060,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 9292,
+          "prompt_ms": 23883.7,
+          "prompt_per_token_ms": 2.57,
+          "prompt_per_second": 389.1,
+          "predicted_n": 768,
+          "predicted_ms": 25046.4,
+          "predicted_per_token_ms": 32.613,
+          "predicted_per_second": 30.7,
+          "draft_n": 566,
+          "draft_n_accepted": 365
+        },
+        "finish": "length",
+        "text_sha256": "3aa52918ecbef8bad984ba0b1a68782b3ace32c215c945a50c90ec6e154550b0",
+        "end_to_end_tps": 15.686786188676304,
+        "host_numa_busy_pct": {
+          "prefill": {
+            "0": 53.3,
+            "1": 44.1
+          },
+          "decode": {
+            "0": 16.4,
+            "1": 2.4
+          }
+        }
+      },
+      {
+        "arm": "new-qfuse",
+        "setting": {
+          "STRATA_QFUSE": "1"
+        },
+        "engine_sha256": "afb69b796177d16d0cc1f2c3116cb71acaf841b165596b73b6b38edf2eb0dd0a",
+        "kernel_sha256": null,
+        "input_tokens": 24368,
+        "boot_seconds": 57.546,
+        "gpu_before": {
+          "temp_c": 75,
+          "free_mib": 41,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "gpu_after": {
+          "temp_c": 84,
+          "free_mib": 77,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "case": 2682,
+        "elapsed_s": 88.2672053000133,
+        "ttft_s": 63.72465530000045,
+        "usage": {
+          "prompt_tokens": 24368,
+          "completion_tokens": 768,
+          "total_tokens": 25136,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 24368,
+          "prompt_ms": 63633.2,
+          "prompt_per_token_ms": 2.611,
+          "prompt_per_second": 382.9,
+          "predicted_n": 768,
+          "predicted_ms": 24577.7,
+          "predicted_per_token_ms": 32.002,
+          "predicted_per_second": 31.2,
+          "draft_n": 549,
+          "draft_n_accepted": 376
+        },
+        "finish": "length",
+        "text_sha256": "f5516e55416841db927b0706848103d29020082bbcb5a07e0316d2393acd3edb",
+        "end_to_end_tps": 8.700853248832658,
+        "host_numa_busy_pct": {
+          "prefill": {
+            "0": 51.1,
+            "1": 41.7
+          },
+          "decode": {
+            "0": 18.2,
+            "1": 6.1
+          }
+        }
+      },
+      {
+        "arm": "old-b",
+        "setting": {},
+        "engine_sha256": "cceb726abd9b3a1f928bac60d9f7dadc69c75657ddabe65972fabada32fe8a64",
+        "kernel_sha256": "26c174bd821354922cd8459001172f92c48abac346de1990cb2dabcfa255abd2",
+        "input_tokens": 9292,
+        "boot_seconds": 56.531,
+        "gpu_before": {
+          "temp_c": 69,
+          "free_mib": 155,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "gpu_after": {
+          "temp_c": 76,
+          "free_mib": 45,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "case": 2681,
+        "elapsed_s": 48.13532919998397,
+        "ttft_s": 23.434375399985583,
+        "usage": {
+          "prompt_tokens": 9292,
+          "completion_tokens": 768,
+          "total_tokens": 10060,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 9292,
+          "prompt_ms": 23371.5,
+          "prompt_per_token_ms": 2.515,
+          "prompt_per_second": 397.6,
+          "predicted_n": 768,
+          "predicted_ms": 24735.8,
+          "predicted_per_token_ms": 32.208,
+          "predicted_per_second": 31.0,
+          "draft_n": 554,
+          "draft_n_accepted": 378
+        },
+        "finish": "length",
+        "text_sha256": "efc46ce81955e4311660b0ac0fb83e2b6282b970733d5b3eae34583f9c7162b9",
+        "end_to_end_tps": 15.955017089615245,
+        "host_numa_busy_pct": {
+          "prefill": {
+            "0": 53.1,
+            "1": 43.6
+          },
+          "decode": {
+            "0": 16.6,
+            "1": 3.2
+          }
+        }
+      },
+      {
+        "arm": "old-b",
+        "setting": {},
+        "engine_sha256": "cceb726abd9b3a1f928bac60d9f7dadc69c75657ddabe65972fabada32fe8a64",
+        "kernel_sha256": "26c174bd821354922cd8459001172f92c48abac346de1990cb2dabcfa255abd2",
+        "input_tokens": 24368,
+        "boot_seconds": 56.531,
+        "gpu_before": {
+          "temp_c": 76,
+          "free_mib": 45,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "gpu_after": {
+          "temp_c": 85,
+          "free_mib": 81,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "case": 2682,
+        "elapsed_s": 88.94726519999676,
+        "ttft_s": 63.71499969999422,
+        "usage": {
+          "prompt_tokens": 24368,
+          "completion_tokens": 768,
+          "total_tokens": 25136,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 24368,
+          "prompt_ms": 63622.3,
+          "prompt_per_token_ms": 2.611,
+          "prompt_per_second": 383.0,
+          "predicted_n": 768,
+          "predicted_ms": 25269.5,
+          "predicted_per_token_ms": 32.903,
+          "predicted_per_second": 30.4,
+          "draft_n": 577,
+          "draft_n_accepted": 346
+        },
+        "finish": "length",
+        "text_sha256": "f0bcba6cc7a38d1daa9475b222a0293aec93ee407b83f300867230146b205fa0",
+        "end_to_end_tps": 8.634329546537064,
+        "host_numa_busy_pct": {
+          "prefill": {
+            "0": 51.7,
+            "1": 41.6
+          },
+          "decode": {
+            "0": 25.6,
+            "1": 7.7
+          }
+        }
+      }
+    ],
+    "long_qsa": [
+      {
+        "arm": "standard",
+        "setting": {
+          "binary": "afb69b796177d16d0cc1f2c3116cb71acaf841b165596b73b6b38edf2eb0dd0a"
+        },
+        "engine_sha256": "afb69b796177d16d0cc1f2c3116cb71acaf841b165596b73b6b38edf2eb0dd0a",
+        "kernel_sha256": null,
+        "input_tokens": 98304,
+        "boot_seconds": 74.594,
+        "gpu_before": {
+          "temp_c": 56,
+          "free_mib": 153,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "gpu_after": {
+          "temp_c": 87,
+          "free_mib": 73,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "case": 2683,
+        "elapsed_s": 311.16741570000886,
+        "ttft_s": 286.09689700001036,
+        "usage": {
+          "prompt_tokens": 98304,
+          "completion_tokens": 768,
+          "total_tokens": 99072,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 98304,
+          "prompt_ms": 285861.3,
+          "prompt_per_token_ms": 2.908,
+          "prompt_per_second": 343.9,
+          "predicted_n": 768,
+          "predicted_ms": 25039.7,
+          "predicted_per_token_ms": 32.604,
+          "predicted_per_second": 30.7,
+          "draft_n": 544,
+          "draft_n_accepted": 383
+        },
+        "finish": "length",
+        "text_sha256": "43840e496d2e6567017cb192e91d436efbf723431b16f10cc4224644ad94896b",
+        "end_to_end_tps": 2.468124749734129,
+        "gpu_sample_count": 63,
+        "gpu_free_min_mib": 27,
+        "gpu_temp_max_c": 90,
+        "gpu_sm_min_mhz": 1252,
+        "host_numa_busy_pct": {
+          "prefill": {
+            "0": 50.9,
+            "1": 47.2
+          },
+          "decode": {
+            "0": 24.8,
+            "1": 5.3
+          }
+        }
+      },
+      {
+        "arm": "qsa-long",
+        "setting": {
+          "STRATA_SELECT_LONG": "1"
+        },
+        "engine_sha256": "afb69b796177d16d0cc1f2c3116cb71acaf841b165596b73b6b38edf2eb0dd0a",
+        "kernel_sha256": null,
+        "input_tokens": 98304,
+        "boot_seconds": 55.5,
+        "gpu_before": {
+          "temp_c": 70,
+          "free_mib": 153,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "gpu_after": {
+          "temp_c": 86,
+          "free_mib": 21,
+          "sm_mhz": 1531,
+          "mem_mhz": 3615
+        },
+        "case": 2683,
+        "elapsed_s": 318.46651890000794,
+        "ttft_s": 289.876869300002,
+        "usage": {
+          "prompt_tokens": 98304,
+          "completion_tokens": 768,
+          "total_tokens": 99072,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 98304,
+          "prompt_ms": 289640.6,
+          "prompt_per_token_ms": 2.946,
+          "prompt_per_second": 339.4,
+          "predicted_n": 768,
+          "predicted_ms": 28559.3,
+          "predicted_per_token_ms": 37.187,
+          "predicted_per_second": 26.9,
+          "draft_n": 559,
+          "draft_n_accepted": 383
+        },
+        "finish": "length",
+        "text_sha256": "58de73f47d314bc090cdf0d708252677324b707fc6db3e17b354bab7a211da40",
+        "end_to_end_tps": 2.4115564884267675,
+        "gpu_sample_count": 64,
+        "gpu_free_min_mib": 21,
+        "gpu_temp_max_c": 90,
+        "gpu_sm_min_mhz": 1202,
+        "host_numa_busy_pct": {
+          "prefill": {
+            "0": 50.0,
+            "1": 41.2
+          },
+          "decode": {
+            "0": 17.4,
+            "1": 3.3
+          }
+        }
+      }
+    ],
+    "near_limit": {
+      "arm": "selected",
+      "setting": {
+        "binary": "afb69b796177d16d0cc1f2c3116cb71acaf841b165596b73b6b38edf2eb0dd0a"
+      },
+      "engine_sha256": "afb69b796177d16d0cc1f2c3116cb71acaf841b165596b73b6b38edf2eb0dd0a",
+      "kernel_sha256": null,
+      "input_tokens": 261998,
+      "boot_seconds": 73.375,
+      "gpu_before": {
+        "temp_c": 60,
+        "free_mib": 153,
+        "sm_mhz": 1531,
+        "mem_mhz": 3615
+      },
+      "gpu_after": {
+        "temp_c": 87,
+        "free_mib": 73,
+        "sm_mhz": 1531,
+        "mem_mhz": 3615
+      },
+      "case": 2683,
+      "elapsed_s": 908.6093897999963,
+      "ttft_s": 903.4389730000112,
+      "usage": {
+        "prompt_tokens": 261998,
+        "completion_tokens": 128,
+        "total_tokens": 262126,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "api_timings": {
+        "cache_n": 0,
+        "prompt_n": 261998,
+        "prompt_ms": 902880.9,
+        "prompt_per_token_ms": 3.446,
+        "prompt_per_second": 290.2,
+        "predicted_n": 128,
+        "predicted_ms": 5151.2,
+        "predicted_per_token_ms": 40.244,
+        "predicted_per_second": 24.8,
+        "draft_n": 84,
+        "draft_n_accepted": 54
+      },
+      "finish": "length",
+      "text_sha256": "318d39adf062e926f5273f22360574c71d221ff9723ef47e9ee4300745451329",
+      "end_to_end_tps": 0.14087461723037603,
+      "gpu_sample_count": 181,
+      "gpu_free_min_mib": 27,
+      "gpu_temp_max_c": 90,
+      "gpu_sm_min_mhz": 1050,
+      "host_numa_busy_pct": {
+        "prefill": {
+          "0": 43.0,
+          "1": 33.4
+        },
+        "decode": {
+          "0": 13.8,
+          "1": 0.7
+        }
+      }
+    },
+    "decisions": {
+      "engine": "0.1.62 installed with the qualified standard profile. The 9K and 24K elapsed times fall within the two 0.1.61 controls.",
+      "prefill": "2048 produced mixed timings. Keep 1536.",
+      "qfuse": "Enabled dispatch was confirmed. End-to-end timing did not improve on either matched request.",
+      "select_long": "At 98304 tokens, 311.17 s standard versus 318.47 s with the switch. Decode was 30.7 versus 26.9 tok/s. The latter run started 14 C warmer, so the comparison does not isolate the selector effect."
+    },
+    "reviewed_prs": [
+      {
+        "number": 5500,
+        "decision": "L2 cache for returning conversations. Requires a separate warm-session workload."
+      },
+      {
+        "number": 6073,
+        "decision": "Immediate prefill OOM response is a reliability change."
+      },
+      {
+        "number": 6176,
+        "decision": "RDNA4 KV path."
+      },
+      {
+        "number": 6201,
+        "decision": "Expert history could change cache placement over sessions. No matched evidence on this profile."
+      },
+      {
+        "number": 6210,
+        "decision": "Peer transfer and multi-GPU overlap. Single P40 has no peer GPU."
+      },
+      {
+        "number": 6228,
+        "decision": "Experimental Turing sm_75 Gyro path; this is Pascal sm_61 with IQ3_S."
+      }
+    ]
   }
 }

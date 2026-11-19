@@ -110,7 +110,7 @@ export async function verifyLegacyDependencies(receiptPath, expectedHash) {
     if (!['strata.exe','strata_kq.dll','strata-vision.exe'].includes(name) || components.has(name) || !/^[a-f\d]{64}$/i.test(record.sha256 ?? '')) throw new Error('Invalid reviewed engine receipt.');
     components.set(name, record.sha256.toLowerCase());
   }
-  if (components.size !== 3) throw new Error('Incomplete reviewed engine receipt.');
+  if (!components.has('strata.exe') || !components.has('strata-vision.exe')) throw new Error('Incomplete reviewed engine receipt.');
   const required = new Set(['cudart64_12.dll','cublas64_12.dll','cublaslt64_12.dll','libomp.dll','msvcp140_atomic_wait.dll','msvcp140.dll','vcomp140.dll','vcruntime140_1.dll','vcruntime140.dll']);
   const cuda = new Set(['cudart64_12.dll','cublas64_12.dll','cublaslt64_12.dll']);
   const directories = [null, null];

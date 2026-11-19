@@ -165,6 +165,16 @@ class ConfigureProfileTest(unittest.TestCase):
             self.configure()
         self.assertEqual(self.builds, 0)
 
+    def test_monolithic_engine_needs_no_mmq_dll(self):
+        engine = self.root / 'components' / 'engine' / 'local'
+        manifest = engine / 'engine-component.json'
+        info = json.loads(manifest.read_text(encoding='utf-8'))
+        info['files'] = [record for record in info['files'] if record['path'] != 'strata_kq.dll']
+        manifest.write_text(json.dumps(info), encoding='utf-8')
+        (engine / 'strata_kq.dll').unlink()
+        self.configure()
+        self.assertEqual(self.builds, 1)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -102,6 +102,15 @@ test('dependency receipt is pinned and detects a changed or missing external DLL
   const manifest = join(dir, 'engine-component.json');
   await writeFile(manifest, JSON.stringify({ entrypoint: 'strata.exe', files: [...proof.components].map(([path, sha256]) => ({ path, sha256 })) }));
   assert.doesNotThrow(() => verifyLegacyComponent(dir, proof));
+  const monolithic = JSON.parse(raw);
+  monolithic.files = monolithic.files.filter(file => !file.path.endsWith('strata_kq.dll'));
+  const rawMonolithic = JSON.stringify(monolithic);
+  await writeFile(receipt, rawMonolithic);
+  const monolithicProof = await verifyLegacyDependencies(receipt, hash(rawMonolithic));
+  await writeFile(manifest, JSON.stringify({ entrypoint: 'strata.exe', files: [...monolithicProof.components].map(([path, sha256]) => ({ path, sha256 })) }));
+  assert.doesNotThrow(() => verifyLegacyComponent(dir, monolithicProof));
+  assert.throws(() => verifyLegacyComponent(dir, proof), /benchmark-verified/);
+  await writeFile(receipt, raw);
   await writeFile(manifest, JSON.stringify({ files: [{ path: 'strata.exe', sha256: 'b'.repeat(64) }] }));
   assert.throws(() => verifyLegacyComponent(dir, proof), /benchmark-verified/);
   await assert.rejects(verifyLegacyDependencies(receipt, '0'.repeat(64)), /receipt SHA-256 mismatch/);
