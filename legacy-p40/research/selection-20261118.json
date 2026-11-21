@@ -4017,5 +4017,934 @@
         "kind": "issue"
       }
     ]
+  },
+  "november_21_audit": {
+    "upstream": "3142b66b96e9c0e775e30f620b11b191a1427c2a",
+    "scope": {
+      "open_prs": 503,
+      "closed_prs": 2729,
+      "open_issues": 578,
+      "closed_issues": 2616,
+      "metadata": "All paginated open and closed lists were screened for relevance. Diffs and bodies were examined for selected candidates."
+    },
+    "engine_sha256": "ae8c5a2de7c6906d51ce592fec426356442ec95d7473630e77d71f46147996b7",
+    "base_profile_sha256": "5e4d69b216372d31d728ed636c1e3aed9c2c4287b7743d5d1bc05580d200320c",
+    "engine_method": "One installed CUDA 12.9 sm_61 build, one Python server, 256K, Q2 MTP, prefill 1536 and 210 MiB planning reserve. RAM/mmap/mmap/RAM warmed Windows restarts with no OS cache flush, common 24-token warm-up, then exactly 9292 and 24368 input plus 768 output tokens without a prefix-cache read. Int8 is one independent alternate arm with RAM PLE. PLE route confirmed in each native manifest.",
+    "boots": [
+      {
+        "arm": "ram-a",
+        "flag": "--ple-io",
+        "value": "ram",
+        "boot_seconds": 75.74541010003304,
+        "ple": {
+          "manifest": "ram",
+          "locked_in_ram": true,
+          "native_log": [
+            "strata generate: PLE table locked in RAM (--ple-io ram) in 43.1 s"
+          ]
+        }
+      },
+      {
+        "arm": "mmap-a",
+        "flag": "--ple-io",
+        "value": "mmap",
+        "boot_seconds": 30.37594530003844,
+        "ple": {
+          "manifest": "mmap",
+          "locked_in_ram": false,
+          "native_log": []
+        }
+      },
+      {
+        "arm": "mmap-b",
+        "flag": "--ple-io",
+        "value": "mmap",
+        "boot_seconds": 31.902826000005007,
+        "ple": {
+          "manifest": "mmap",
+          "locked_in_ram": false,
+          "native_log": []
+        }
+      },
+      {
+        "arm": "ram-b",
+        "flag": "--ple-io",
+        "value": "ram",
+        "boot_seconds": 58.611231399991084,
+        "ple": {
+          "manifest": "ram",
+          "locked_in_ram": true,
+          "native_log": [
+            "strata generate: PLE table locked in RAM (--ple-io ram) in 26.1 s"
+          ]
+        }
+      },
+      {
+        "arm": "int8",
+        "flag": "--kv",
+        "value": "int8",
+        "boot_seconds": 77.78485220001312,
+        "ple": {
+          "manifest": "ram",
+          "locked_in_ram": true,
+          "native_log": [
+            "strata generate: PLE table locked in RAM (--ple-io ram) in 43.3 s"
+          ]
+        }
+      }
+    ],
+    "trials": [
+      {
+        "arm": "ram-a",
+        "flag": "--ple-io",
+        "value": "ram",
+        "case": 2681,
+        "input_tokens": 9292,
+        "boot_seconds": 75.74541010003304,
+        "boot_plus_request_s": 124.07842310005799,
+        "ple": {
+          "manifest": "ram",
+          "locked_in_ram": true,
+          "native_log": [
+            "strata generate: PLE table locked in RAM (--ple-io ram) in 43.1 s"
+          ]
+        },
+        "elapsed_s": 48.33301300002495,
+        "ttft_s": 23.502732400025707,
+        "usage": {
+          "prompt_tokens": 9292,
+          "completion_tokens": 768,
+          "total_tokens": 10060,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 9292,
+          "prompt_ms": 23439.8,
+          "prompt_per_token_ms": 2.523,
+          "prompt_per_second": 396.4,
+          "predicted_n": 768,
+          "predicted_ms": 24864.1,
+          "predicted_per_token_ms": 32.375,
+          "predicted_per_second": 30.9,
+          "draft_n": 560,
+          "draft_n_accepted": 380
+        },
+        "finish": "length",
+        "text_sha256": "10f0033eea4cd3a10bad6840f4edc9a7bcc1cff8d4a712b04e1ab0de35a64276",
+        "gpu_before": {
+          "temp_c": 52,
+          "free_mib": 155,
+          "sm_mhz": 1531
+        },
+        "gpu_after": {
+          "temp_c": 63,
+          "free_mib": 37,
+          "sm_mhz": 1531
+        },
+        "gpu_free_min_mib": 29,
+        "gpu_temp_max_c": 64,
+        "host_numa_busy_pct": {
+          "prefill": {
+            "0": 49.0,
+            "1": 41.2
+          },
+          "decode": {
+            "0": 16.5,
+            "1": 3.6
+          }
+        }
+      },
+      {
+        "arm": "ram-a",
+        "flag": "--ple-io",
+        "value": "ram",
+        "case": 2682,
+        "input_tokens": 24368,
+        "boot_seconds": 75.74541010003304,
+        "boot_plus_request_s": 163.8753027000348,
+        "ple": {
+          "manifest": "ram",
+          "locked_in_ram": true,
+          "native_log": [
+            "strata generate: PLE table locked in RAM (--ple-io ram) in 43.1 s"
+          ]
+        },
+        "elapsed_s": 88.12989260000177,
+        "ttft_s": 62.91280619997997,
+        "usage": {
+          "prompt_tokens": 24368,
+          "completion_tokens": 768,
+          "total_tokens": 25136,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 24368,
+          "prompt_ms": 62817.4,
+          "prompt_per_token_ms": 2.578,
+          "prompt_per_second": 387.9,
+          "predicted_n": 768,
+          "predicted_ms": 25257.1,
+          "predicted_per_token_ms": 32.887,
+          "predicted_per_second": 30.4,
+          "draft_n": 553,
+          "draft_n_accepted": 349
+        },
+        "finish": "length",
+        "text_sha256": "6b2f3a9e4938939e529dc00f06fa1cd8dd62c9cc03dc8333f6f984f2c480034a",
+        "gpu_before": {
+          "temp_c": 63,
+          "free_mib": 37,
+          "sm_mhz": 1531
+        },
+        "gpu_after": {
+          "temp_c": 77,
+          "free_mib": 73,
+          "sm_mhz": 1531
+        },
+        "gpu_free_min_mib": 27,
+        "gpu_temp_max_c": 80,
+        "host_numa_busy_pct": {
+          "prefill": {
+            "0": 48.7,
+            "1": 41.2
+          },
+          "decode": {
+            "0": 16.7,
+            "1": 4.3
+          }
+        }
+      },
+      {
+        "arm": "mmap-a",
+        "flag": "--ple-io",
+        "value": "mmap",
+        "case": 2681,
+        "input_tokens": 9292,
+        "boot_seconds": 30.37594530003844,
+        "boot_plus_request_s": 79.40511350001907,
+        "ple": {
+          "manifest": "mmap",
+          "locked_in_ram": false,
+          "native_log": []
+        },
+        "elapsed_s": 49.02916819998063,
+        "ttft_s": 23.561730099958368,
+        "usage": {
+          "prompt_tokens": 9292,
+          "completion_tokens": 768,
+          "total_tokens": 10060,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 9292,
+          "prompt_ms": 23499.4,
+          "prompt_per_token_ms": 2.529,
+          "prompt_per_second": 395.4,
+          "predicted_n": 768,
+          "predicted_ms": 25501.3,
+          "predicted_per_token_ms": 33.205,
+          "predicted_per_second": 30.1,
+          "draft_n": 565,
+          "draft_n_accepted": 369
+        },
+        "finish": "length",
+        "text_sha256": "59b0bc995d20912d469298e4c291d63df2f5e990d7fd23b7b2ab6e4096f28bc7",
+        "gpu_before": {
+          "temp_c": 67,
+          "free_mib": 155,
+          "sm_mhz": 1531
+        },
+        "gpu_after": {
+          "temp_c": 75,
+          "free_mib": 37,
+          "sm_mhz": 1531
+        },
+        "gpu_free_min_mib": 29,
+        "gpu_temp_max_c": 78,
+        "host_numa_busy_pct": {
+          "prefill": {
+            "0": 49.9,
+            "1": 42.9
+          },
+          "decode": {
+            "0": 15.9,
+            "1": 3.0
+          }
+        }
+      },
+      {
+        "arm": "mmap-a",
+        "flag": "--ple-io",
+        "value": "mmap",
+        "case": 2682,
+        "input_tokens": 24368,
+        "boot_seconds": 30.37594530003844,
+        "boot_plus_request_s": 119.65132460003952,
+        "ple": {
+          "manifest": "mmap",
+          "locked_in_ram": false,
+          "native_log": []
+        },
+        "elapsed_s": 89.27537930000108,
+        "ttft_s": 64.17098830000032,
+        "usage": {
+          "prompt_tokens": 24368,
+          "completion_tokens": 768,
+          "total_tokens": 25136,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 24368,
+          "prompt_ms": 64075.2,
+          "prompt_per_token_ms": 2.629,
+          "prompt_per_second": 380.3,
+          "predicted_n": 768,
+          "predicted_ms": 25143.3,
+          "predicted_per_token_ms": 32.739,
+          "predicted_per_second": 30.5,
+          "draft_n": 552,
+          "draft_n_accepted": 365
+        },
+        "finish": "length",
+        "text_sha256": "daf769ae1dcdb01c96994bdeaff97ee688590de1257c44a46aba13a79db798ac",
+        "gpu_before": {
+          "temp_c": 75,
+          "free_mib": 37,
+          "sm_mhz": 1531
+        },
+        "gpu_after": {
+          "temp_c": 85,
+          "free_mib": 73,
+          "sm_mhz": 1531
+        },
+        "gpu_free_min_mib": 27,
+        "gpu_temp_max_c": 88,
+        "host_numa_busy_pct": {
+          "prefill": {
+            "0": 48.9,
+            "1": 40.9
+          },
+          "decode": {
+            "0": 17.0,
+            "1": 4.1
+          }
+        }
+      },
+      {
+        "arm": "mmap-b",
+        "flag": "--ple-io",
+        "value": "mmap",
+        "case": 2681,
+        "input_tokens": 9292,
+        "boot_seconds": 31.902826000005007,
+        "boot_plus_request_s": 80.20386060001329,
+        "ple": {
+          "manifest": "mmap",
+          "locked_in_ram": false,
+          "native_log": []
+        },
+        "elapsed_s": 48.30103460000828,
+        "ttft_s": 23.56950380001217,
+        "usage": {
+          "prompt_tokens": 9292,
+          "completion_tokens": 768,
+          "total_tokens": 10060,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 9292,
+          "prompt_ms": 23505.9,
+          "prompt_per_token_ms": 2.53,
+          "prompt_per_second": 395.3,
+          "predicted_n": 768,
+          "predicted_ms": 24766.1,
+          "predicted_per_token_ms": 32.248,
+          "predicted_per_second": 31.0,
+          "draft_n": 555,
+          "draft_n_accepted": 373
+        },
+        "finish": "length",
+        "text_sha256": "8f3d694e80947e366fcf5b4f1c8caeb69946e0b279c725758d72468eb1c03e62",
+        "gpu_before": {
+          "temp_c": 75,
+          "free_mib": 155,
+          "sm_mhz": 1531
+        },
+        "gpu_after": {
+          "temp_c": 82,
+          "free_mib": 37,
+          "sm_mhz": 1531
+        },
+        "gpu_free_min_mib": 29,
+        "gpu_temp_max_c": 85,
+        "host_numa_busy_pct": {
+          "prefill": {
+            "0": 50.9,
+            "1": 41.1
+          },
+          "decode": {
+            "0": 17.7,
+            "1": 5.9
+          }
+        }
+      },
+      {
+        "arm": "mmap-b",
+        "flag": "--ple-io",
+        "value": "mmap",
+        "case": 2682,
+        "input_tokens": 24368,
+        "boot_seconds": 31.902826000005007,
+        "boot_plus_request_s": 121.56428059999598,
+        "ple": {
+          "manifest": "mmap",
+          "locked_in_ram": false,
+          "native_log": []
+        },
+        "elapsed_s": 89.66145459999098,
+        "ttft_s": 64.77801770000951,
+        "usage": {
+          "prompt_tokens": 24368,
+          "completion_tokens": 768,
+          "total_tokens": 25136,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 24368,
+          "prompt_ms": 64688.3,
+          "prompt_per_token_ms": 2.655,
+          "prompt_per_second": 376.7,
+          "predicted_n": 768,
+          "predicted_ms": 24919.1,
+          "predicted_per_token_ms": 32.447,
+          "predicted_per_second": 30.8,
+          "draft_n": 572,
+          "draft_n_accepted": 382
+        },
+        "finish": "length",
+        "text_sha256": "6360a5aa9fd07ad9ec475bb1cb1e9665011f397f55c5aa5956931cf7e14f08ac",
+        "gpu_before": {
+          "temp_c": 81,
+          "free_mib": 37,
+          "sm_mhz": 1531
+        },
+        "gpu_after": {
+          "temp_c": 87,
+          "free_mib": 73,
+          "sm_mhz": 1531
+        },
+        "gpu_free_min_mib": 27,
+        "gpu_temp_max_c": 89,
+        "host_numa_busy_pct": {
+          "prefill": {
+            "0": 48.5,
+            "1": 37.5
+          },
+          "decode": {
+            "0": 17.9,
+            "1": 5.0
+          }
+        }
+      },
+      {
+        "arm": "ram-b",
+        "flag": "--ple-io",
+        "value": "ram",
+        "case": 2681,
+        "input_tokens": 9292,
+        "boot_seconds": 58.611231399991084,
+        "boot_plus_request_s": 107.94939909997629,
+        "ple": {
+          "manifest": "ram",
+          "locked_in_ram": true,
+          "native_log": [
+            "strata generate: PLE table locked in RAM (--ple-io ram) in 26.1 s"
+          ]
+        },
+        "elapsed_s": 49.338167699985206,
+        "ttft_s": 23.72325149999233,
+        "usage": {
+          "prompt_tokens": 9292,
+          "completion_tokens": 768,
+          "total_tokens": 10060,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 9292,
+          "prompt_ms": 23660.9,
+          "prompt_per_token_ms": 2.546,
+          "prompt_per_second": 392.7,
+          "predicted_n": 768,
+          "predicted_ms": 25648.7,
+          "predicted_per_token_ms": 33.397,
+          "predicted_per_second": 29.9,
+          "draft_n": 578,
+          "draft_n_accepted": 369
+        },
+        "finish": "length",
+        "text_sha256": "c0a80aa3956bacbbae6973b275c6b4d20c9c6f29f52c4cc1b953bcffd263b068",
+        "gpu_before": {
+          "temp_c": 73,
+          "free_mib": 157,
+          "sm_mhz": 1531
+        },
+        "gpu_after": {
+          "temp_c": 80,
+          "free_mib": 39,
+          "sm_mhz": 1531
+        },
+        "gpu_free_min_mib": 31,
+        "gpu_temp_max_c": 83,
+        "host_numa_busy_pct": {
+          "prefill": {
+            "0": 49.5,
+            "1": 41.4
+          },
+          "decode": {
+            "0": 17.5,
+            "1": 4.2
+          }
+        }
+      },
+      {
+        "arm": "ram-b",
+        "flag": "--ple-io",
+        "value": "ram",
+        "case": 2682,
+        "input_tokens": 24368,
+        "boot_seconds": 58.611231399991084,
+        "boot_plus_request_s": 149.38236579997465,
+        "ple": {
+          "manifest": "ram",
+          "locked_in_ram": true,
+          "native_log": [
+            "strata generate: PLE table locked in RAM (--ple-io ram) in 26.1 s"
+          ]
+        },
+        "elapsed_s": 90.77113439998357,
+        "ttft_s": 65.36560960003408,
+        "usage": {
+          "prompt_tokens": 24368,
+          "completion_tokens": 768,
+          "total_tokens": 25136,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 24368,
+          "prompt_ms": 65271.6,
+          "prompt_per_token_ms": 2.679,
+          "prompt_per_second": 373.3,
+          "predicted_n": 768,
+          "predicted_ms": 25443.9,
+          "predicted_per_token_ms": 33.13,
+          "predicted_per_second": 30.2,
+          "draft_n": 555,
+          "draft_n_accepted": 365
+        },
+        "finish": "length",
+        "text_sha256": "32fa0396dc2dbd8442b241ff0d6e130b4dcd12aee97f6ecde2763a3ae63794eb",
+        "gpu_before": {
+          "temp_c": 79,
+          "free_mib": 39,
+          "sm_mhz": 1531
+        },
+        "gpu_after": {
+          "temp_c": 87,
+          "free_mib": 75,
+          "sm_mhz": 1531
+        },
+        "gpu_free_min_mib": 29,
+        "gpu_temp_max_c": 90,
+        "host_numa_busy_pct": {
+          "prefill": {
+            "0": 49.0,
+            "1": 40.2
+          },
+          "decode": {
+            "0": 19.0,
+            "1": 7.3
+          }
+        }
+      },
+      {
+        "arm": "int8",
+        "flag": "--kv",
+        "value": "int8",
+        "case": 2681,
+        "input_tokens": 9292,
+        "boot_seconds": 77.78485220001312,
+        "boot_plus_request_s": 126.06665430002613,
+        "ple": {
+          "manifest": "ram",
+          "locked_in_ram": true,
+          "native_log": [
+            "strata generate: PLE table locked in RAM (--ple-io ram) in 43.3 s"
+          ]
+        },
+        "elapsed_s": 48.28180210001301,
+        "ttft_s": 23.566810599993914,
+        "usage": {
+          "prompt_tokens": 9292,
+          "completion_tokens": 768,
+          "total_tokens": 10060,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 9292,
+          "prompt_ms": 23503.0,
+          "prompt_per_token_ms": 2.529,
+          "prompt_per_second": 395.4,
+          "predicted_n": 768,
+          "predicted_ms": 24748.8,
+          "predicted_per_token_ms": 32.225,
+          "predicted_per_second": 31.0,
+          "draft_n": 553,
+          "draft_n_accepted": 380
+        },
+        "finish": "length",
+        "text_sha256": "024e96b36fcef697a9f181f5f47597237a14bb6fead96f7f61197f46e74653d0",
+        "gpu_before": {
+          "temp_c": 68,
+          "free_mib": 156,
+          "sm_mhz": 1531
+        },
+        "gpu_after": {
+          "temp_c": 77,
+          "free_mib": 38,
+          "sm_mhz": 1531
+        },
+        "gpu_free_min_mib": 30,
+        "gpu_temp_max_c": 79,
+        "host_numa_busy_pct": {
+          "prefill": {
+            "0": 51.9,
+            "1": 42.1
+          },
+          "decode": {
+            "0": 17.4,
+            "1": 4.1
+          }
+        }
+      },
+      {
+        "arm": "int8",
+        "flag": "--kv",
+        "value": "int8",
+        "case": 2682,
+        "input_tokens": 24368,
+        "boot_seconds": 77.78485220001312,
+        "boot_plus_request_s": 165.54322819999652,
+        "ple": {
+          "manifest": "ram",
+          "locked_in_ram": true,
+          "native_log": [
+            "strata generate: PLE table locked in RAM (--ple-io ram) in 43.3 s"
+          ]
+        },
+        "elapsed_s": 87.7583759999834,
+        "ttft_s": 63.68602159997681,
+        "usage": {
+          "prompt_tokens": 24368,
+          "completion_tokens": 768,
+          "total_tokens": 25136,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "api_timings": {
+          "cache_n": 0,
+          "prompt_n": 24368,
+          "prompt_ms": 63588.8,
+          "prompt_per_token_ms": 2.61,
+          "prompt_per_second": 383.2,
+          "predicted_n": 768,
+          "predicted_ms": 24112.6,
+          "predicted_per_token_ms": 31.397,
+          "predicted_per_second": 31.9,
+          "draft_n": 573,
+          "draft_n_accepted": 392
+        },
+        "finish": "length",
+        "text_sha256": "6a5bb731da6aeb16a54691f96202c9f6b17615876e17b8300ada32230490de9f",
+        "gpu_before": {
+          "temp_c": 76,
+          "free_mib": 38,
+          "sm_mhz": 1531
+        },
+        "gpu_after": {
+          "temp_c": 86,
+          "free_mib": 74,
+          "sm_mhz": 1531
+        },
+        "gpu_free_min_mib": 28,
+        "gpu_temp_max_c": 89,
+        "host_numa_busy_pct": {
+          "prefill": {
+            "0": 50.2,
+            "1": 40.2
+          },
+          "decode": {
+            "0": 17.1,
+            "1": 4.4
+          }
+        }
+      }
+    ],
+    "qualification": {
+      "arm": "qualified",
+      "flag": "--ple-io",
+      "value": "mmap",
+      "case": 2683,
+      "input_tokens": 261998,
+      "boot_seconds": 30.845080200000666,
+      "boot_plus_request_s": 939.2713914999622,
+      "ple": {
+        "manifest": "mmap",
+        "locked_in_ram": false,
+        "native_log": []
+      },
+      "elapsed_s": 908.4263112999615,
+      "ttft_s": 903.3638598999823,
+      "usage": {
+        "prompt_tokens": 261998,
+        "completion_tokens": 128,
+        "total_tokens": 262126,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "api_timings": {
+        "cache_n": 0,
+        "prompt_n": 261998,
+        "prompt_ms": 902789.3,
+        "prompt_per_token_ms": 3.446,
+        "prompt_per_second": 290.2,
+        "predicted_n": 128,
+        "predicted_ms": 5064.1,
+        "predicted_per_token_ms": 39.563,
+        "predicted_per_second": 25.3,
+        "draft_n": 88,
+        "draft_n_accepted": 54
+      },
+      "finish": "length",
+      "text_sha256": "19634eb2340700cf68c2003668190f4dcb1ca3b0ab5c97788d4bc23af021326e",
+      "gpu_before": {
+        "temp_c": 64,
+        "free_mib": 155,
+        "sm_mhz": 1531
+      },
+      "gpu_after": {
+        "temp_c": 88,
+        "free_mib": 73,
+        "sm_mhz": 1531
+      },
+      "gpu_free_min_mib": 29,
+      "gpu_temp_max_c": 90,
+      "host_numa_busy_pct": {
+        "prefill": {
+          "0": 42.1,
+          "1": 30.8
+        },
+        "decode": {
+          "0": 15.1,
+          "1": 3.2
+        }
+      }
+    },
+    "host_timing": {
+      "method": "Four pairs of cold App Host processes with fresh isolated profiles, bundled Node 24.12.0, real Windows hardware probes and no active cloudflared. Window and model startup are outside the timed interval. Health and tunnel state validated. All eight Host processes exited successfully via the shutdown endpoint.",
+      "summary_ms": {
+        "baseline": {
+          "probeMs": 611.4689,
+          "readyMs": 4031.285,
+          "healthMs": 4072.2405
+        },
+        "candidate": {
+          "probeMs": 406.55064999999996,
+          "readyMs": 3797.9119999999984,
+          "healthMs": 3831.878749999998
+        }
+      },
+      "startup_ms": [
+        {
+          "health_ms": 4081.2873,
+          "round": 0,
+          "ready_ms": 4028.1628999999994,
+          "shutdown_ms": 27.528199999998833,
+          "arm": "baseline"
+        },
+        {
+          "health_ms": 3812.402,
+          "round": 0,
+          "ready_ms": 3783.2482999999993,
+          "shutdown_ms": 27.382799999999406,
+          "arm": "candidate"
+        },
+        {
+          "health_ms": 3915.292800000001,
+          "round": 1,
+          "ready_ms": 3885.5882,
+          "shutdown_ms": 28.446900000002643,
+          "arm": "candidate"
+        },
+        {
+          "health_ms": 4036.7816999999995,
+          "round": 1,
+          "ready_ms": 3999.716700000001,
+          "shutdown_ms": 17.34400000000096,
+          "arm": "baseline"
+        },
+        {
+          "health_ms": 4063.1937,
+          "round": 2,
+          "ready_ms": 4034.4071000000004,
+          "shutdown_ms": 27.708600000001752,
+          "arm": "baseline"
+        },
+        {
+          "health_ms": 3828.400099999999,
+          "round": 2,
+          "ready_ms": 3797.945899999999,
+          "shutdown_ms": 27.267700000000332,
+          "arm": "candidate"
+        },
+        {
+          "health_ms": 3835.357399999997,
+          "round": 3,
+          "ready_ms": 3797.878099999998,
+          "shutdown_ms": 28.455800000003364,
+          "arm": "candidate"
+        },
+        {
+          "health_ms": 4095.3762999999963,
+          "round": 3,
+          "ready_ms": 4066.455799999996,
+          "shutdown_ms": 17.895299999996496,
+          "arm": "baseline"
+        }
+      ],
+      "connector_ms": [
+        {
+          "round": 0,
+          "ms": 631.4345000000001,
+          "arm": "baseline"
+        },
+        {
+          "round": 0,
+          "ms": 401.64379999999994,
+          "arm": "candidate"
+        },
+        {
+          "round": 1,
+          "ms": 411.4575,
+          "arm": "candidate"
+        },
+        {
+          "round": 1,
+          "ms": 615.9750000000001,
+          "arm": "baseline"
+        },
+        {
+          "round": 2,
+          "ms": 606.9627999999998,
+          "arm": "baseline"
+        },
+        {
+          "round": 2,
+          "ms": 397.72620000000006,
+          "arm": "candidate"
+        },
+        {
+          "round": 3,
+          "ms": 437.02019999999993,
+          "arm": "candidate"
+        },
+        {
+          "round": 3,
+          "ms": 593.4726,
+          "arm": "baseline"
+        }
+      ],
+      "live_mjs_sha256": "48c0535986e48722ff3e48062b09d5e0a156defef92b38d5e0a4bc60fd17e24a"
+    },
+    "decisions": {
+      "engine": "Main has no changes since the installed 0.1.63 source.",
+      "ple": "Use mmap for the working installation. It halved median engine readiness in warm restarts. Both inference lengths fall within or overlap the RAM control range. Nearly full 256K was qualified with the same GPU reserve.",
+      "int8": "One run ended slightly faster; it does not establish a repeatable gain. The selected profile uses Q4 KV.",
+      "app_host": "Use the complete Windows tasklist CSV for the absence fast path. Active connectors and ambiguous lists use existing CIM. Active real tunnels were not timed and the fast path targets a process without a connector."
+    },
+    "candidates": [
+      {
+        "decision": "The Pascal restrict fix is present in the current pdl.hpp and native CUDA kernels.",
+        "issue": 1469
+      },
+      {
+        "decision": "Windows unbuffered expert reads target low free RAM. The local arena load reports file-cache hits and substantial available RAM.",
+        "pr": 1696
+      },
+      {
+        "decision": "The Pascal dense FP32 path is already enabled in the saved profile.",
+        "pr": 2178
+      },
+      {
+        "decision": "The 4 KiB arena prefault does not engage with current 2 MiB large pages. Dense upload and early arena are independent pieces with external startup results.",
+        "pr": 2672
+      },
+      {
+        "decision": "Host checkpoint reuse for parked conversations. The Windows result used a different checkpoint policy, so this profile needs an alternating-conversation test before a port.",
+        "pr": 3945
+      },
+      {
+        "decision": "Automatic prefix pins across independent requests. Separate from retaining a parked conversation with the existing 2048-token threshold.",
+        "pr": 6196
+      },
+      {
+        "decision": "Elastic CPU Vision. The local profile keeps CPU Vision resident.",
+        "pr": 6452
+      },
+      {
+        "decision": "Bounds host RAM during swaps. No speed result for the current 256 GiB profile.",
+        "pr": 6465
+      },
+      {
+        "decision": "Local Strata owners report normal I/O priority. A forced priority override has no demonstrated benefit.",
+        "issue": 4733
+      },
+      {
+        "decision": "External Ivy Bridge int8 result on another GPU. Included a native int8 arm here.",
+        "issue": 6354
+      },
+      {
+        "decision": "Windows GPU-to-CPU Vision fallback. The installed profile selects CPU Vision directly.",
+        "issue": 6467
+      }
+    ]
   }
 }

@@ -7,3 +7,5 @@ The engine [index](index.json) pins the qualified upstream `3142b66b`. The earli
 Patch 06 lets a KoboldCpp LAN helper turn reasoning off when its model list omits reasoning metadata. An explicit model capability still takes precedence.
 
 Patch 07 accepts the self-contained engine introduced in 0.1.62. The receipt still pins the exact engine and Vision files, and supports the MMQ DLL in builds that include it.
+
+Patch 08 skips CIM at Windows App Host startup when a complete process list shows that cloudflared is absent. Four paired launches lowered median HTTP readiness from 4.07 s to 3.83 s. An active connector or an ambiguous listing still uses CIM.

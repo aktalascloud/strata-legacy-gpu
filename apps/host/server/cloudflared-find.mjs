@@ -135,6 +135,13 @@ export async function findRunningConnector({ platform = process.platform, exclud
   const skip = new Set(exclude.filter(Number.isInteger));
   let procs = [];
   if (platform === 'win32') {
+    const listing = await run('tasklist', ['/NH', '/FO', 'CSV']);
+    const rows = listing.trim().split(/\r?\n/);
+    // Only a complete native CSV list proves absence. Other output still needs CIM.
+    const isProcessList = rows.every(row => /^"[^"\r\n]+","\d+","[^"\r\n]*","\d+","[^"\r\n]*"$/.test(row));
+    if (isProcessList && !rows.some(row => /^"cloudflared\.exe",/i.test(row))) {
+      return { running: false, kind: null, pids: [], procs: [] };
+    }
     const out = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', utf8Script("Get-CimInstance Win32_Process -Filter \"Name='cloudflared.exe'\" | ForEach-Object { \"$($_.ProcessId)`t$($_.CommandLine)\" }")]);
     procs = out.split(/\r?\n/).map(l => /^(\d+)\t(.*)$/.exec(l)).filter(Boolean).map(m => ({ pid: Number(m[1]), command: m[2] }));
     if (!procs.length) {   // no PowerShell answer: at least the pids

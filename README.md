@@ -76,6 +76,10 @@ On `0.1.63`, `--conversation-cache-min-tokens 2048` preserved 9,285 of the long 
 
 Cold requests with 9,292 and 24,368 input tokens took **48.92 and 87.74 s** on stock `0.1.63`. The wider CPU share and the 2 MiB L2 prefetch slowed both requests. With the 2048-token threshold, the 261,998 + 128 token request completed without OOM in **906.99 s**. Sampled free VRAM reached 29 MiB.
 
+На прогретых перезапусках Windows `--ple-io mmap` сократил медиану готовности Swift с **67,18 до 31,14 с**. Время запросов 9K и 24K перекрыло диапазон RAM-контролей. Запрос 261 998 + 128 токенов прошёл без OOM за **908,43 с**, минимум свободной VRAM — 29 МиБ. Патч 08 сократил готовность App Host без активного cloudflared с **4,07 до 3,83 с** в четырёх парах.
+
+On warm Windows restarts, `--ple-io mmap` cut median Swift readiness from **67.18 to 31.14 s**. The 9K and 24K request times overlapped the RAM controls. The 261,998 + 128 token request completed without OOM in **908.43 s**, with 29 MiB minimum sampled free VRAM. Patch 08 cut App Host readiness with no active cloudflared from **4.07 to 3.83 s** across four pairs.
+
 На двух изображениях CPU Vision, 16 потоков, A/B/B/A: медианы повторов нового кодировщика примерно **3.27 с против 8.06 с** и **2.91 с против 7.27 с**. Выходы не побитово идентичны: cosine около 0.99985; реальные OCR-проверки `4217` и `STRATA 42` прошли. Это не гарантия качества на всех изображениях.
 
 On two images, 16-thread CPU Vision A/B/B/A median encoding times were about **3.27 s vs 8.06 s** and **2.91 s vs 7.27 s**. Embeddings were not bit-identical (cosine about 0.99985); real OCR checks returned `4217` and `STRATA 42`. This does not establish quality for every image.

@@ -1,0 +1,54 @@
+diff --git a/apps/host/server/cloudflared-find.mjs b/apps/host/server/cloudflared-find.mjs
+index ed2697222..bfa9d7928 100644
+--- a/apps/host/server/cloudflared-find.mjs
++++ b/apps/host/server/cloudflared-find.mjs
+@@ -135,6 +135,13 @@ export async function findRunningConnector({ platform = process.platform, exclud
+   const skip = new Set(exclude.filter(Number.isInteger));
+   let procs = [];
+   if (platform === 'win32') {
++    const listing = await run('tasklist', ['/NH', '/FO', 'CSV']);
++    const rows = listing.trim().split(/\r?\n/);
++    // Only a complete native CSV list proves absence. Other output still needs CIM.
++    const isProcessList = rows.every(row => /^"[^"\r\n]+","\d+","[^"\r\n]*","\d+","[^"\r\n]*"$/.test(row));
++    if (isProcessList && !rows.some(row => /^"cloudflared\.exe",/i.test(row))) {
++      return { running: false, kind: null, pids: [], procs: [] };
++    }
+     const out = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', utf8Script("Get-CimInstance Win32_Process -Filter \"Name='cloudflared.exe'\" | ForEach-Object { \"$($_.ProcessId)`t$($_.CommandLine)\" }")]);
+     procs = out.split(/\r?\n/).map(l => /^(\d+)\t(.*)$/.exec(l)).filter(Boolean).map(m => ({ pid: Number(m[1]), command: m[2] }));
+     if (!procs.length) {   // no PowerShell answer: at least the pids
+diff --git a/apps/host/tests/cloudflared-find.test.mjs b/apps/host/tests/cloudflared-find.test.mjs
+index 6c34f9ad0..1f17074fd 100644
+--- a/apps/host/tests/cloudflared-find.test.mjs
++++ b/apps/host/tests/cloudflared-find.test.mjs
+@@ -95,6 +95,31 @@ test('running detection lists every cloudflared with its pid; our own child is i
+   assert.deepEqual([w.running, w.kind, w.pids], [true, 'service', [8864]]);
+ });
+ 
++test('a complete Windows process list can skip CIM when no connector is visible', async () => {
++  const run = async (cmd, args) => {
++    assert.equal(cmd, 'tasklist');
++    assert.deepEqual(args, ['/NH', '/FO', 'CSV']);
++    return '"node.exe","123","Console","1","24,000 K"\r\n"System","4","Services","0","1 000 КБ"\r\n';
++  };
++  assert.deepEqual(await findRunningConnector({ platform: 'win32', run }), { running: false, kind: null, pids: [], procs: [] });
++});
++
++test('ambiguous Windows listings and visible connectors still use CIM', async () => {
++  for (const listing of ['', 'ИНФОРМАЦИЯ: Нет задач.', '"node.exe","123","Console","1","24,000 K"\r\ntruncated',
++    '"CLOUDFLARED.EXE","8864","Services","0","24,000 K"']) {
++    const calls = [];
++    const run = async cmd => {
++      calls.push(cmd);
++      if (cmd === 'tasklist') return listing;
++      if (cmd === 'powershell.exe') return '8864\tcloudflared tunnel --url http://127.0.0.1:9000\r\n';
++      return 'STATE : 4 RUNNING';
++    };
++    const state = await findRunningConnector({ platform: 'win32', run });
++    assert.deepEqual([state.running, state.kind, state.pids], [true, 'service', [8864]]);
++    assert.deepEqual(calls, ['tasklist', 'powershell.exe', 'sc.exe']);
++  }
++});
++
+ test('only a tunnel that is clearly Strata’s own (same port, or same token) counts as Strata’s; the rest are other people’s', () => {
+   const running = { running: true, procs: [
+     { pid: 1, command: 'cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8793' },
