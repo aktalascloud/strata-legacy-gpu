@@ -79,7 +79,8 @@ class ConfigureProfileTest(unittest.TestCase):
         self.assertEqual(cfg.file_hash(uniform), cfg.UNIFORM_SHA256)
         self.assertIn('uniform-no-traces', report['expert_profile'])
         for flag, expected in [('--max-context', '262144'), ('--kv', 'q4_0'), ('--prefill', '1536'),
-                               ('--vram-reserve-mib', '210'), ('--pool-workers', '14')]:
+                               ('--vram-reserve-mib', '210'), ('--pool-workers', '14'),
+                               ('--conversation-cache-min-tokens', '2048')]:
             self.assertEqual(profile['args'][profile['args'].index(flag) + 1], expected)
         self.assertNotIn('--mtp', profile['args'])
         self.assertNotIn('--spec', profile['args'])

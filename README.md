@@ -35,7 +35,7 @@ Run Swift 1.5 Flash Next locally on Windows with a Tesla P40 and an Ivy Bridge A
 
 Windows, Tesla P40 24 GiB, два Xeon E5-2697 v2 (16 доступных ядер), 256 GiB RAM, CUDA 12.9. Каждый запрос Swift IQ3_S сгенерировал 768 токенов без чтения кэша. Варианты собирались отдельно на `c7757280` и запускались с одинаковым профилем.
 
-Setup r4 включает Desktop `0.2.15` и движок `0.1.61` с CUDA `sm_61` и MMQ. Для рабочей установки проверена и собрана `0.1.62` из `58ee3227` с CUDA 12.9 и AVX1. Setup r4 bundles Desktop `0.2.15` and engine `0.1.61` with CUDA `sm_61` and MMQ. Engine `0.1.62` from `58ee3227` was built and qualified for the working installation with CUDA 12.9 and AVX1. [Upstream](https://github.com/Niko1221/Strata/commit/58ee3227720629ff2e41d640165ebe89c880dfef)
+Setup r4 включает Desktop `0.2.15` и движок `0.1.61` с CUDA `sm_61` и MMQ. В рабочей установке проверена `0.1.63` из `3142b66b` с CUDA 12.9 и AVX1. Setup r4 bundles Desktop `0.2.15` and engine `0.1.61` with CUDA `sm_61` and MMQ. The working installation was qualified with engine `0.1.63` from `3142b66b`, built with CUDA 12.9 and AVX1. [Upstream](https://github.com/Niko1221/Strata/commit/3142b66b96e9c0e775e30f620b11b191a1427c2a)
 
 | Движок / Engine | 9 292 + 768 | 24 368 + 768 |
 |---|---:|---:|
@@ -68,6 +68,14 @@ On engine 0.1.61, a request with **261,998 input and 128 output tokens**, withou
 
 On November 19, `0.1.62` completed the 9,292 and 24,368 + 768 token requests in **48.59 and 87.97 s**, within the two `0.1.61` controls. A prefill chunk of 2048 and QFUSE gave no consistent gain. The 96K long-selector run took 318.47 s versus 311.17 s and started warmer. The 261,998 + 128 token request took **908.61 s** without an OOM. Sampled free VRAM reached 27 MiB.
 
+На `0.1.63` после десяти коротких запросов порог `--conversation-cache-min-tokens 2048` сохранил 9 285 из 9 292 токенов длинного запроса. Повтор занял **1,70 с** против **24,72–24,91 с** в двух штатных контролях. Порог применяется к парковке диалогов. [Сценарий upstream](https://github.com/Niko1221/Strata/issues/6463)
+
+On `0.1.63`, `--conversation-cache-min-tokens 2048` preserved 9,285 of the long prompt's 9,292 tokens after ten short requests. The return took **1.70 s** versus **24.72–24.91 s** in two stock controls. The threshold applies to parked conversations. [Upstream scenario](https://github.com/Niko1221/Strata/issues/6463)
+
+Холодные запросы на 9 292 и 24 368 входных токенов заняли **48,92 и 87,74 с** на штатной `0.1.63`. Расширение CPU-доли до 16 токенов на эксперта и предзагрузка L2 с лимитом 2 МиБ замедлили оба запроса. С порогом 2048 запрос на 261 998 + 128 токенов прошёл без OOM за **906,99 с**. Минимум свободной VRAM по выборке составил 29 МиБ.
+
+Cold requests with 9,292 and 24,368 input tokens took **48.92 and 87.74 s** on stock `0.1.63`. The wider CPU share and the 2 MiB L2 prefetch slowed both requests. With the 2048-token threshold, the 261,998 + 128 token request completed without OOM in **906.99 s**. Sampled free VRAM reached 29 MiB.
+
 На двух изображениях CPU Vision, 16 потоков, A/B/B/A: медианы повторов нового кодировщика примерно **3.27 с против 8.06 с** и **2.91 с против 7.27 с**. Выходы не побитово идентичны: cosine около 0.99985; реальные OCR-проверки `4217` и `STRATA 42` прошли. Это не гарантия качества на всех изображениях.
 
 On two images, 16-thread CPU Vision A/B/B/A median encoding times were about **3.27 s vs 8.06 s** and **2.91 s vs 7.27 s**. Embeddings were not bit-identical (cosine about 0.99985); real OCR checks returned `4217` and `STRATA 42`. This does not establish quality for every image.
@@ -82,6 +90,6 @@ Based on [Niko1221/Strata](https://github.com/Niko1221/Strata), subject to the p
 
 [Патчи / Patches](legacy-p40/patches/) · [Сборка установщика Desktop / Desktop installer build](legacy-p40/desktop/installer/) · [Сборка движка P40 / P40 engine build](legacy-p40/build.ps1)
 
-Для сборки 0.1.62 укажите `-SourceDir` с проверенным checkout upstream `58ee3227` и используйте Developer PowerShell с CUDA 12.9. To rebuild 0.1.62, pass the upstream `58ee3227` checkout as `-SourceDir` and use Developer PowerShell with CUDA 12.9.
+Для сборки 0.1.63 укажите `-SourceDir` с проверенным checkout upstream `3142b66b` и используйте Developer PowerShell с CUDA 12.9. To rebuild 0.1.63, pass the upstream `3142b66b` checkout as `-SourceDir` and use Developer PowerShell with CUDA 12.9.
 
 [All projects / Все проекты](https://github.com/aktalascloud)

@@ -1,6 +1,6 @@
 # Active patches
 
-The engine [index](index.json) pins the qualified upstream `58ee3227`. The earlier Swift screen on `c7757280` covered 01, 57 and 58. None established a whole-request speedup. Upstream 0.1.62 carries equivalent route-prior protection to patch 57.
+The engine [index](index.json) pins the qualified upstream `3142b66b`. The earlier Swift screen on `c7757280` covered 01, 57 and 58. Upstream carries route-prior protection and AVX1 IQ4_NL PLE support. The 2048-token cache minimum uses a supported engine argument.
 
 [Desktop patches](desktop/) preserve the application features. Patch 05 overlaps CPU and GPU hardware probes on Windows. Median time to App Host HTTP 200 dropped from 5.68 s to 4.03 s across four paired starts.
 
