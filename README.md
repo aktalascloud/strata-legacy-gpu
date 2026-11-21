@@ -1,6 +1,6 @@
 # Strata Desktop for Tesla P40
 
-[Русский](#русский) · [Release / Скачать](https://github.com/aktalascloud/strata-legacy-gpu/releases/tag/v0.2.15-p40-r4) · [Patches / Патчи](legacy-p40/patches/) · [Evidence / Данные](legacy-p40/research/selection-20261118.json) · [Upstream](https://github.com/Niko1221/Strata)
+[Русский](#русский) · [Release / Скачать](https://github.com/aktalascloud/strata-legacy-gpu/releases/tag/v0.2.15-p40-r5) · [Patches / Патчи](legacy-p40/patches/) · [Evidence / Данные](legacy-p40/research/selection-20261118.json) · [Upstream](https://github.com/Niko1221/Strata)
 
 Run Swift 1.5 Flash Next locally on Windows with a Tesla P40 and an Ivy Bridge AVX1 CPU. Strata manages the CUDA backend, exposes an OpenAI-compatible API and can connect to a KoboldCpp media gateway on your LAN.
 
@@ -20,8 +20,8 @@ Run Swift 1.5 Flash Next locally on Windows with a Tesla P40 and an Ivy Bridge A
 
 - Desktop самостоятельно управляет локальным движком и OpenAI-совместимым API; предусмотрены автозапуск и защита от двух процессов модели.
 - Desktop owns the local engine and OpenAI-compatible API, with startup integration and protection against duplicate model processes.
-- Профиль Swift использует CUDA `sm_61`, контекст 256K, Q4 KV, Q2 MTP, prefill 1536, 14 CPU-воркеров и Vision на CPU в 16 потоков. Настраиваемый резерв составляет 210 МиБ.
-- The Swift profile uses CUDA `sm_61`, a 256K context, Q4 KV, Q2 MTP, prefill 1536, 14 CPU workers and 16-thread CPU Vision. The configured reserve is 210 MiB.
+- Профиль Swift в Setup r5 использует CUDA `sm_61`, контекст 256K, Q4 KV, опциональный Q2 MTP, prefill 1536, 14 CPU-воркеров и Vision на CPU в 16 потоков. PLE использует `mmap`, порог парковки составляет 2048 токенов, резерв задан на 200 МиБ.
+- Setup r5 uses CUDA `sm_61`, a 256K context, Q4 KV, optional Q2 MTP, prefill 1536, 14 CPU workers and 16-thread CPU Vision. The profile uses PLE `mmap`, a 2048-token parking threshold and a 200 MiB VRAM reserve.
 - Русский интерфейс, отображение reasoning, Ponytail и настройки автокомпакта агентских чатов. Обычный чат и ручной `/compact` используют отдельное штатное поведение.
 - Russian interface, reasoning display, Ponytail and configurable agent-chat compaction. Plain chat and manual `/compact` retain their own upstream behavior.
 - FreeLLM через Kilo: Nemotron 3 Ultra 550B и Dots3-Note Preview 280B без ключа, с лимитами из API. Облако используется только после выбора модели; провайдер может использовать запросы для обучения.
@@ -35,7 +35,7 @@ Run Swift 1.5 Flash Next locally on Windows with a Tesla P40 and an Ivy Bridge A
 
 Windows, Tesla P40 24 GiB, два Xeon E5-2697 v2 (16 доступных ядер), 256 GiB RAM, CUDA 12.9. Каждый запрос Swift IQ3_S сгенерировал 768 токенов без чтения кэша. Варианты собирались отдельно на `c7757280` и запускались с одинаковым профилем.
 
-Setup r4 включает Desktop `0.2.15` и движок `0.1.61` с CUDA `sm_61` и MMQ. В рабочей установке проверена `0.1.63` из `3142b66b` с CUDA 12.9 и AVX1. Setup r4 bundles Desktop `0.2.15` and engine `0.1.61` with CUDA `sm_61` and MMQ. The working installation was qualified with engine `0.1.63` from `3142b66b`, built with CUDA 12.9 and AVX1. [Upstream](https://github.com/Niko1221/Strata/commit/3142b66b96e9c0e775e30f620b11b191a1427c2a)
+Setup r5 включает Desktop `0.2.15` и движок `0.1.63` из `3142b66b` с CUDA 12.9 и AVX1. Setup r5 bundles Desktop `0.2.15` and engine `0.1.63` from `3142b66b`, built with CUDA 12.9 and AVX1. [Upstream](https://github.com/Niko1221/Strata/commit/3142b66b96e9c0e775e30f620b11b191a1427c2a)
 
 | Движок / Engine | 9 292 + 768 | 24 368 + 768 |
 |---|---:|---:|

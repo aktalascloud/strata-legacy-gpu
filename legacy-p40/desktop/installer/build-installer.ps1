@@ -4,7 +4,7 @@ param(
   [Parameter(Mandatory)][string]$Nsis,
   [Parameter(Mandatory)][ValidateNotNullOrEmpty()][string[]]$PrivatePrefix,
   [Parameter(Mandatory)][string]$Stage,
-  [ValidatePattern('^\d+\.\d+\.\d+\.\d+$')][string]$Version = '0.2.15.4',
+  [ValidatePattern('^\d+\.\d+\.\d+\.\d+$')][string]$Version = '0.2.15.5',
   [switch]$Qualification
 )
 Set-StrictMode -Version Latest

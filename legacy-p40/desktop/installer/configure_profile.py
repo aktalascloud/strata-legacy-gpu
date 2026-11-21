@@ -205,11 +205,11 @@ def configure(install_root: Path, model_dir: Path, mtp_dir: Path | None = None, 
         if mtp:
             args += ["--spec", "3", "--spec-min-p", "0.5"]
         args += ["--prompt-cache", "6", "--prompt-cache-every", "16384", "--prompt-cache-root", "2048",
-                 "--ple-io", "ram", "--pool-tasks", "0"]
+                 "--ple-io", "mmap", "--pool-tasks", "0"]
         if mtp:
             args += ["--mtp", str(mtp), "--suffix-draft", "3"]
         args += ["--lookup-chain", "0", "--pcie-frac", "1", "--prefill", "1536",
-                 "--vram-reserve-mib", "210", "--adapt-async", "0", "--prompt-cache-tail",
+                 "--vram-reserve-mib", "200", "--adapt-async", "0", "--prompt-cache-tail",
                  "--conversation-cache-min-tokens", "2048"]
         profile = {"host": "127.0.0.1", "port": 8093, "api_key": "none", "engine_ready_s": 1200,
                    "exe": "component:strata-engine", "cwd": str(control), "log": str(root / "engine.log"),

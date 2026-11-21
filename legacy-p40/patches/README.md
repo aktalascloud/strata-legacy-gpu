@@ -1,11 +1,12 @@
-# Active patches
+# Активные патчи / Active patches
 
-The engine [index](index.json) pins the qualified upstream `3142b66b`. The earlier Swift screen on `c7757280` covered 01, 57 and 58. Upstream carries route-prior protection and AVX1 IQ4_NL PLE support. The 2048-token cache minimum uses a supported engine argument.
+Индекс нативного движка фиксирует upstream `3142b66b`. Архив Desktop воспроизводит форк из `c7757280` с патчами в порядке номеров. The Desktop archive replays in number order onto `c7757280`. [Engine index](index.json)
 
-[Desktop patches](desktop/) preserve the application features. Patch 05 overlaps CPU and GPU hardware probes on Windows. Median time to App Host HTTP 200 dropped from 5.68 s to 4.03 s across four paired starts.
-
-Patch 06 lets a KoboldCpp LAN helper turn reasoning off when its model list omits reasoning metadata. An explicit model capability still takes precedence.
-
-Patch 07 accepts the self-contained engine introduced in 0.1.62. The receipt still pins the exact engine and Vision files, and supports the MMQ DLL in builds that include it.
-
-Patch 08 skips CIM at Windows App Host startup when a complete process list shows that cloudflared is absent. Four paired launches lowered median HTTP readiness from 4.07 s to 3.83 s. An active connector or an ambiguous listing still uses CIM.
+- Нативный выбор папки Windows. Native Windows folder picker. [01](desktop/01-upstream-6185.patch)
+- Русский интерфейс, трей, автокомпакт и FreeLLM. Russian UI, tray, automatic compaction and FreeLLM. [02](desktop/02-desktop-features.patch)
+- Разбор файлов навыков. Skill file parsing. [03](desktop/03-skill-parser.patch)
+- Автозагрузка Swift, LAN-помощники и медиашлюз. Swift autoload, LAN helpers and the media gateway. [04](desktop/04-swift-restart-and-providers.patch)
+- Параллельный опрос CPU и GPU. Parallel Windows CPU and GPU probes. [05](desktop/05-windows-parallel-hardware.patch)
+- Выключение reasoning для помощника KoboldCpp. Honor reasoning off for a KoboldCpp helper. [06](desktop/06-kobold-swarm-reasoning-off.patch)
+- Проверка файлов цельной сборки движка. Verify monolithic engine files. [07](desktop/07-monolithic-engine-receipt.patch)
+- Быстрая проверка отсутствия cloudflared при запуске. Faster startup when cloudflared is absent. [08](desktop/08-windows-cloudflared-preflight.patch)
